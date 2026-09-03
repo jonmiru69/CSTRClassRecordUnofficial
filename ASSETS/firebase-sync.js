@@ -19,14 +19,28 @@
   // Fill in the six values below from your own Firebase project — steps are in
   // FIREBASE_SETUP.md in the root of this repo.
   // ============================================================================
-  const firebaseConfig = {
-    apiKey: "PASTE_YOUR_API_KEY_HERE",
-    authDomain: "PASTE_YOUR_PROJECT_ID.firebaseapp.com",
-    databaseURL: "https://PASTE_YOUR_PROJECT_ID-default-rtdb.PASTE_YOUR_REGION.firebasedatabase.app",
-    projectId: "PASTE_YOUR_PROJECT_ID",
-    storageBucket: "PASTE_YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "PASTE_YOUR_SENDER_ID",
-    appId: "PASTE_YOUR_APP_ID"
+  // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyBgwxuXawJI_jWrlJ02R9eiPcgNMAN9m_Y",
+  authDomain: "cstr-class-record-global.firebaseapp.com",
+  databaseURL: "https://cstr-class-record-global-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "cstr-class-record-global",
+  storageBucket: "cstr-class-record-global.firebasestorage.app",
+  messagingSenderId: "164642028411",
+  appId: "1:164642028411:web:10d986ca8c095db57e1bde",
+  measurementId: "G-92QT6SKVFB"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
   };
 
   // Everything lives under this one top-level key in the database, same idea
