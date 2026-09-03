@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="CSTR single-teacher class record for Junior and Senior High School.">
+    <title>CSTR Class Record</title>
+    <link rel="icon" type="image/png" href="ASSETS/cstr-logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="ASSETS/styles.css?v=10">
+  </head>
+  <body>
+    <main id="app" aria-live="polite"></main>
+    <script src="ASSETS/grading-engine.js?v=10"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
+    <!-- Firebase compat SDK: same "just a script tag, no build step" model as
+         the xlsx library above, so this deploys on GitHub Pages exactly like
+         the old version did. See ASSETS/firebase-sync.js and
+         FIREBASE_SETUP.md for what to fill in. -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+    <script src="ASSETS/firebase-sync.js?v=1"></script>
+    <script src="ASSETS/app.js?v=10"></script>
+  </body>
+</html>
