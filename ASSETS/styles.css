@@ -53,8 +53,11 @@ body { margin: 0; min-width: 320px; position: relative; overflow-x: hidden; back
 #siteBg {
   position: fixed; inset: 0;
   background:
-    linear-gradient(160deg, rgba(255,255,255,.94) 0%, rgba(253,252,250,.85) 35%, rgba(248,227,163,.55) 100%),
+    linear-gradient(135deg, rgba(255,255,255,.92) 0%, rgba(255,255,255,.62) 42%, rgba(248,227,163,.40) 78%, rgba(240,203,110,.58) 100%),
     url("campus-bg.jpg") center 32% / cover no-repeat;
+  /* Slight contrast/saturation lift so the photo reads crisp and premium
+     rather than flat under the white/gold wash — not a blur, the opposite. */
+  filter: contrast(1.06) saturate(1.08);
 }
 html, body { background: transparent; }
 /* #app needs to be a positioned element (not just static-flow) so it lands in
@@ -568,6 +571,7 @@ input.cell-selected {
 .col-btn:hover { background: rgba(255,255,255,0.8); }
 
 .bulk-column-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 10px 0 14px; padding: 9px 14px; border: 1px solid #d8e0e7; border-radius: 8px; background: #f8fafc; color: #34495e; }
+.roster-slots-tools { margin: 14px 0 0; }
 .bulk-column-label { font-size: .78rem; font-weight: 600; color: #52677a; }
 .bulk-column-control { display: inline-flex; align-items: center; gap: 5px; padding-left: 10px; border-left: 1px solid #d7e0e8; font-size: .78rem; }
 .bulk-column-control input { width: 46px; min-height: 28px; padding: 2px 4px; border: 1px solid #aebdca; border-radius: 4px; text-align: center; }
@@ -599,23 +603,27 @@ input.cell-selected {
 .grade-status-note { margin: 10px 0 0; font-size: .84rem; line-height: 1.45; color: #52677a; }
 
 /* One block per matched class/subject: the learner's name + subject once,
-   the trend chart, then that section's per-period grade cards underneath. */
+   the performance chart, then that section's per-period grade cards underneath. */
 .search-result-modal { width: min(100%, 720px); }
-.student-trend-block { border: 1.5px solid var(--border); border-radius: 14px; padding: 18px 20px; background: #fff; box-shadow: var(--shadow-sm); }
-.student-trend-block + .student-trend-block { margin-top: 14px; }
-.student-trend-name { font-family: var(--font-serif); margin: 0 0 4px; font-size: 1.25rem; font-weight: 700; }
+.student-perf-block { border: 1.5px solid var(--border); border-radius: 14px; padding: 18px 20px; background: #fff; box-shadow: var(--shadow-sm); }
+.student-perf-block + .student-perf-block { margin-top: 14px; }
+.student-perf-name { font-family: var(--font-serif); margin: 0 0 4px; font-size: 1.25rem; font-weight: 700; }
 .student-grade-cards { display: grid; gap: 10px; margin-top: 14px; }
 .student-grade-cards .student-grade-result { padding: 14px 16px; }
 .student-period-name { margin: 0; font-weight: 700; color: #49677f; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }
 
-.student-trend { margin-top: 14px; padding: 14px 16px; background: #fbfaf6; border: 1px solid var(--border-light); border-radius: 10px; }
-.trend-svg { width: 100%; height: auto; display: block; }
-.trend-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 2px 0; font-size: 0.82rem; color: var(--text); }
-.trend-legend-item { display: inline-flex; align-items: center; gap: 6px; }
-.trend-swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-.trend-interpretation { margin: 12px 0 0; font-size: 0.88rem; line-height: 1.55; color: var(--text); }
-.trend-tip { margin: 8px 0 0; padding: 8px 12px; background: #fffdf4; border-left: 3px solid var(--gold); border-radius: 0 6px 6px 0; font-size: 0.86rem; line-height: 1.5; color: #4e4000; }
-.trend-tip strong { color: var(--gold-deep); }
+/* Grouped bar chart (WW/PT/QA per grading period) shown in the student
+   search popup — chosen over a line/trendline because a class record only
+   ever has a few grading periods, and bars stay legible and comparable
+   whether there's one period on record or four. */
+.student-perf-chart { margin-top: 14px; padding: 14px 16px; background: #fbfaf6; border: 1px solid var(--border-light); border-radius: 10px; }
+.perf-chart-svg { width: 100%; height: auto; display: block; }
+.perf-chart-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 2px 0; font-size: 0.82rem; color: var(--text); }
+.perf-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.perf-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.perf-interpretation { margin: 12px 0 0; font-size: 0.88rem; line-height: 1.55; color: var(--text); }
+.perf-tip { margin: 8px 0 0; padding: 8px 12px; background: #fffdf4; border-left: 3px solid var(--gold); border-radius: 0 6px 6px 0; font-size: 0.86rem; line-height: 1.5; color: #4e4000; }
+.perf-tip strong { color: var(--gold-deep); }
 
 /* ----------------------------------------------------
    Modals & Dialogs

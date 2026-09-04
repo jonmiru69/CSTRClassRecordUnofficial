@@ -343,7 +343,7 @@
       wwHps: Array(10).fill(""),
       ptHps: Array(8).fill(""),
       qaHps: Array(3).fill(""),
-      roster: emptyRoster(section.rosterSize || 42, 10, 8, 3)
+      roster: emptyRoster(section.rosterSize || 50, 10, 8, 3)
     };
   }
 
@@ -416,7 +416,7 @@
           wwHps: fitArray(period.wwHps, wwLen),
           ptHps: fitArray(period.ptHps, ptLen),
           qaHps: fitArray(period.qaHps, qaLen),
-          roster: Array.from({ length: section.rosterSize || 42 }, (_, index) => {
+          roster: Array.from({ length: section.rosterSize || 50 }, (_, index) => {
             const learner = Array.isArray(period.roster) ? period.roster[index] : null;
             return {
               name: learner && typeof learner.name === "string" ? learner.name : "",
@@ -813,7 +813,17 @@
       </div>
       <p class="paste-hint"><strong>Bulk multi-select & paste tip:</strong> click and drag across input cells vertically or horizontally to select blocks. Use <strong>Ctrl+C</strong> to copy, <strong>Ctrl+X</strong> to cut, <strong>Delete</strong> to clear, or paste (Ctrl+V) copied spreadsheet blocks straight from Excel/Sheets.</p>
       <div class="legend"><span><i class="dot dot-red"></i>Raw score above HPS - correct before finalizing</span><span><i class="dot dot-code"></i>A = Absent (scored 0/HPS) · E = Excused (excluded) · L = Late (excluded)</span><span><i class="dot dot-missing"></i>M = Missing, no excuse (scored 0/HPS)</span><span>QA slots calculate uniformly across entered values.</span></div>
-      ${renderRecordTable(section, period)}</div>`;
+      ${renderRecordTable(section, period)}
+      <div class="bulk-column-tools roster-slots-tools" aria-label="Add more name slots">
+        <span class="bulk-column-label">Roster fits ${section.rosterSize} learners — need more rows?</span>
+        <div class="bulk-column-control">
+          <label class="sr-only" for="rosterSlotCount">Number of name slots to add</label>
+          <input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" aria-label="Number of name slots to add">
+          <button type="button" class="col-btn col-btn-wide" data-action="add-roster-slots" title="Add name slots">+ Add slots</button>
+          <small>${section.rosterSize} active</small>
+        </div>
+      </div>
+      </div>`;
   }
 
   function renderBulkColumnControl(kind, label, count) {
@@ -933,6 +943,30 @@
     activePeriodIndex = periods.length - 1;
     markStateDirty();
     render();
+  }
+
+  // Adds more empty name slots to every grading period in the current
+  // section (keeping every period's roster the same length, same as
+  // normalizeState already enforces on load) — for classes that grow past
+  // the default 50-learner capacity. New rows use each period's own current
+  // WW/PT/QA column counts, so the same scoring math (HPS, weights,
+  // percentages) applies to them exactly like every other row.
+  function addRosterSlots(amount) {
+    if (!Number.isInteger(amount) || amount <= 0) return;
+    const section = currentSection();
+    const periods = state.sections[section.id].periods;
+    periods.forEach((period) => {
+      const wwLen = period.wwDates.length;
+      const ptLen = period.ptDates.length;
+      const qaLen = period.qaDates.length;
+      for (let i = 0; i < amount; i += 1) {
+        period.roster.push({ name: "", ww: Array(wwLen).fill(""), pt: Array(ptLen).fill(""), qa: Array(qaLen).fill("") });
+      }
+    });
+    section.rosterSize = (section.rosterSize || periods[0].roster.length - amount) + amount;
+    markStateDirty();
+    render();
+    setStatus(`Added ${amount} more name slot${amount === 1 ? "" : "s"}. Roster capacity is now ${section.rosterSize}.`);
   }
 
   function changeColumnCount(kind, amount) {
@@ -1161,7 +1195,7 @@
     if (!query) { showSearchModal("Enter the student's complete name to check a grade."); return; }
 
     // Group matches by section (not by section+period) so a learner who has
-    // several grading periods in the same class shares ONE trend chart built
+    // several grading periods in the same class shares ONE performance chart built
     // from all of them, instead of one flat, disconnected card per period.
     const bySection = new Map();
     state.registry.forEach((section) => {
@@ -1181,17 +1215,17 @@
     const blocks = [...bySection.values()].map(({ section, entries }) => {
       // entries[].period follows state.sections[section.id].periods order (real grading-period order)
       const learnerName = entries[0].learner.name;
-      const trendSeries = entries.map(({ period, result }) => ({
+      const scoreSeries = entries.map(({ period, result }) => ({
         periodName: period.name,
         ww: result.ww.percentage,
         pt: result.pt.percentage,
         qa: result.qa.percentage
       }));
       const cardsHtml = entries.map(({ period, result, complete }) => renderStudentGradeCard(period, result, complete)).join("");
-      return `<div class="student-trend-block">
+      return `<div class="student-perf-block">
         <p class="eyebrow">${escapeHtml(section.level)} &bull; ${escapeHtml(section.subject)}${section.section ? ` — ${escapeHtml(section.section)}` : ""} ${section.archived ? "(Archived)" : ""}</p>
-        <h3 class="student-trend-name">${escapeHtml(learnerName)}</h3>
-        ${renderStudentTrend(trendSeries)}
+        <h3 class="student-perf-name">${escapeHtml(learnerName)}</h3>
+        ${renderStudentPerformanceChart(scoreSeries)}
         <div class="student-grade-cards">${cardsHtml}</div>
       </div>`;
     }).join("");
@@ -1226,9 +1260,23 @@
     </article>`;
   }
 
-  // ---- Private per-student WW/PT/QA trend, used only inside the search popup ----
+  // ---- Private per-student WW/PT/QA performance chart, used only inside the search popup ----
+  //
+  // Deliberately a grouped bar chart, not a trendline. A class record only has
+  // a handful of grading periods (often just one or two at a time), and a
+  // line chart with 1–2 points either can't draw a line at all or draws one
+  // sharp diagonal that misreads as a dramatic swing. Bars compare cleanly at
+  // any number of periods and let a parent read "how did each area score
+  // this period" at a glance, without needing several data points to make
+  // sense of it.
+  //
+  // Tips are generated only from the recorded WW/PT/QA percentages — never
+  // from assumptions about behavior (deadlines, submission habits, effort).
+  // A learner can submit everything on time and still score lower in one
+  // component than another; the copy below only ever describes what that
+  // component measures and suggests generic, content-focused next steps.
 
-  const TREND_CATS = [
+  const PERF_CATS = [
     { key: "ww", label: "Written Works", dot: "var(--yellow)", line: "var(--ww-line)" },
     { key: "pt", label: "Performance Tasks", dot: "var(--blue)", line: "var(--pt-line)" },
     { key: "qa", label: "Quarterly Assessment", dot: "var(--red)", line: "var(--qa-line)" }
@@ -1244,7 +1292,7 @@
     return name.length > 14 ? name.slice(0, 13) + "…" : name;
   }
 
-  function trendCategoryStats(series, key) {
+  function categoryScoreStats(series, key) {
     const points = series.map((p, i) => ({ i, value: p[key] })).filter((p) => Number.isFinite(p.value));
     if (!points.length) return null;
     const avg = points.reduce((sum, p) => sum + p.value, 0) / points.length;
@@ -1253,55 +1301,65 @@
     return { avg, first, last, delta: points.length > 1 ? last - first : 0, count: points.length };
   }
 
-  function trendInterpretation(catsWithStats) {
+  // What each component actually measures, in plain terms — used to keep
+  // every tip tied to the score itself rather than a guess about why the
+  // score is what it is.
+  const COMPONENT_FOCUS = {
+    ww: "Written Works reflects day-to-day seatwork and quizzes. Reviewing the specific topics covered and practicing similar items can help raise this score.",
+    pt: "Performance Tasks reflects projects and hands-on, applied work. Practicing the specific skills those tasks call for can help raise this score.",
+    qa: "Quarterly Assessment reflects one comprehensive exam covering the whole quarter. Reviewing the full range of topics and taking practice tests can help raise this score."
+  };
+
+  function performanceInterpretation(catsWithStats) {
     if (!catsWithStats.length) return { interpretation: "", tip: "" };
+
+    const labels = { ww: "Written Works", pt: "Performance Tasks", qa: "Quarterly Assessment" };
 
     if (catsWithStats.length === 1) {
       const only = catsWithStats[0];
-      const labels = { ww: "Written Works", pt: "Performance Tasks", qa: "Quarterly Assessment" };
       const missing = Object.keys(labels).filter((k) => k !== only.key).map((k) => labels[k]);
       return {
         interpretation: `Only ${only.label} has recorded scores so far, averaging ${format(only.stats.avg, 1)}%. ${missing.join(" and ")} don't have entries yet for this learner.`,
-        tip: `Once the remaining components are scored, a fuller comparison — including where this learner is strongest — will show here.`
+        tip: `Once the remaining components are scored, a fuller picture of this learner's strengths will show here.`
       };
     }
 
     const sorted = [...catsWithStats].sort((a, b) => b.stats.avg - a.stats.avg);
     const strongest = sorted[0];
-    const weakest = sorted[sorted.length - 1];
+    const focusArea = sorted[sorted.length - 1];
     const periodCount = Math.max(...catsWithStats.map((c) => c.stats.count));
 
     const moved = catsWithStats.filter((c) => c.stats.count > 1).sort((a, b) => Math.abs(b.stats.delta) - Math.abs(a.stats.delta))[0];
     let movementSentence = "";
     if (moved && Math.abs(moved.stats.delta) >= 1) {
-      const dir = moved.stats.delta > 0 ? "rose" : "dropped";
-      movementSentence = ` Their ${moved.label} ${dir} from ${format(moved.stats.first, 1)}% to ${format(moved.stats.last, 1)}% across the periods shown.`;
+      const dir = moved.stats.delta > 0 ? "improved" : "went down";
+      movementSentence = ` Their ${moved.label} score ${dir} from ${format(moved.stats.first, 1)}% to ${format(moved.stats.last, 1)}% across the periods recorded.`;
     } else if (moved) {
-      movementSentence = ` ${moved.label} has stayed fairly steady across the periods shown.`;
+      movementSentence = ` ${moved.label} has stayed fairly steady across the periods recorded.`;
     }
 
-    const interpretation = `Across ${periodCount} grading period${periodCount > 1 ? "s" : ""} recorded, ${strongest.label} is this learner's strongest area at ${format(strongest.stats.avg, 1)}%, while ${weakest.label} is comparatively lower at ${format(weakest.stats.avg, 1)}%.${movementSentence}`;
+    const interpretation = `Based on ${periodCount} grading period${periodCount > 1 ? "s" : ""} of recorded scores, ${strongest.label} is this learner's strongest component at ${format(strongest.stats.avg, 1)}%, while ${focusArea.label} is comparatively lower at ${format(focusArea.stats.avg, 1)}%.${movementSentence}`;
 
-    const adviceByKey = {
-      ww: "more consistent seatwork, quizzes, and on-time submissions",
-      pt: "more guided practice with projects and applied, hands-on tasks",
-      qa: "more review sessions and practice tests leading up to the quarterly exam"
-    };
-    const tip = `${strongest.label} is this learner's strength — worth reinforcing. For ${weakest.label}, ${adviceByKey[weakest.key]} could help bring it closer to their other scores.`;
+    const tip = `${strongest.label} at ${format(strongest.stats.avg, 1)}% is a genuine strength, worth recognizing. For ${focusArea.label}, ${COMPONENT_FOCUS[focusArea.key]}`;
 
     return { interpretation, tip };
   }
 
-  function renderStudentTrend(series) {
+  function renderStudentPerformanceChart(series) {
     if (!series.length) return "";
-    const stats = TREND_CATS.map((c) => ({ ...c, stats: trendCategoryStats(series, c.key) }));
+    const stats = PERF_CATS.map((c) => ({ ...c, stats: categoryScoreStats(series, c.key) }));
     const withData = stats.filter((c) => c.stats);
     if (!withData.length) return "";
 
-    const w = 560, h = 200, padL = 34, padR = 16, padT = 16, padB = 30;
+    const w = 560, h = 230, padL = 34, padR = 16, padT = 22, padB = 40;
     const plotW = w - padL - padR, plotH = h - padT - padB;
     const n = series.length;
-    const xFor = (i) => n === 1 ? padL + plotW / 2 : padL + (plotW * i) / (n - 1);
+    const groupW = plotW / n;
+    const groupPad = Math.min(16, groupW * 0.18);
+    const barGap = 4;
+    const barW = Math.max(8, (groupW - groupPad * 2 - barGap * (PERF_CATS.length - 1)) / PERF_CATS.length);
+    const baseline = padT + plotH;
+
     const yFor = (v) => padT + plotH - (plotH * Math.max(0, Math.min(100, v))) / 100;
 
     const gridLines = [0, 25, 50, 75, 100].map((v) => {
@@ -1309,25 +1367,32 @@
       return `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="var(--border)" stroke-width="1"/><text x="${padL - 8}" y="${y + 4}" font-size="10" fill="var(--muted)" text-anchor="end">${v}</text>`;
     }).join("");
 
-    const xLabels = series.map((p, i) => `<text x="${xFor(i)}" y="${h - 8}" font-size="10" fill="var(--muted)" text-anchor="middle">${escapeHtml(shortenPeriodLabel(p.periodName))}</text>`).join("");
-
-    const lines = TREND_CATS.map((c) => {
-      const pts = series.map((p, i) => ({ i, v: p[c.key] })).filter((p) => Number.isFinite(p.v));
-      if (!pts.length) return "";
-      const path = pts.map((p, idx) => `${idx === 0 ? "M" : "L"} ${xFor(p.i).toFixed(1)} ${yFor(p.v).toFixed(1)}`).join(" ");
-      const strokeEl = pts.length > 1 ? `<path d="${path}" fill="none" stroke="${c.line}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>` : "";
-      const dots = pts.map((p) => `<circle cx="${xFor(p.i).toFixed(1)}" cy="${yFor(p.v).toFixed(1)}" r="4" fill="${c.dot}" stroke="${c.line}" stroke-width="1.5"/>`).join("");
-      return strokeEl + dots;
+    const bars = series.map((p, i) => {
+      const groupX = padL + groupW * i + groupPad;
+      return PERF_CATS.map((c, ci) => {
+        const v = p[c.key];
+        if (!Number.isFinite(v)) return "";
+        const x = groupX + ci * (barW + barGap);
+        const y = yFor(v);
+        const barH = Math.max(0, baseline - y);
+        const valueLabel = `<text x="${(x + barW / 2).toFixed(1)}" y="${(y - 5).toFixed(1)}" font-size="9" fill="var(--muted)" text-anchor="middle">${format(v, 0)}</text>`;
+        return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${c.dot}" stroke="${c.line}" stroke-width="1.2"/>${valueLabel}`;
+      }).join("");
     }).join("");
 
-    const legend = withData.map((c) => `<span class="trend-legend-item"><span class="trend-swatch" style="background:${c.line}"></span>${c.label} <strong>${format(c.stats.avg, 1)}%</strong></span>`).join("");
-    const analysis = trendInterpretation(withData);
+    const xLabels = series.map((p, i) => {
+      const groupCenter = padL + groupW * i + groupW / 2;
+      return `<text x="${groupCenter.toFixed(1)}" y="${h - padB + 16}" font-size="10" fill="var(--muted)" text-anchor="middle">${escapeHtml(shortenPeriodLabel(p.periodName))}</text>`;
+    }).join("");
 
-    return `<div class="student-trend">
-      <svg viewBox="0 0 ${w} ${h}" class="trend-svg" role="img" aria-label="Written Work, Performance Task, and Quarterly Assessment trend for this learner">${gridLines}${lines}${xLabels}</svg>
-      <div class="trend-legend">${legend}</div>
-      <p class="trend-interpretation">${analysis.interpretation}</p>
-      <p class="trend-tip"><strong>Tip:</strong> ${analysis.tip}</p>
+    const legend = withData.map((c) => `<span class="perf-legend-item"><span class="perf-swatch" style="background:${c.line}"></span>${c.label} <strong>${format(c.stats.avg, 1)}%</strong></span>`).join("");
+    const analysis = performanceInterpretation(withData);
+
+    return `<div class="student-perf-chart">
+      <svg viewBox="0 0 ${w} ${h}" class="perf-chart-svg" role="img" aria-label="Written Work, Performance Task, and Quarterly Assessment scores by grading period for this learner">${gridLines}${bars}${xLabels}</svg>
+      <div class="perf-chart-legend">${legend}</div>
+      <p class="perf-interpretation">${analysis.interpretation}</p>
+      <p class="perf-tip"><strong>Tip:</strong> ${analysis.tip}</p>
     </div>`;
   }
 
@@ -2032,6 +2097,12 @@
       const count = Math.min(50, Math.max(1, Number.parseInt(countInput && countInput.value, 10) || 1));
       changeColumnCount(kind, action === "bulk-add-col" ? count : -count);
     }
+    if (action === "add-roster-slots") {
+      const countInput = document.querySelector('[data-column-count="roster"]');
+      const count = Math.min(100, Math.max(1, Number.parseInt(countInput && countInput.value, 10) || 10));
+      addRosterSlots(count);
+    }
+
     if (action === "export-excel") exportCurrentSheet();
 
     if (action === "set-archive-filter") {
@@ -2088,7 +2159,7 @@
       const group = isSHS ? "SHS" : "JHS";
       
       const newId = "class-" + Date.now();
-      const newClass = { id: newId, group, level, subject, section: sectionName, weights, theme, accent: theme, rosterSize: 42, archived: false };
+      const newClass = { id: newId, group, level, subject, section: sectionName, weights, theme, accent: theme, rosterSize: 50, archived: false };
       
       state.registry.push(newClass);
       state.sections[newId] = { periods: [initialPeriod(newClass)] };
