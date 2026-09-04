@@ -19,6 +19,9 @@
   --gold: #D4AF37;
   --gold-light: #F0D77B;
   --gold-deep: #B8860B;
+  --ww-line: #C79A2E;
+  --pt-line: #3E7EA6;
+  --qa-line: #6E1414;
   --code-cell-bg: #EEF1FB;
   --code-cell-text: #3B3F79;
   --missing-cell-bg: #F2A9A2;
@@ -41,8 +44,28 @@ html {
 }
 body { margin: 0; min-width: 320px; position: relative; overflow-x: hidden; background-color: #faf8f2; }
 
-/* Plain beige background, blended with the site's existing off-white/beige tones (--base, #faf8f2, #FAF6EE). */
-.aura-bg { position: relative; min-height: 100vh; overflow: hidden; background: #F5EFE0; }
+/* Fixed full-viewport campus photo, washed into the site's white/light-yellow
+   tones. Lives outside #app so it is never wiped or covered by re-renders —
+   it stays put through login, logout, and every view change.
+   Deliberately no z-index here: #siteBg is the first element in <body>, and
+   #app's content has no z-index of its own, so plain DOM order already puts
+   #app on top — no stacking-context trick needed, nothing to fight with. */
+#siteBg {
+  position: fixed; inset: 0;
+  background:
+    linear-gradient(160deg, rgba(255,255,255,.94) 0%, rgba(253,252,250,.85) 35%, rgba(248,227,163,.55) 100%),
+    url("campus-bg.jpg") center 32% / cover no-repeat;
+}
+html, body { background: transparent; }
+/* #app needs to be a positioned element (not just static-flow) so it lands in
+   the same stacking tier as the fixed #siteBg — at that point DOM order
+   decides, and #app (written after #siteBg in the HTML) paints on top. */
+main#app { position: relative; }
+
+/* This wrapper used to paint its own opaque beige over whatever was behind it,
+   which is exactly what hid the site background once logged in. It's now
+   transparent so #siteBg shows through on every screen, not just login. */
+.aura-bg { position: relative; min-height: 100vh; overflow: hidden; background: transparent; }
 .aura-layer-1, .aura-layer-2 { display: none; }
 .aura-content { position: relative; z-index: 1; min-height: 100vh; }
 
@@ -574,6 +597,25 @@ input.cell-selected {
 .student-grade-result.grade-complete { border-left-color: #27ae60; background: #f6fbf8; }
 .student-grade-result.grade-provisional { border-left-color: #d97706; background: #fffdfa; }
 .grade-status-note { margin: 10px 0 0; font-size: .84rem; line-height: 1.45; color: #52677a; }
+
+/* One block per matched class/subject: the learner's name + subject once,
+   the trend chart, then that section's per-period grade cards underneath. */
+.search-result-modal { width: min(100%, 720px); }
+.student-trend-block { border: 1.5px solid var(--border); border-radius: 14px; padding: 18px 20px; background: #fff; box-shadow: var(--shadow-sm); }
+.student-trend-block + .student-trend-block { margin-top: 14px; }
+.student-trend-name { font-family: var(--font-serif); margin: 0 0 4px; font-size: 1.25rem; font-weight: 700; }
+.student-grade-cards { display: grid; gap: 10px; margin-top: 14px; }
+.student-grade-cards .student-grade-result { padding: 14px 16px; }
+.student-period-name { margin: 0; font-weight: 700; color: #49677f; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }
+
+.student-trend { margin-top: 14px; padding: 14px 16px; background: #fbfaf6; border: 1px solid var(--border-light); border-radius: 10px; }
+.trend-svg { width: 100%; height: auto; display: block; }
+.trend-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 2px 0; font-size: 0.82rem; color: var(--text); }
+.trend-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.trend-swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.trend-interpretation { margin: 12px 0 0; font-size: 0.88rem; line-height: 1.55; color: var(--text); }
+.trend-tip { margin: 8px 0 0; padding: 8px 12px; background: #fffdf4; border-left: 3px solid var(--gold); border-radius: 0 6px 6px 0; font-size: 0.86rem; line-height: 1.5; color: #4e4000; }
+.trend-tip strong { color: var(--gold-deep); }
 
 /* ----------------------------------------------------
    Modals & Dialogs

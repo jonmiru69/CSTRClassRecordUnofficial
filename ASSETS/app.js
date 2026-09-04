@@ -1159,44 +1159,176 @@
     const input = document.querySelector("#studentSearch");
     const query = normalizedName(input && input.value);
     if (!query) { showSearchModal("Enter the student's complete name to check a grade."); return; }
-    const matches = [];
-    state.registry.forEach((section) => state.sections[section.id].periods.forEach((period) => {
-      period.roster.forEach((learner) => {
-        if (!normalizedName(learner.name).includes(query) || getLearnerCategory(learner.name)) return;
-        const result = learnerResult(learner, period, section.weights);
-        matches.push({ section, period, learner, result, complete: isLearnerAssessmentComplete(learner, period) });
+
+    // Group matches by section (not by section+period) so a learner who has
+    // several grading periods in the same class shares ONE trend chart built
+    // from all of them, instead of one flat, disconnected card per period.
+    const bySection = new Map();
+    state.registry.forEach((section) => {
+      state.sections[section.id].periods.forEach((period) => {
+        period.roster.forEach((learner) => {
+          if (!normalizedName(learner.name).includes(query) || getLearnerCategory(learner.name)) return;
+          const result = learnerResult(learner, period, section.weights);
+          const complete = isLearnerAssessmentComplete(learner, period);
+          if (!bySection.has(section.id)) bySection.set(section.id, { section, entries: [] });
+          bySection.get(section.id).entries.push({ period, learner, result, complete });
+        });
       });
-    }));
-    if (!matches.length) { showSearchModal("No student matching '" + escapeHtml(query) + "' was found. Please verify the name and try again."); return; }
-    const cards = matches.map(({ section, period, learner, result, complete }) => {
-      const initialGrade = format(result.initial.rounded, 3);
-      const transmutedGrade = format(result.initial.transmuted, 0);
-      const descriptor = result.initial.descriptor;
-      const label = complete ? "Validated Grade — Complete Requirements" : "Current Grade — Provisional (Incomplete Requirements)";
-      const note = complete ? "All entered WW, PT, and QA requirements are complete for this learner." : "This grade updates live as scores are entered; missing or incomplete requirements prevent final validation.";
-      return `<article class="student-grade-result ${complete ? "grade-complete" : "grade-provisional"}">
-        <p class="eyebrow">${escapeHtml(section.level)} &bull; ${escapeHtml(period.name)} ${section.archived ? "(Archived)" : ""}</p>
-        <h3>${escapeHtml(learner.name)}</h3>
-        <p class="student-subject">${escapeHtml(section.subject)}${section.section ? ` — ${escapeHtml(section.section)}` : ""}</p>
-        <div class="student-grade-grid">
-          <div class="student-grade-box">
-            <p class="student-grade-label">Initial Grade</p>
-            <p class="student-grade">${initialGrade}</p>
-          </div>
-          <div class="student-grade-box">
-            <p class="student-grade-label">Final Transmuted</p>
-            <p class="student-grade transmuted">${transmutedGrade}</p>
-          </div>
-          <div class="student-grade-box">
-            <p class="student-grade-label">Descriptor</p>
-            <div style="margin-top:6px;">${renderDescriptorBadge(descriptor)}</div>
-          </div>
-        </div>
-        <p class="student-grade-label" style="margin-top:12px;">${label}</p>
-        <p class="grade-status-note">${note}</p>
-      </article>`;
+    });
+
+    if (!bySection.size) { showSearchModal("No student matching '" + escapeHtml(query) + "' was found. Please verify the name and try again."); return; }
+
+    const blocks = [...bySection.values()].map(({ section, entries }) => {
+      // entries[].period follows state.sections[section.id].periods order (real grading-period order)
+      const learnerName = entries[0].learner.name;
+      const trendSeries = entries.map(({ period, result }) => ({
+        periodName: period.name,
+        ww: result.ww.percentage,
+        pt: result.pt.percentage,
+        qa: result.qa.percentage
+      }));
+      const cardsHtml = entries.map(({ period, result, complete }) => renderStudentGradeCard(period, result, complete)).join("");
+      return `<div class="student-trend-block">
+        <p class="eyebrow">${escapeHtml(section.level)} &bull; ${escapeHtml(section.subject)}${section.section ? ` — ${escapeHtml(section.section)}` : ""} ${section.archived ? "(Archived)" : ""}</p>
+        <h3 class="student-trend-name">${escapeHtml(learnerName)}</h3>
+        ${renderStudentTrend(trendSeries)}
+        <div class="student-grade-cards">${cardsHtml}</div>
+      </div>`;
     }).join("");
-    showSearchModal(cards, true);
+
+    showSearchModal(blocks, true);
+  }
+
+  function renderStudentGradeCard(period, result, complete) {
+    const initialGrade = format(result.initial.rounded, 3);
+    const transmutedGrade = format(result.initial.transmuted, 0);
+    const descriptor = result.initial.descriptor;
+    const label = complete ? "Validated Grade — Complete Requirements" : "Current Grade — Provisional (Incomplete Requirements)";
+    const note = complete ? "All entered WW, PT, and QA requirements are complete for this learner." : "This grade updates live as scores are entered; missing or incomplete requirements prevent final validation.";
+    return `<article class="student-grade-result ${complete ? "grade-complete" : "grade-provisional"}">
+      <p class="student-period-name">${escapeHtml(period.name)}</p>
+      <div class="student-grade-grid">
+        <div class="student-grade-box">
+          <p class="student-grade-label">Initial Grade</p>
+          <p class="student-grade">${initialGrade}</p>
+        </div>
+        <div class="student-grade-box">
+          <p class="student-grade-label">Final Transmuted</p>
+          <p class="student-grade transmuted">${transmutedGrade}</p>
+        </div>
+        <div class="student-grade-box">
+          <p class="student-grade-label">Descriptor</p>
+          <div style="margin-top:6px;">${renderDescriptorBadge(descriptor)}</div>
+        </div>
+      </div>
+      <p class="student-grade-label" style="margin-top:12px;">${label}</p>
+      <p class="grade-status-note">${note}</p>
+    </article>`;
+  }
+
+  // ---- Private per-student WW/PT/QA trend, used only inside the search popup ----
+
+  const TREND_CATS = [
+    { key: "ww", label: "Written Works", dot: "var(--yellow)", line: "var(--ww-line)" },
+    { key: "pt", label: "Performance Tasks", dot: "var(--blue)", line: "var(--pt-line)" },
+    { key: "qa", label: "Quarterly Assessment", dot: "var(--red)", line: "var(--qa-line)" }
+  ];
+
+  function shortenPeriodLabel(name) {
+    const short = {
+      "1st Grading": "Q1", "2nd Grading": "Q2", "3rd Grading": "Q3", "4th Grading": "Q4",
+      "1st Quarter, 1st Semester": "Q1", "2nd Quarter, 1st Semester": "Q2",
+      "1st Quarter, 2nd Semester": "Q3", "2nd Quarter, 2nd Semester": "Q4"
+    };
+    if (short[name]) return short[name];
+    return name.length > 14 ? name.slice(0, 13) + "…" : name;
+  }
+
+  function trendCategoryStats(series, key) {
+    const points = series.map((p, i) => ({ i, value: p[key] })).filter((p) => Number.isFinite(p.value));
+    if (!points.length) return null;
+    const avg = points.reduce((sum, p) => sum + p.value, 0) / points.length;
+    const first = points[0].value;
+    const last = points[points.length - 1].value;
+    return { avg, first, last, delta: points.length > 1 ? last - first : 0, count: points.length };
+  }
+
+  function trendInterpretation(catsWithStats) {
+    if (!catsWithStats.length) return { interpretation: "", tip: "" };
+
+    if (catsWithStats.length === 1) {
+      const only = catsWithStats[0];
+      const labels = { ww: "Written Works", pt: "Performance Tasks", qa: "Quarterly Assessment" };
+      const missing = Object.keys(labels).filter((k) => k !== only.key).map((k) => labels[k]);
+      return {
+        interpretation: `Only ${only.label} has recorded scores so far, averaging ${format(only.stats.avg, 1)}%. ${missing.join(" and ")} don't have entries yet for this learner.`,
+        tip: `Once the remaining components are scored, a fuller comparison — including where this learner is strongest — will show here.`
+      };
+    }
+
+    const sorted = [...catsWithStats].sort((a, b) => b.stats.avg - a.stats.avg);
+    const strongest = sorted[0];
+    const weakest = sorted[sorted.length - 1];
+    const periodCount = Math.max(...catsWithStats.map((c) => c.stats.count));
+
+    const moved = catsWithStats.filter((c) => c.stats.count > 1).sort((a, b) => Math.abs(b.stats.delta) - Math.abs(a.stats.delta))[0];
+    let movementSentence = "";
+    if (moved && Math.abs(moved.stats.delta) >= 1) {
+      const dir = moved.stats.delta > 0 ? "rose" : "dropped";
+      movementSentence = ` Their ${moved.label} ${dir} from ${format(moved.stats.first, 1)}% to ${format(moved.stats.last, 1)}% across the periods shown.`;
+    } else if (moved) {
+      movementSentence = ` ${moved.label} has stayed fairly steady across the periods shown.`;
+    }
+
+    const interpretation = `Across ${periodCount} grading period${periodCount > 1 ? "s" : ""} recorded, ${strongest.label} is this learner's strongest area at ${format(strongest.stats.avg, 1)}%, while ${weakest.label} is comparatively lower at ${format(weakest.stats.avg, 1)}%.${movementSentence}`;
+
+    const adviceByKey = {
+      ww: "more consistent seatwork, quizzes, and on-time submissions",
+      pt: "more guided practice with projects and applied, hands-on tasks",
+      qa: "more review sessions and practice tests leading up to the quarterly exam"
+    };
+    const tip = `${strongest.label} is this learner's strength — worth reinforcing. For ${weakest.label}, ${adviceByKey[weakest.key]} could help bring it closer to their other scores.`;
+
+    return { interpretation, tip };
+  }
+
+  function renderStudentTrend(series) {
+    if (!series.length) return "";
+    const stats = TREND_CATS.map((c) => ({ ...c, stats: trendCategoryStats(series, c.key) }));
+    const withData = stats.filter((c) => c.stats);
+    if (!withData.length) return "";
+
+    const w = 560, h = 200, padL = 34, padR = 16, padT = 16, padB = 30;
+    const plotW = w - padL - padR, plotH = h - padT - padB;
+    const n = series.length;
+    const xFor = (i) => n === 1 ? padL + plotW / 2 : padL + (plotW * i) / (n - 1);
+    const yFor = (v) => padT + plotH - (plotH * Math.max(0, Math.min(100, v))) / 100;
+
+    const gridLines = [0, 25, 50, 75, 100].map((v) => {
+      const y = yFor(v);
+      return `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="var(--border)" stroke-width="1"/><text x="${padL - 8}" y="${y + 4}" font-size="10" fill="var(--muted)" text-anchor="end">${v}</text>`;
+    }).join("");
+
+    const xLabels = series.map((p, i) => `<text x="${xFor(i)}" y="${h - 8}" font-size="10" fill="var(--muted)" text-anchor="middle">${escapeHtml(shortenPeriodLabel(p.periodName))}</text>`).join("");
+
+    const lines = TREND_CATS.map((c) => {
+      const pts = series.map((p, i) => ({ i, v: p[c.key] })).filter((p) => Number.isFinite(p.v));
+      if (!pts.length) return "";
+      const path = pts.map((p, idx) => `${idx === 0 ? "M" : "L"} ${xFor(p.i).toFixed(1)} ${yFor(p.v).toFixed(1)}`).join(" ");
+      const strokeEl = pts.length > 1 ? `<path d="${path}" fill="none" stroke="${c.line}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>` : "";
+      const dots = pts.map((p) => `<circle cx="${xFor(p.i).toFixed(1)}" cy="${yFor(p.v).toFixed(1)}" r="4" fill="${c.dot}" stroke="${c.line}" stroke-width="1.5"/>`).join("");
+      return strokeEl + dots;
+    }).join("");
+
+    const legend = withData.map((c) => `<span class="trend-legend-item"><span class="trend-swatch" style="background:${c.line}"></span>${c.label} <strong>${format(c.stats.avg, 1)}%</strong></span>`).join("");
+    const analysis = trendInterpretation(withData);
+
+    return `<div class="student-trend">
+      <svg viewBox="0 0 ${w} ${h}" class="trend-svg" role="img" aria-label="Written Work, Performance Task, and Quarterly Assessment trend for this learner">${gridLines}${lines}${xLabels}</svg>
+      <div class="trend-legend">${legend}</div>
+      <p class="trend-interpretation">${analysis.interpretation}</p>
+      <p class="trend-tip"><strong>Tip:</strong> ${analysis.tip}</p>
+    </div>`;
   }
 
   function showSearchModal(message, isHtml = false) {
