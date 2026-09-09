@@ -47,6 +47,7 @@
       async sendPasswordResetEmail() { throw new Error("Firebase SDK not loaded"); },
       async changePassword() { throw new Error("Firebase SDK not loaded"); },
       async setInitialPassword() { throw new Error("Firebase SDK not loaded"); },
+      async unlinkPasswordProvider() { throw new Error("Firebase SDK not loaded"); },
       hasPasswordProvider() { return false; },
       async signOut() {},
       getCurrentUser() { return null; }
@@ -152,6 +153,17 @@
       const credential = firebase.auth.EmailAuthProvider.credential(user.email, newPassword);
       await user.linkWithCredential(credential);
       return user;
+    },
+
+    // Removes the password sign-in method from the current account, leaving
+    // any other providers (e.g. Google) untouched. Used to roll back a
+    // just-added password credential if a legacy-account bind fails right
+    // after it (e.g. the code was mistyped) — so a bad attempt never leaves
+    // a stray/incorrect password sitting on someone's account.
+    async unlinkPasswordProvider() {
+      const user = auth.currentUser;
+      if (!user) return;
+      await user.unlink("password");
     },
 
     async signOut() {
