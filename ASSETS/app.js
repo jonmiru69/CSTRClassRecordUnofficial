@@ -713,13 +713,13 @@
   }
 
   function renderLegacyClaimPanel() {
-    return `<p class="legacy-helper-text" style="text-align: left;">If you have class records from before this upgrade (e.g. Sir Harty, Ma'am Sam), claim them below. <strong>Your legacy account code becomes your password</strong> — you're free to change it anytime afterward from Settings.</p>
+    return `<p class="legacy-helper-text" style="text-align: left;">Have class records from before this upgrade? Claim them below to set up a normal email + password login.</p>
       <form id="legacyClaimForm" class="legacy-login-box">
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Your Email
           <input id="legacyClaimEmail" type="email" autocomplete="username" placeholder="you@example.com">
         </label>
-        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Legacy Account Code
-          <input id="legacyClaimCode" type="password" autocomplete="off" placeholder="Enter legacy account code...">
+        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Account Code (becomes your password)
+          <input id="legacyClaimCode" type="password" autocomplete="off" placeholder="Enter your account code...">
         </label>
         <button type="submit" class="button button-outline" data-action="legacy-claim" style="width: 100%; margin-top: 6px;">🔐 Claim & Set Up Login</button>
       </form>
@@ -745,12 +745,13 @@
     startSaveIndicatorTicker();
   }
 
-  async function performGoogleLogin() {
+  async function performGoogleLogin(prefillAccountCode) {
     const error = document.querySelector("#loginError");
     const success = document.querySelector("#loginSuccess");
     if (error) { error.textContent = ""; error.classList.remove("error"); }
     if (success) { success.textContent = ""; success.style.display = "none"; }
 
+    isLinkingLegacyInProgress = true;
     try {
       setStatus("Signing in with Google...", "saving");
       const user = await window.CSTRSync.signInWithGoogle();
@@ -760,7 +761,7 @@
       if (profile && profile.dataKey) {
         completeSignInSession(profile, user);
       } else {
-        showOnboardingModal(user);
+        showOnboardingModal(user, prefillAccountCode);
       }
     } catch (err) {
       console.error("Google sign-in error:", err);
@@ -774,6 +775,8 @@
         }
         error.classList.add("error");
       }
+    } finally {
+      isLinkingLegacyInProgress = false;
     }
   }
 
@@ -887,11 +890,11 @@
     if (success) { success.textContent = ""; success.style.display = "none"; }
 
     if (!email || !legacyKey) {
-      if (error) { error.textContent = "Please enter your email and your legacy account code."; error.classList.add("error"); }
+      if (error) { error.textContent = "Please enter your email and your account code."; error.classList.add("error"); }
       return;
     }
     if (legacyKey.length < 6) {
-      if (error) { error.textContent = "That code looks too short to use as a password (Firebase requires 6+ characters). Double-check your exact legacy account code."; error.classList.add("error"); }
+      if (error) { error.textContent = "That code looks too short to use as a password (Firebase requires 6+ characters). Double-check your exact account code."; error.classList.add("error"); }
       return;
     }
 
@@ -901,7 +904,7 @@
       const user = await window.CSTRSync.signUpWithEmail(email, legacyKey);
       const profile = await window.CSTRSync.bindLegacyAccount(legacyKey, user);
       completeSignInSession(profile, user);
-      alert(`ACCOUNT CLAIMED:\n\nFrom now on you can sign in with:\nEmail: ${email}\nPassword: your legacy account code\n\nYou can change this password anytime from Settings.`);
+      alert(`ACCOUNT CLAIMED:\n\nFrom now on you can sign in with:\nEmail: ${email}\nPassword: your account code\n\nYou can change this password anytime from Settings.`);
     } catch (err) {
       console.error("Legacy claim error:", err);
       // If the auth account got created but the bind step failed (wrong code,
@@ -914,7 +917,15 @@
       }
       if (error) {
         if (err.code === "auth/email-already-in-use") {
-          error.textContent = "An account with this email already exists. Try signing in instead, or use a different email.";
+          // This email already has SOME account — almost always because the
+          // person (or someone) already used "Sign in with Google" here
+          // before ever claiming a legacy code. Firebase won't let us create
+          // a second, separate password-only account for the same email, so
+          // route them through Google instead: signing in there resolves to
+          // that same account, and — since it has no records bound yet —
+          // lands them on the onboarding modal, which now also sets this
+          // typed code as their password (see completeOnboardLegacyLink).
+          error.innerHTML = `This email is already linked to an account — most likely from signing in with Google before. <button type="button" class="button-link" data-action="legacy-continue-google" style="padding:0; background:none; border:none; color:inherit; font:inherit; text-decoration:underline; cursor:pointer;">Continue with Google</button> to link it, or <a href="#" class="legacy-toggle-link" data-action="show-signin">sign in</a> if you already set a password before.`;
         } else if (err.code === "auth/weak-password") {
           error.textContent = "Firebase requires that code/password to be at least 6 characters.";
         } else {
@@ -954,7 +965,7 @@
     }
   }
 
-  function showOnboardingModal(user) {
+  function showOnboardingModal(user, prefillAccountCode) {
     document.querySelector(".modal-backdrop.onboarding-modal")?.remove();
     const backdrop = document.createElement("div");
     backdrop.className = "modal-backdrop onboarding-modal";
@@ -967,9 +978,9 @@
           <span style="font-size: 1.2rem;">📂</span>
           <h3 style="margin: 0; color: #16364a;">Existing CSTR Teacher (Link Your Records)</h3>
         </div>
-        <p class="muted" style="margin-bottom: 10px; font-size: 0.88rem;"><strong>Safe & Guaranteed:</strong> Enter your previous account code below to connect your existing classes, learners, and grades to this Google Account. <em>None of your data will be changed or deleted.</em></p>
-        <label class="field-label" style="text-align: left; margin: 6px 0;">Legacy Account Code
-          <input id="onboardLegacyCode" type="password" placeholder="Enter legacy account code...">
+        <p class="muted" style="margin-bottom: 10px; font-size: 0.88rem;"><strong>Safe & Guaranteed:</strong> Enter your previous account code below to connect your existing classes, learners, and grades to this Google Account, and to set that code as your password for normal email sign-in too. <em>None of your data will be changed or deleted.</em></p>
+        <label class="field-label" style="text-align: left; margin: 6px 0;">Account Code
+          <input id="onboardLegacyCode" type="password" placeholder="Enter your account code..." value="${prefillAccountCode ? safeValue(prefillAccountCode) : ""}">
         </label>
         <button type="button" class="button button-primary" data-action="complete-link-legacy" style="width: 100%; margin-top: 10px;">🔐 Link & Open My Existing Records</button>
       </div>
@@ -1026,21 +1037,48 @@
 
     if (!legacyKey) {
       if (error) {
-        error.textContent = "Please enter your legacy account code.";
+        error.textContent = "Please enter your account code.";
+        error.classList.add("error");
+      }
+      return;
+    }
+    if (legacyKey.length < 6) {
+      if (error) {
+        error.textContent = "That code looks too short to use as a password (Firebase requires 6+ characters). Double-check your exact account code.";
         error.classList.add("error");
       }
       return;
     }
 
+    // This account is only signed in with Google so far. Attach the account
+    // code as a real password credential too — the missing piece that used
+    // to leave people unable to sign in later with email + password — before
+    // binding the class-record data itself.
+    const alreadyHadPassword = window.CSTRSync.hasPasswordProvider(user);
+    let justLinkedPassword = false;
     try {
+      if (!alreadyHadPassword) {
+        await window.CSTRSync.setInitialPassword(legacyKey);
+        justLinkedPassword = true;
+      }
       const profile = await window.CSTRSync.bindLegacyAccount(legacyKey, user);
       document.querySelector(".modal-backdrop")?.remove();
 
       completeSignInSession(profile, user);
-      alert(`SECURITY UPGRADE COMPLETE:\n\nYour account has been linked to ${user.email}. Loading your existing class records...`);
+      alert(`SECURITY UPGRADE COMPLETE:\n\nYour account has been linked to ${user.email}.\nFrom now on you can also sign in with:\nEmail: ${user.email}\nPassword: your account code\n\nYou can change this password anytime from Settings.\n\nLoading your existing class records...`);
     } catch (err) {
+      // If we just attached a password but the bind step failed right after
+      // (wrong code, no data found, etc.), undo the password so a bad
+      // attempt doesn't leave a stray/incorrect credential on the account.
+      if (justLinkedPassword) {
+        try { await window.CSTRSync.unlinkPasswordProvider(); } catch (cleanupErr) { console.warn("Cleanup of linked password failed", cleanupErr); }
+      }
       if (error) {
-        error.textContent = `Linking failed: ${err.message}`;
+        if (err.code === "auth/credential-already-in-use" || err.code === "auth/email-already-in-use") {
+          error.textContent = "That code is already used as a password by another account. Please double-check your exact account code.";
+        } else {
+          error.textContent = `Linking failed: ${err.message}`;
+        }
         error.classList.add("error");
       }
     }
@@ -2585,6 +2623,11 @@
     
     if (action === "google-login") {
       performGoogleLogin();
+    }
+    if (action === "legacy-continue-google") {
+      const codeInput = document.querySelector("#legacyClaimCode");
+      const legacyKey = codeInput ? codeInput.value.trim() : "";
+      performGoogleLogin(legacyKey);
     }
     // Note: email-signin, email-signup, legacy-claim, change-password, and
     // set-password are NOT handled here even though their buttons carry
