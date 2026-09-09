@@ -14,8 +14,11 @@ this requires.
 
 ## What is included
 
-- Password convenience gate using one of four teacher passwords
-  (case-sensitive) with login state held in `sessionStorage`.
+- Secure authentication via **Google Sign-In with 2FA support** (Google Authenticator, prompt, or Gmail verification codes at zero cost).
+- Zero plaintext passwords in code or repository files.
+- Ironclad per-teacher isolation in Firebase Realtime Database: each teacher can only read and write their own class records.
+- Automated Google-based self sign-up for new teachers without developer code changes.
+- Safe legacy account linking preserving all existing class records without data loss.
 - Seven class records, each with a 42-row blank roster, independent grading
   periods, HPS fields, learner scores, and grade calculations.
 - JHS weights of 30 / 40 / 30 and SHS weights of 20 / 50 / 30.
@@ -47,10 +50,7 @@ this requires.
 The grading engine, roster logic, UI, and every feature above are otherwise
 byte-for-byte the same code as the original app.
 
-The password gate is intentionally only a convenience for a small,
-single-school tool. It is **not** real security — see the "How protected is
-this, really?" section in `FIREBASE_SETUP.md` for the honest picture, which
-changed slightly with this version.
+Security is enforced via **Firebase Authentication** and **Realtime Database Security Rules**. Only authenticated teachers can access their own class records. See [`FIREBASE_SETUP.md`](FIREBASE_SETUP.md) for full configuration details and API key domain restrictions.
 
 ## Use locally
 

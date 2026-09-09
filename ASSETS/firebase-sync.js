@@ -2,22 +2,13 @@
   "use strict";
 
   // ============================================================================
-  // CSTR Class Record — real-time sync module (Firebase Realtime Database)
+  // CSTR Class Record — real-time sync & auth module (Firebase Realtime Database)
   // ============================================================================
-  // This replaces the old GitHub Gist + Personal Access Token flow. Instead of
-  // every device needing its own Gist ID and PAT typed into Settings, this file
-  // holds ONE shared project config that ships with the app, and every device
-  // that loads the site connects to the same live database automatically.
+  // This module handles live synchronization and Google Authentication with
+  // multi-tenant data isolation.
   //
-  // IMPORTANT — this config is NOT a secret. Firebase's client config (apiKey,
-  // databaseURL, etc.) is meant to be public and shipped in client-side code —
-  // it identifies WHICH project to talk to, not WHO is allowed to read/write.
-  // Access is controlled entirely by the Realtime Database "Rules" you set in
-  // the Firebase console (see FIREBASE_SETUP.md), the same way the old app's
-  // password gate controlled the UI but was never "real security" either.
-  //
-  // Fill in the six values below from your own Firebase project — steps are in
-  // FIREBASE_SETUP.md in the root of this repo.
+  // Real access control lives in the Realtime Database Rules set in the Firebase
+  // console (see firebase-database-rules.json and FIREBASE_SETUP.md).
   // ============================================================================
   const firebaseConfig = {
     apiKey: "AIzaSyBgwxuXawJI_jWrlJ02R9eiPcgNMAN9m_Y",
@@ -29,9 +20,9 @@
     appId: "1:164642028411:web:10d986ca8c095db57e1bde"
   };
 
-  // Everything lives under this one top-level key in the database, same idea
-  // as the single "cstr-class-record-data.json" file the old Gist held.
   const DATA_PATH = "cstr-class-record-data";
+  const BINDINGS_PATH = "cstr-class-record-bindings";
+  const USERS_PATH = "cstr-class-record-users";
 
   // A random id generated fresh each time this tab loads. It rides along with
   // every save so this same tab can recognize "that update was just an echo
@@ -40,7 +31,7 @@
 
   function sanitizeKey(rawKey) {
     // Realtime Database path segments can't contain . # $ [ ] /
-    return String(rawKey).replace(/[.#$[\]/]/g, "_");
+    return String(rawKey || "").trim().replace(/[.#$[\]/]/g, "_");
   }
 
   if (!window.firebase || !window.firebase.initializeApp) {
@@ -49,57 +40,167 @@
       configured: false,
       ready: Promise.reject(new Error("Firebase SDK not loaded")),
       subscribe() { return () => {}; },
-      async save() { throw new Error("Firebase SDK not loaded"); }
+      async save() { throw new Error("Firebase SDK not loaded"); },
+      async signInWithGoogle() { throw new Error("Firebase SDK not loaded"); },
+      async signOut() {},
+      getCurrentUser() { return null; }
     };
     return;
   }
 
-  const isConfigured = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE_");
+  const isConfigured = Boolean(firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE_"));
 
-  firebase.initializeApp(firebaseConfig);
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+
   const auth = firebase.auth();
   const db = firebase.database();
 
-  let resolveReady;
-  let rejectReady;
-  const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
-
-  if (isConfigured) {
-    auth.onAuthStateChanged((user) => { if (user) resolveReady(user); });
-    auth.signInAnonymously().catch((error) => {
-      console.error("CSTRSync: anonymous sign-in failed —", error.message);
-      rejectReady(error);
+  function ensureReady() {
+    if (auth.currentUser) return Promise.resolve(auth.currentUser);
+    return new Promise((resolve) => {
+      const unsubscribe = auth.onAuthStateChanged((user) => {
+        if (user) {
+          unsubscribe();
+          resolve(user);
+        }
+      });
     });
-  } else {
-    rejectReady(new Error("Firebase config not filled in yet — see FIREBASE_SETUP.md"));
   }
 
   window.CSTRSync = {
     configured: isConfigured,
     clientId: CLIENT_ID,
-    // Resolves once this tab is authenticated and allowed to read/write.
-    // Every save/subscribe call should happen after this resolves.
-    ready,
+    auth,
+    db,
 
-    // Subscribes to real-time updates for one account's data (keyed by the
-    // same login password the old app used as the per-account key). Fires
-    // immediately with whatever is currently stored, then fires again every
-    // single time ANY device saves a change to this same account — that is
-    // what makes another browser/device show the update live, with nothing
-    // to type in on that device.
-    //
-    // onData receives: (value, meta) where meta.isOwnEcho is true when this
-    // update is just this same tab's own save reflecting back, and
-    // meta.savedAt / meta.clientId describe who actually wrote it.
+    // Resolves once this tab has an active authenticated user.
+    get ready() {
+      return ensureReady();
+    },
+
+    getCurrentUser() {
+      return auth.currentUser;
+    },
+
+    onAuthStateChanged(callback) {
+      return auth.onAuthStateChanged(callback);
+    },
+
+    // Signs in with Google using OAuth popup
+    async signInWithGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      const result = await auth.signInWithPopup(provider);
+      return result.user;
+    },
+
+    async signOut() {
+      try {
+        await auth.signOut();
+      } catch (err) {
+        console.warn("CSTRSync: signOut error", err);
+      }
+    },
+
+    // Look up teacher profile mapped to this Google UID
+    async getUserProfile(uid) {
+      if (!uid) return null;
+      try {
+        const snap = await db.ref(`${USERS_PATH}/${uid}`).once("value");
+        return snap.val();
+      } catch (err) {
+        console.warn("CSTRSync: getUserProfile failed", err);
+        return null;
+      }
+    },
+
+    // Check if a legacy account is already bound to a Google Account
+    async getLegacyBinding(legacyKey) {
+      const sanitized = sanitizeKey(legacyKey);
+      if (!sanitized) return null;
+      try {
+        const snap = await db.ref(`${BINDINGS_PATH}/${sanitized}`).once("value");
+        return snap.val();
+      } catch (err) {
+        console.warn("CSTRSync: getLegacyBinding failed", err);
+        return null;
+      }
+    },
+
+    // Bind a legacy account identifier (e.g. legacyAccountCode) to an authenticated Google User
+    async bindLegacyAccount(legacyKey, user) {
+      const sanitized = sanitizeKey(legacyKey);
+      if (!sanitized) throw new Error("Invalid account identifier");
+      if (!user || !user.uid) throw new Error("Authenticated Google user required");
+
+      const existingBinding = await this.getLegacyBinding(sanitized);
+      if (existingBinding && existingBinding.boundUid && existingBinding.boundUid !== user.uid) {
+        throw new Error("This account is already bound to another Google Account.");
+      }
+
+      const now = Date.now();
+      const bindingPayload = {
+        boundUid: user.uid,
+        boundEmail: user.email || "",
+        boundName: user.displayName || "",
+        boundAt: now
+      };
+
+      const userProfilePayload = {
+        dataKey: sanitized,
+        email: user.email || "",
+        name: user.displayName || "",
+        boundAt: now,
+        isLegacy: true
+      };
+
+      // Atomically write the binding and user profile
+      const updates = {};
+      updates[`${BINDINGS_PATH}/${sanitized}`] = bindingPayload;
+      updates[`${USERS_PATH}/${user.uid}`] = userProfilePayload;
+
+      await db.ref().update(updates);
+      return userProfilePayload;
+    },
+
+    // Auto-provision a new teacher profile using their Google account (zero manual code edits needed!)
+    async registerNewTeacher(user, teacherName) {
+      if (!user || !user.uid) throw new Error("Authenticated Google user required");
+
+      const now = Date.now();
+      const userProfilePayload = {
+        dataKey: user.uid,
+        email: user.email || "",
+        name: (teacherName || user.displayName || "Teacher").trim(),
+        createdAt: now,
+        isLegacy: false
+      };
+
+      await db.ref(`${USERS_PATH}/${user.uid}`).set(userProfilePayload);
+      return userProfilePayload;
+    },
+
+    // Subscribes to real-time updates for an account's data (keyed by userKey, which is
+    // either the bound legacy key or the Google uid for new teachers).
     subscribe(userKey, onData, onError) {
-      const ref = db.ref(`${DATA_PATH}/${sanitizeKey(userKey)}`);
+      const sanitized = sanitizeKey(userKey);
+      const ref = db.ref(`${DATA_PATH}/${sanitized}`);
       const listener = ref.on(
         "value",
         (snapshot) => {
           const raw = snapshot.val();
-          if (!raw) { onData(null, { isOwnEcho: false, savedAt: null, clientId: null }); return; }
+          if (!raw) {
+            onData(null, { isOwnEcho: false, savedAt: null, clientId: null });
+            return;
+          }
           const { _syncClientId, _syncSavedAt, ...state } = raw;
-          onData(state, { isOwnEcho: _syncClientId === CLIENT_ID, savedAt: _syncSavedAt || null, clientId: _syncClientId || null });
+          onData(state, {
+            isOwnEcho: _syncClientId === CLIENT_ID,
+            savedAt: _syncSavedAt || null,
+            clientId: _syncClientId || null
+          });
         },
         (error) => {
           console.error("CSTRSync: read failed —", error.message);
@@ -112,8 +213,9 @@
     // Writes one account's full state. Every other tab/device subscribed to
     // this same account sees it within a second or two, automatically.
     async save(userKey, state) {
+      const sanitized = sanitizeKey(userKey);
       const payload = { ...state, _syncClientId: CLIENT_ID, _syncSavedAt: Date.now() };
-      await db.ref(`${DATA_PATH}/${sanitizeKey(userKey)}`).set(payload);
+      await db.ref(`${DATA_PATH}/${sanitized}`).set(payload);
     }
   };
 })();

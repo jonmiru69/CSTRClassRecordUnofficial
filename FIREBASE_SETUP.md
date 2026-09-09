@@ -1,132 +1,135 @@
-# Setting up live sync (Firebase Realtime Database)
+﻿# Setting Up Live Sync & Google Authentication (Firebase)
 
-This app needs ONE free Firebase project. Every device that opens the site
-then talks to that same project automatically — nothing to type in on any
-device, ever. This is a one-time setup done by you (the owner), not something
-each teacher/device repeats.
+This web application uses **Firebase Realtime Database** with **Firebase Authentication (Google Sign-In)**. Every teacher signs in securely with their Google Account (which automatically supports 2-Step Verification / 2FA via Google Authenticator, Google Prompt, or Gmail at **zero cost**).
 
-Total time: about 10 minutes. No credit card required.
+This is a one-time configuration done by the site owner/developer in the Firebase and Google Cloud consoles.
 
-## 1. Create the Firebase project
+---
 
-1. Go to <https://console.firebase.google.com> and sign in with any Google account.
-2. Click **Add project**. Name it anything, e.g. `cstr-class-record`.
-3. When asked about Google Analytics, you can turn it **off** — not needed here.
-4. Click **Create project** and wait for it to finish. This project is on the
-   free **Spark** plan by default. You never need to upgrade it for this app.
+## 1. Enable Google Sign-In (Authentication)
 
-## 2. Turn on the Realtime Database
+1. Open the [Firebase Console](https://console.firebase.google.com/) and select your project (`cstr-class-record-global`).
+2. In the left navigation bar, open **Build → Authentication**.
+3. Go to the **Sign-in method** tab.
+4. If you see **Google**, click on it (or click **Add new provider → Google**):
+   - Toggle **Enable** to ON.
+   - Under **Project support email**, select your email from the dropdown.
+   - Click **Save**.
+5. If **Anonymous** was previously enabled:
+   - Click **Anonymous**, toggle it **Disabled**, and click **Save**. *(This blocks anonymous internet bots from accessing your database).*
 
-1. In the left sidebar, open **Build → Realtime Database**.
-2. Click **Create Database**.
-3. Pick a region close to the Philippines (e.g. `asia-southeast1 (Singapore)`
-   if offered — the exact one matters far less than you'd think, since this
-   app's traffic is tiny).
-4. Choose **Start in locked mode** (we'll paste in the real rules in step 4).
+---
 
-## 3. Turn on Anonymous sign-in
+## 2. Add Authorized Domains
 
-This is what replaces the Personal Access Token — every browser that opens
-the site quietly signs itself in, with no password or prompt the teacher ever
-sees.
+Firebase requires domains to be whitelisted for Google OAuth to function:
 
-1. Left sidebar → **Build → Authentication** → **Get started**.
-2. Under the **Sign-in method** tab, click **Anonymous**, toggle it **Enable**, **Save**.
+1. In **Authentication**, click on the **Settings** tab.
+2. Select **Authorized domains** in the submenu.
+3. Verify that the following domains are listed (click **Add domain** if missing):
+   - `localhost`
+   - `jonmiru69.github.io`
+4. Click **Save**.
 
-## 4. Paste in the security rules
+---
 
-1. Back in **Realtime Database**, open the **Rules** tab.
-2. Replace whatever is there with the contents of `firebase-database-rules.json`
-   from this repo.
-3. Click **Publish**.
+## 3. Apply the Zero-Trust Database Security Rules
 
-This says: only a browser that has silently signed in anonymously (i.e. is
-actually running this app) may read or write — a random `curl` request from
-the open internet with no auth token is refused. It is **not** a substitute
-for real accounts and passwords; see the "How protected is this, really?"
-section below for the honest picture.
+These rules ensure that:
+- Unauthenticated users have **zero access**.
+- Each teacher can **only read and write their own class records**.
+- Once an existing teacher binds their account, no one else can steal or overwrite it.
 
-## 5. Get your web app config
+1. In the left navigation bar, go to **Build → Realtime Database**.
+2. Click the **Rules** tab at the top.
+3. Replace the entire contents of the editor with the code from `firebase-database-rules.json`:
 
-1. Click the gear icon next to **Project Overview** → **Project settings**.
-2. Scroll to **Your apps**, click the **`</>`** (web) icon.
-3. Give it a nickname (e.g. `cstr-class-record-web`), skip Firebase Hosting
-   (you're using GitHub Pages), click **Register app**.
-4. You'll see a `firebaseConfig` object with six values: `apiKey`,
-   `authDomain`, `databaseURL`, `projectId`, `storageBucket`,
-   `messagingSenderId`, `appId`. Copy the whole block.
+```json
+{
+  "rules": {
+    "cstr-class-record-bindings": {
+      ".read": "auth != null",
+      "$legacyKey": {
+        ".write": "auth != null && (!data.exists() || data.child('boundUid').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['boundUid', 'boundEmail']) && newData.child('boundUid').val() === auth.uid"
+      }
+    },
+    "cstr-class-record-users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "cstr-class-record-data": {
+      "$userKey": {
+        ".read": "auth != null && ($userKey === auth.uid || root.child('cstr-class-record-bindings').child($userKey).child('boundUid').val() === auth.uid)",
+        ".write": "auth != null && ($userKey === auth.uid || root.child('cstr-class-record-bindings').child($userKey).child('boundUid').val() === auth.uid)"
+      }
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
+```
+4. Click **Publish**.
 
-## 6. Paste the config into the app
+---
 
-Open `ASSETS/firebase-sync.js` in this repo and replace the placeholder
-`firebaseConfig` object near the top with the one you just copied. Save,
-commit, push.
+## 4. Restrict Your Google API Key (Protection against theft)
 
-> This file is safe to commit and safe to be public. A Firebase web config is
-> not a secret — it just says *which* project to talk to. Real access control
-> lives in the Rules you pasted in step 4, not in hiding this file.
+To ensure that your Firebase API key cannot be abused by external websites:
 
-## 7. Deploy
+1. Open the [Google Cloud Console Credentials Page](https://console.cloud.google.com/apis/credentials).
+2. Ensure project `cstr-class-record-global` is selected at the top.
+3. Under **API Keys**, click on the key used for Firebase (typically named `Browser key (auto created by Firebase)`).
+4. Under **Set application restrictions**, choose **Websites (HTTP referrers)**:
+   - Add `https://jonmiru69.github.io/*`
+   - Add `http://localhost/*`
+5. Under **API restrictions**, choose **Restrict key**:
+   - Check **Firebase Realtime Database API**
+   - Check **Identity Toolkit API** *(needed for Firebase Auth)*
+   - Check **Token Service API**
+6. Click **Save**.
 
-Same as before — this is still a static site with no build step:
+Now, even though the web config is committed to your frontend repository, the key is mathematically restricted to your approved website domains only.
 
-1. Push this repo's contents to a new GitHub repository (root of the repo).
-2. **Settings → Pages → Build and deployment → Deploy from a branch → `main` → `/ (root)`**.
-3. GitHub gives you a public URL. That's it — every device that opens it is
-   now live-synced, automatically, forever, for free.
+---
 
-## 8. One-time: bring over your existing data (optional)
+## 5. How Existing Teachers Claim & Secure Their Accounts
 
-If you already have class records saved in the old GitHub Gist:
+Teachers who had accounts prior to this security upgrade (`harty342002`, `maamsamcstr1234`, `lycalikezone67`, `shervibels00`) have their data safely preserved in Firebase.
 
-1. Open your Gist's raw `cstr-class-record-data.json` and copy its contents.
-   It should already look like `{ "harty342002": { ...your data... }, "maamsamcstr1234": { ... } }`.
-   - If instead it's a *flat* object (no account names as keys, just
-     `{"version": ..., "registry": [...], ...}` directly), wrap it as
-     `{ "harty342002": { ...paste the flat object here... } }` — that flat
-     shape was always Sir Harty's account specifically.
-2. In the Firebase console, **Realtime Database → the ⋮ menu → Import JSON**.
-3. Import it at the `cstr-class-record-data` node (create that top-level key
-   if the importer asks where to put it).
-4. Log into the site with each account once to confirm its data shows up.
+To link and protect their account:
+1. The teacher visits the deployed website.
+2. Below the main button, click:
+   **"Have an existing account created before this upgrade? Click here"**
+3. Enter their previous account code.
+4. Click **"🔐 Link & Secure with Google"**.
+5. Sign in with their Google/Gmail account.
+6. The app instantly binds their Google Account to their existing class records! All their classes, learners, and grades load immediately without losing anything.
+7. **From that second onward**:
+   - Their account is permanently locked to their Google Account.
+   - If anyone tries to enter their old password on the website, the site **blocks direct password login** and displays:
+     > *"🔒 ACCOUNT PROTECTED WITH 2FA: This account is permanently bound to Google Account (h***@gmail.com). Please sign in with Google."*
 
-## How protected is this, really?
+---
 
-Being direct about this, since it involves student grades:
+## 6. How New Teachers Sign Up (Automated Self Sign-Up)
 
-- **The old app's password gate was already "not real security"** — its own
-  README said so. Anyone who opened the page source could read the four
-  valid passwords straight out of `app.js`.
-- **The old PAT, however, WAS a real secret.** Even someone who read the
-  passwords in the source couldn't write to your Gist without also stealing
-  your Personal Access Token, which never appeared in any file — only in
-  each device's local browser storage.
-- **This new version has no equivalent secret.** The anonymous-auth rule
-  blocks bots and direct API requests with no token at all, but it does not
-  distinguish "the actual four teachers" from "anyone who finds the site URL
-  and opens it in a browser" — anyone who can view the page can also sign in
-  anonymously and write to it, the same way anyone who can view the page can
-  already read the four passwords. In practice this matches the risk you
-  already accepted with the login gate; it just now extends to the save path
-  too. If that's a bigger tradeoff than you want, two extra options — I can
-  build either in a follow-up:
-  - **Firebase App Check** (still free) — ties writes to genuine loads of
-    your actual deployed site, blocking most scripted/automated abuse.
-  - **A per-write password check in Database Rules** — makes casual poking
-    around harder, though anyone reading `app.js` can still find the check,
-    same limitation as the login gate today.
-- **Practically:** this only matters if someone both discovers the exact
-  live URL *and* deliberately digs through the source to abuse it — the same
-  threshold that already existed for the login page. It is not exposed to
-  search engines or "the whole internet" by default the way, say, a public
-  API would be.
+You, the developer, no longer need to manually edit `app.js` or push commits to create new accounts:
 
-## Will this ever cost money?
+1. Any teacher opens the website.
+2. Clicks **"Sign in with Google"**.
+3. If they are a new teacher, the app displays:
+   > *"Welcome to CSTR Class Record! Set up your account"*
+4. They type their full name and click **"✨ Create My Class Record"**.
+5. Their personal, isolated class record is created instantly with a clean workspace ready for "+ Add Class".
 
-No, not at this app's scale. The free **Spark** plan includes 1 GB stored and
-10 GB/month of database traffic — a handful of class records with occasional
-photo uploads is a rounding error against that, and Spark has no time limit,
-no "pauses after a week of inactivity," and no credit card requirement. If
-this app were ever opened by hundreds of simultaneous users constantly, you'd
-eventually want to watch usage in the console — not a realistic scenario for
-a single school's class records.
+---
+
+## 7. Zero Cost & 2FA Guarantee
+
+- **Cost**: 100% free forever on the Firebase Spark plan (includes 10 GB/month database traffic and 50,000 monthly active users).
+- **2FA**: Handled directly by Google's account security (Google Authenticator, Google Prompt, or Gmail verification codes) without expensive SMS fees.

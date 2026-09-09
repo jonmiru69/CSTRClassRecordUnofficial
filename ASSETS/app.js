@@ -16,7 +16,6 @@
     getGradeDescriptor
   } = window.CSTRGrading;
   
-  const VALID_LOGINS = ["harty342002", "maamsamcstr1234", "lycalikezone67", "shervibels00"];
   const WELCOME_SEEN_PREFIX = "cstr-class-record-welcome-seen:";
   const app = document.querySelector("#app");
 
@@ -103,9 +102,27 @@
     return sessionStorage.getItem("cstr-class-record-login") === "true";
   }
 
-  // Every account (existing or newly added to VALID_LOGINS) is a full account with
-  // identical functionality — this only tracks whether a one-time welcome notice
-  // has been shown on this device, so it appears exactly once per account.
+  function currentUserEmail() {
+    return sessionStorage.getItem("cstr-class-record-email") || "";
+  }
+
+  function currentUserName() {
+    return sessionStorage.getItem("cstr-class-record-name") || (state && state.teacher ? state.teacher.name : "Teacher");
+  }
+
+  function maskEmail(email) {
+    if (!email || typeof email !== "string") return "Google Account";
+    const parts = email.split("@");
+    if (parts.length !== 2) return "Google Account";
+    const name = parts[0];
+    const domain = parts[1];
+    const maskedName = name.length <= 2 ? name[0] + "***" : name[0] + "***" + name.slice(-1);
+    return `${maskedName}@${domain}`;
+  }
+
+  // Every account is a full account with identical functionality — this only tracks
+  // whether a one-time welcome notice has been shown on this device, so it appears
+  // exactly once per account.
   function welcomeSeenKey() {
     return `${WELCOME_SEEN_PREFIX}${currentUserKey()}`;
   }
@@ -618,36 +635,239 @@
 
   function renderLogin() {
     return `<section class="login-screen">
-      <form id="loginForm" class="login-card" autocomplete="on">
-        <p class="eyebrow">CSTR Class Record</p>
-        <h1>Owner login</h1>
-        <p class="muted">This convenience gate is for the class-record owner. It is not a substitute for secure authentication.</p>
-        <label class="field-label">Password
-          <input id="loginPassword" type="password" autocomplete="current-password" required autofocus placeholder="Enter password...">
-        </label>
-        <button type="submit" class="button button-primary" data-action="login" style="width: 100%; margin-top: 8px;">Login</button>
+      <div class="login-card">
+        <div class="login-header-logo">
+          <img src="ASSETS/cstr-logo.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
+        </div>
+        <p class="eyebrow">Colegio de Sto. Tomás – Recoletos</p>
+        <h1>Teacher Sign In</h1>
+        <p class="muted">Website for Class Record, with respect to DepEd Order No. 15, s. 2026. Secured with Google Authentication & 2FA.</p>
+        
+        <div class="login-cta-group">
+          <button type="button" class="button-google" data-action="google-login">
+            <svg class="google-icon" viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.79l7.97-6.2z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            <span>Sign in with Google</span>
+          </button>
+        </div>
+
+        <div class="login-divider"><span>OR FIRST-TIME LEGACY ACCOUNT LINKING</span></div>
+
+        <details class="legacy-login-details">
+          <summary class="legacy-toggle-link">Have an existing account created before this upgrade? Click here</summary>
+          <form id="loginForm" class="legacy-login-box">
+            <p class="legacy-helper-text">If you have class records from before this security upgrade (e.g. Sir Harty, Ma'am Sam), link your Google Account once below to claim and permanently lock your records to your Google credentials.</p>
+            <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Legacy Account Code
+              <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Enter legacy account code...">
+            </label>
+            <button type="submit" class="button button-outline" data-action="link-legacy" style="width: 100%; margin-top: 10px;">🔐 Link & Secure with Google</button>
+          </form>
+        </details>
+
         <p id="loginError" class="login-error" role="alert"></p>
-      </form>
+        <p id="loginSuccess" class="login-success" role="status" style="display: none;"></p>
+      </div>
     </section>`;
   }
 
-  function performLogin() {
-    const passwordInput = document.querySelector("#loginPassword");
-    const password = passwordInput ? passwordInput.value.trim() : "";
+  async function performGoogleLogin() {
     const error = document.querySelector("#loginError");
-    if (VALID_LOGINS.includes(password)) { 
+    const success = document.querySelector("#loginSuccess");
+    if (error) { error.textContent = ""; error.classList.remove("error"); }
+    if (success) { success.textContent = ""; success.style.display = "none"; }
+
+    try {
+      setStatus("Signing in with Google...", "saving");
+      const user = await window.CSTRSync.signInWithGoogle();
+      if (!user) return;
+
+      const profile = await window.CSTRSync.getUserProfile(user.uid);
+      if (profile && profile.dataKey) {
+        sessionStorage.setItem("cstr-class-record-login", "true");
+        sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
+        sessionStorage.setItem("cstr-class-record-email", user.email || "");
+        sessionStorage.setItem("cstr-class-record-name", profile.name || user.displayName || "");
+        render();
+        if (!hasSeenWelcome()) {
+          markWelcomeSeen();
+          showWelcomeModal();
+        }
+        subscribeToSync();
+        startSaveIndicatorTicker();
+      } else {
+        showOnboardingModal(user);
+      }
+    } catch (err) {
+      console.error("Google sign-in error:", err);
+      if (error) {
+        if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
+          error.textContent = "Sign-in cancelled. Please try again.";
+        } else if (err.code === "auth/unauthorized-domain") {
+          error.textContent = "Domain not authorized in Firebase Console. Please see FIREBASE_SETUP.md.";
+        } else {
+          error.textContent = `Sign-in failed: ${err.message}`;
+        }
+        error.classList.add("error");
+      }
+    }
+  }
+
+  async function performLegacyLink() {
+    const passwordInput = document.querySelector("#loginPassword");
+    const legacyKey = passwordInput ? passwordInput.value.trim() : "";
+    const error = document.querySelector("#loginError");
+    const success = document.querySelector("#loginSuccess");
+    if (error) { error.textContent = ""; error.classList.remove("error"); }
+    if (success) { success.textContent = ""; success.style.display = "none"; }
+
+    if (!legacyKey) {
+      if (error) {
+        error.textContent = "Please enter your legacy account code.";
+        error.classList.add("error");
+      }
+      return;
+    }
+
+    try {
+      // Check if account is ALREADY bound to a Google Account
+      const existingBinding = await window.CSTRSync.getLegacyBinding(legacyKey);
+      if (existingBinding && existingBinding.boundUid) {
+        const maskedEmail = maskEmail(existingBinding.boundEmail);
+        if (error) {
+          error.innerHTML = `🔒 <strong>ACCOUNT PROTECTED WITH 2FA</strong><br>This account is already permanently locked and bound to Google Account <strong>${maskedEmail}</strong>. Direct password login is disabled to prevent unauthorized access from leaked credentials.<br><br>Please click <strong>"Sign in with Google"</strong> above to access your class records.`;
+          error.classList.add("error");
+        }
+        return;
+      }
+
+      if (success) {
+        success.textContent = "Account verified. Opening Google Sign-In to bind your credentials...";
+        success.style.display = "block";
+      }
+
+      const user = await window.CSTRSync.signInWithGoogle();
+      if (!user) return;
+
+      const profile = await window.CSTRSync.bindLegacyAccount(legacyKey, user);
+
       sessionStorage.setItem("cstr-class-record-login", "true");
-      sessionStorage.setItem("cstr-class-record-user", password);
-      render(); 
+      sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
+      sessionStorage.setItem("cstr-class-record-email", user.email || "");
+      sessionStorage.setItem("cstr-class-record-name", profile.name || user.displayName || "");
+
+      render();
+      alert(`SECURITY UPGRADE COMPLETE:\n\nYour account has been permanently bound to ${user.email}.\n\nFrom now on, sign in securely with 1 click using "Sign in with Google". Old passwords can no longer be used alone to access your data.`);
+      
+      subscribeToSync();
+      startSaveIndicatorTicker();
+    } catch (err) {
+      console.error("Legacy linking error:", err);
+      if (error) {
+        error.textContent = `Account linking failed: ${err.message}`;
+        error.classList.add("error");
+      }
+    }
+  }
+
+  function showOnboardingModal(user) {
+    document.querySelector(".modal-backdrop.onboarding-modal")?.remove();
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop onboarding-modal";
+    backdrop.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="onboardTitle">
+      <h2 id="onboardTitle">Welcome to CSTR Class Record!</h2>
+      <p class="muted">Signed in as <strong>${safeValue(user.email || "")}</strong>. Choose how you would like to set up your account:</p>
+      
+      <div class="onboard-choice-card">
+        <h3 style="margin-top: 0;">Option A: New Teacher Workspace (Instant Setup)</h3>
+        <p class="muted">Creates your personal, blank class record workspace. You can immediately add classes, students, and compute grades.</p>
+        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Teacher Full Name
+          <input id="onboardTeacherName" type="text" value="${safeValue(user.displayName || '')}" placeholder="e.g. Maria Santos">
+        </label>
+        <button type="button" class="button button-primary" data-action="complete-new-teacher" style="width: 100%; margin-top: 10px;">✨ Create My Class Record</button>
+      </div>
+
+      <div class="onboard-divider"><span>OR</span></div>
+
+      <div class="onboard-choice-card">
+        <h3 style="margin-top: 0;">Option B: Link Existing Class Record</h3>
+        <p class="muted">If you are an existing CSTR teacher with class records saved under a previous account code, enter it below to claim and protect your data.</p>
+        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Legacy Account Code
+          <input id="onboardLegacyCode" type="password" placeholder="Enter legacy account code...">
+        </label>
+        <button type="button" class="button button-outline" data-action="complete-link-legacy" style="width: 100%; margin-top: 10px;">🔐 Link & Import Existing Data</button>
+      </div>
+
+      <p id="onboardError" class="login-error" role="alert" style="margin-top: 15px;"></p>
+    </div>`;
+
+    document.body.appendChild(backdrop);
+  }
+
+  async function completeNewTeacherSignup(user) {
+    const nameInput = document.querySelector("#onboardTeacherName");
+    const teacherName = nameInput ? nameInput.value.trim() : (user.displayName || "Teacher");
+    const error = document.querySelector("#onboardError");
+
+    try {
+      const profile = await window.CSTRSync.registerNewTeacher(user, teacherName);
+      document.querySelector(".modal-backdrop.onboarding-modal")?.remove();
+
+      sessionStorage.setItem("cstr-class-record-login", "true");
+      sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
+      sessionStorage.setItem("cstr-class-record-email", user.email || "");
+      sessionStorage.setItem("cstr-class-record-name", profile.name);
+
+      state = createInitialState();
+      state.teacher.name = profile.name;
+
+      render();
       if (!hasSeenWelcome()) {
         markWelcomeSeen();
         showWelcomeModal();
       }
       subscribeToSync();
       startSaveIndicatorTicker();
-    } else { 
+    } catch (err) {
       if (error) {
-        error.textContent = "Incorrect password. Please try again."; 
+        error.textContent = `Setup failed: ${err.message}`;
+        error.classList.add("error");
+      }
+    }
+  }
+
+  async function completeOnboardLegacyLink(user) {
+    const codeInput = document.querySelector("#onboardLegacyCode");
+    const legacyKey = codeInput ? codeInput.value.trim() : "";
+    const error = document.querySelector("#onboardError");
+
+    if (!legacyKey) {
+      if (error) {
+        error.textContent = "Please enter your legacy account code.";
+        error.classList.add("error");
+      }
+      return;
+    }
+
+    try {
+      const profile = await window.CSTRSync.bindLegacyAccount(legacyKey, user);
+      document.querySelector(".modal-backdrop.onboarding-modal")?.remove();
+
+      sessionStorage.setItem("cstr-class-record-login", "true");
+      sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
+      sessionStorage.setItem("cstr-class-record-email", user.email || "");
+      sessionStorage.setItem("cstr-class-record-name", profile.name || user.displayName || "");
+
+      render();
+      alert(`SECURITY UPGRADE COMPLETE:\n\nYour account has been linked to ${user.email}. Loading your existing class records...`);
+      subscribeToSync();
+      startSaveIndicatorTicker();
+    } catch (err) {
+      if (error) {
+        error.textContent = `Linking failed: ${err.message}`;
         error.classList.add("error");
       }
     }
@@ -663,7 +883,10 @@
         <p class="muted">Website for Class Record, with respect to DepEd Order No. 15, s. 2026.</p></div>
       </div>
       <div class="header-actions-wrap">
-        <div class="header-actions">${button("💾 Save Changes", "save-changes", "button button-primary", `id="saveChanges"`)} ${button("Settings", "open-settings")} ${button("Log out", "logout")}</div>
+        <div class="header-actions">
+          ${currentUserEmail() ? `<div class="user-chip" title="${safeValue(currentUserEmail())}">👤 <strong>${safeValue(currentUserName())}</strong> <span class="user-chip-email">(${safeValue(currentUserEmail())})</span></div>` : ""}
+          ${button("💾 Save Changes", "save-changes", "button button-primary", `id="saveChanges"`)} ${button("Settings", "open-settings")} ${button("Log out", "logout")}
+        </div>
         <p id="statusMessage" class="save-status" role="status" aria-live="polite"></p>
         <p id="saveMeta" class="save-meta" aria-live="polite"></p>
       </div>
@@ -1403,10 +1626,9 @@
     document.body.append(modal);
   }
 
-  // One-time welcome notice — shown the single first time ANY account (existing or
-  // newly added to VALID_LOGINS) successfully logs in on a given device. Every
-  // account has identical full functionality; this is purely an informational
-  // greeting/disclaimer and never gates or limits what an account can do.
+  // One-time welcome notice — shown the single first time ANY teacher account
+  // successfully logs in on a given device. Every account has identical full
+  // functionality; this is purely an informational greeting/disclaimer.
   function showWelcomeModal() {
     document.querySelector(".modal-backdrop.welcome-modal")?.remove();
     const modal = document.createElement("div");
@@ -2072,7 +2294,7 @@
   app.addEventListener("submit", (event) => {
     if (event.target && event.target.id === "loginForm") {
       event.preventDefault();
-      performLogin();
+      performLegacyLink();
     }
   });
 
@@ -2081,8 +2303,19 @@
     if (!target) return;
     const action = target.dataset.action;
     
-    if (action === "login") {
-      performLogin();
+    if (action === "google-login") {
+      performGoogleLogin();
+    }
+    if (action === "link-legacy") {
+      performLegacyLink();
+    }
+    if (action === "complete-new-teacher") {
+      const user = window.CSTRSync.getCurrentUser();
+      if (user) completeNewTeacherSignup(user);
+    }
+    if (action === "complete-link-legacy") {
+      const user = window.CSTRSync.getCurrentUser();
+      if (user) completeOnboardLegacyLink(user);
     }
     
     if (action === "add-col") {
@@ -2204,7 +2437,15 @@
     if (action === "logout") {
       if (unsubscribeSync) { unsubscribeSync(); unsubscribeSync = null; }
       isStale = false; pendingRemoteState = null; pendingRemoteAt = null; isDataLoaded = false;
-      sessionStorage.removeItem("cstr-class-record-login"); sessionStorage.removeItem("cstr-class-record-user"); currentView = "home"; render();
+      sessionStorage.removeItem("cstr-class-record-login");
+      sessionStorage.removeItem("cstr-class-record-user");
+      sessionStorage.removeItem("cstr-class-record-email");
+      sessionStorage.removeItem("cstr-class-record-name");
+      if (window.CSTRSync && window.CSTRSync.signOut) {
+        window.CSTRSync.signOut();
+      }
+      currentView = "home";
+      render();
     }
     if (action === "go-home") { currentView = "home"; render(); }
     if (action === "go-records") { currentView = "chooser"; render(); }
@@ -2236,7 +2477,7 @@
         searchStudent();
       } else if (event.target && event.target.id === "loginPassword") {
         event.preventDefault();
-        performLogin();
+        performLegacyLink();
       }
     }
   });
@@ -2396,7 +2637,36 @@
 
   function initApp() {
     render();
-    if (sessionStorage.getItem("cstr-class-record-login") === "true") {
+    if (window.CSTRSync && window.CSTRSync.onAuthStateChanged) {
+      window.CSTRSync.onAuthStateChanged(async (firebaseUser) => {
+        if (firebaseUser) {
+          try {
+            const profile = await window.CSTRSync.getUserProfile(firebaseUser.uid);
+            if (profile && profile.dataKey) {
+              sessionStorage.setItem("cstr-class-record-login", "true");
+              sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
+              sessionStorage.setItem("cstr-class-record-email", firebaseUser.email || "");
+              sessionStorage.setItem("cstr-class-record-name", profile.name || firebaseUser.displayName || "");
+              render();
+              subscribeToSync();
+              startSaveIndicatorTicker();
+            } else if (sessionStorage.getItem("cstr-class-record-login") !== "true") {
+              showOnboardingModal(firebaseUser);
+            }
+          } catch (err) {
+            console.error("Auth state restore error:", err);
+          }
+        } else {
+          if (sessionStorage.getItem("cstr-class-record-login") === "true") {
+            sessionStorage.removeItem("cstr-class-record-login");
+            sessionStorage.removeItem("cstr-class-record-user");
+            sessionStorage.removeItem("cstr-class-record-email");
+            sessionStorage.removeItem("cstr-class-record-name");
+            render();
+          }
+        }
+      });
+    } else if (sessionStorage.getItem("cstr-class-record-login") === "true") {
       subscribeToSync();
       startSaveIndicatorTicker();
     }
