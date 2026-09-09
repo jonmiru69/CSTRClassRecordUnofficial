@@ -801,6 +801,10 @@
         <button type="button" class="button button-outline" data-action="complete-new-teacher" style="width: 100%; margin-top: 10px;">Create Brand-New Class Record</button>
       </div>
 
+      <p style="text-align: center; margin-top: 16px;">
+        <a href="#" class="legacy-toggle-link" data-action="onboard-cancel">Wrong Google Account? Sign out and try again</a>
+      </p>
+
       <p id="onboardError" class="login-error" role="alert" style="margin-top: 15px;"></p>
     </div>`;
 
@@ -2325,6 +2329,13 @@
       } else {
         const err = document.querySelector("#onboardError");
         if (err) { err.textContent = "Your sign-in session expired. Please close this dialog and sign in with Google again."; err.classList.add("error"); }
+      }
+    }
+    if (action === "onboard-cancel") {
+      event.preventDefault();
+      document.querySelector(".modal-backdrop.onboarding-modal")?.remove();
+      if (window.CSTRSync && window.CSTRSync.signOut) {
+        window.CSTRSync.signOut();
       }
     }
     
