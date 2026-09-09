@@ -1,22 +1,29 @@
-# Setting Up Live Sync & Google Authentication (Firebase)
+# Setting Up Live Sync & Authentication (Firebase)
 
-This web application uses **Firebase Realtime Database** with **Firebase Authentication (Google Sign-In)**. Every teacher signs in securely with their Google Account (which automatically supports 2-Step Verification / 2FA via Google Authenticator, Google Prompt, or Gmail at **zero cost**).
+This web application uses **Firebase Realtime Database** with **Firebase Authentication**. Teachers can sign in either with **Google Sign-In** or with a **typical email + password login** (with a working "Change Password" and "Forgot password" flow). Both methods land in the exact same secure, per-teacher database rules — a teacher's UID is a UID either way.
 
 This is a one-time configuration done by the site owner/developer in the Firebase and Google Cloud consoles.
 
 ---
 
-## 1. Enable Google Sign-In (Authentication)
+## 1. Enable Sign-In Providers (Authentication)
 
 1. Open the [Firebase Console](https://console.firebase.google.com/) and select your project (`cstr-class-record-global`).
 2. In the left navigation bar, open **Build → Authentication**.
 3. Go to the **Sign-in method** tab.
-4. If you see **Google**, click on it (or click **Add new provider → Google**):
+4. Enable **Google**:
+   - Click **Google** (or **Add new provider → Google**).
    - Toggle **Enable** to ON.
    - Under **Project support email**, select your email from the dropdown.
    - Click **Save**.
-5. If **Anonymous** was previously enabled:
+5. Enable **Email/Password** — **this is the step that turns on the "typical" email + password login, Create Account button, and Forgot Password flow described below:**
+   - Click **Email/Password** (or **Add new provider → Email/Password**).
+   - Toggle the first switch (**Email/Password**) to ON. You can leave "Email link (passwordless sign-in)" OFF.
+   - Click **Save**.
+6. If **Anonymous** was previously enabled:
    - Click **Anonymous**, toggle it **Disabled**, and click **Save**. *(This blocks anonymous internet bots from accessing your database).*
+
+Until step 5 is done, the app's email/password Sign In, Create Account, Claim Legacy Account, Change Password, and Forgot Password features will all fail with an `auth/operation-not-allowed` error — the code is ready, but Firebase itself is still rejecting that provider.
 
 ---
 
@@ -99,37 +106,61 @@ Now, even though the web config is committed to your frontend repository, the ke
 
 ## 5. How Existing Teachers Claim & Secure Their Accounts
 
-Teachers who had accounts prior to this security upgrade (`harty342002`, `maamsamcstr1234`, `lycalikezone67`, `shervibels00`) have their data safely preserved in Firebase.
+Teachers who had accounts prior to this security upgrade (`harty342002`, `maamsamcstr1234`, `lycalikezone67`, `shervibels00`) have their data safely preserved in Firebase. **Each legacy code can only ever be claimed once** — it permanently locks to whichever account claims it first, so a second person entering the same code will always see "already bound." That part is intentional (it's what stops the account from being stolen); see Section 8 below for what to do if the *wrong* person claimed one by accident.
 
-To link and protect their account:
-1. The teacher visits the deployed website.
-2. Below the main button, click:
-   **"Have an existing account created before this upgrade? Click here"**
-3. Enter their previous account code.
-4. Click **"🔐 Link & Secure with Google"**.
-5. Sign in with their Google/Gmail account.
-6. The app instantly binds their Google Account to their existing class records! All their classes, learners, and grades load immediately without losing anything.
-7. **From that second onward**:
-   - Their account is permanently locked to their Google Account.
-   - If anyone tries to enter their old password on the website, the site **blocks direct password login** and displays:
-     > *"🔒 ACCOUNT PROTECTED WITH 2FA: This account is permanently bound to Google Account (h***@gmail.com). Please sign in with Google."*
+To claim and protect their account, a teacher now has two ways in:
 
----
+**Option A — Email + password (recommended, no Google popup needed):**
+1. The teacher visits the deployed website and clicks **"🔐 Have an account from before this upgrade? Claim it here."**
+2. They enter their own email address and their legacy account code.
+3. Click **"🔐 Claim & Set Up Login."**
+4. The app creates them a normal email/password account — **their password is automatically set to their legacy account code** — and binds it to their existing class records. Everything loads immediately, nothing is lost.
+5. From then on they sign in with that email + their legacy code as the password, exactly like a typical login. They can change that password anytime from **Settings → Account → Change Password.**
 
-## 6. How New Teachers Sign Up (Automated Self Sign-Up)
+**Option B — Google Sign-In (unchanged from before):**
+1. Click **"Sign in with Google"**, then **"Have an existing account created before this upgrade? Click here"** in the onboarding dialog that follows.
+2. Enter their previous account code and confirm.
+3. Their Google Account is bound the same way it always was.
 
-You, the developer, no longer need to manually edit `app.js` or push commits to create new accounts:
-
-1. Any teacher opens the website.
-2. Clicks **"Sign in with Google"**.
-3. If they are a new teacher, the app displays:
-   > *"Welcome to CSTR Class Record! Set up your account"*
-4. They type their full name and click **"✨ Create My Class Record"**.
-5. Their personal, isolated class record is created instantly with a clean workspace ready for "+ Add Class".
+A teacher isn't limited to one method forever: someone who claimed via Google can open **Settings → Account** and click **Set Password** to add a typical email/password login alongside Google, without losing anything.
 
 ---
 
-## 7. Zero Cost & 2FA Guarantee
+## 6. How New Teachers Sign Up
+
+Two ways to create a brand-new, empty class record (no legacy code involved) — you, the developer, never need to manually edit `app.js` or push commits to create an account:
+
+**Option A — Create Account button (typical signup):**
+1. On the sign-in screen, click **"✨ Create a brand-new account."**
+2. Enter full name, email, and a password (6+ characters, entered twice to confirm).
+3. Click **"✨ Create My Class Record."** Their personal, isolated workspace is created instantly.
+
+**Option B — Google Sign-In:**
+1. Click **"Sign in with Google."** If they're new, the app shows *"Welcome to CSTR Class Record! Set up your account"* — they type their full name and click **"✨ Create Brand-New Class Record."**
+
+---
+
+## 7. Forgot Password / Change Password
+
+- **Forgot password**: on the sign-in screen, "Forgot password?" sends Firebase's built-in password-reset email to the address entered. The teacher clicks the link in that email to set a new password. (This app has no backend server, so a secure emailed link — not a typed-in code — is the correct, standard way to do this without one.)
+- **Change password**: signed-in teachers go to **Settings → Account → Change Password**, enter their current password once, and their new password twice.
+
+---
+
+## 8. Fixing a Wrongly-Bound Legacy Account
+
+If a legacy code (e.g. `maamsamcstr1234`) shows "already bound" for the person who should actually own it — meaning someone else claimed it by mistake, or it was bound during testing — only you, as the Firebase project owner, can release it, since it's a one-time-lock by design:
+
+1. Open **Firebase Console → Build → Realtime Database → Data**.
+2. Navigate to `cstr-class-record-bindings → <the legacy code, e.g. maamsamcstr1234>`.
+3. Check the `boundEmail` field — confirm it's really the wrong account before touching anything.
+4. Delete that one node (click the ⋮ menu next to it → **Remove**, or select it and click the trash icon).
+5. Optionally also delete the matching orphaned profile at `cstr-class-record-users → <that boundUid>` if it has no real class data of its own.
+6. The legacy code is now unclaimed again — the correct teacher can claim it fresh using Section 5 above.
+
+---
+
+## 9. Zero Cost & 2FA Guarantee
 
 - **Cost**: 100% free forever on the Firebase Spark plan (includes 10 GB/month database traffic and 50,000 monthly active users).
-- **2FA**: Handled directly by Google's account security (Google Authenticator, Google Prompt, or Gmail verification codes) without expensive SMS fees.
+- **2FA**: Google-based sign-ins get 2FA via Google's own account security (Authenticator, Prompt, or Gmail codes) at zero cost. Email/password sign-ins rely on the password itself plus Firebase's built-in rate-limiting on repeated failed attempts — if a teacher wants Google-level 2FA, Google Sign-In (or adding a password via Settings alongside it) remains available.
