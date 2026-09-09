@@ -16,14 +16,13 @@
     <main id="app" aria-live="polite"></main>
     <script src="ASSETS/grading-engine.js?v=10"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
-    <!-- Firebase compat SDK: same "just a script tag, no build step" model as
-         the xlsx library above, so this deploys on GitHub Pages exactly like
-         the old version did. See ASSETS/firebase-sync.js and
-         FIREBASE_SETUP.md for what to fill in. -->
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-    <script src="ASSETS/firebase-sync.js?v=3"></script>
-    <script src="ASSETS/app.js?v=13"></script>
+    <!-- Firebase compat SDK, self-hosted (see ASSETS/vendor/firebase-compat.bundle.js
+         for what this is and how to rebuild it after a version bump). Used to
+         load three separate files from www.gstatic.com; that's now a single
+         same-origin file so login/claim/sign-up no longer break on networks
+         where gstatic.com is slow, filtered, or unreachable. -->
+    <script src="ASSETS/vendor/firebase-compat.bundle.js"></script>
+    <script src="ASSETS/firebase-sync.js?v=4"></script>
+    <script src="ASSETS/app.js?v=14"></script>
   </body>
 </html>
