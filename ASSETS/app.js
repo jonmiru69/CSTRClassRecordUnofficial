@@ -730,6 +730,19 @@
   function showSignUpPanel() { loginPanel = "signup"; render(); }
   function showLegacyClaimPanel() { loginPanel = "legacy"; render(); }
 
+  // Turns a raw Firebase/JS error into user-facing text. Specifically catches
+  // the case where the Firebase scripts themselves failed to load (flaky
+  // connection, ad-blocker, etc.) — window.CSTRSync's fallback throws
+  // "Firebase SDK not loaded" for every method in that case — and shows a
+  // plain, actionable message instead of that internal-sounding string.
+  function friendlyAuthErrorMessage(err, fallbackPrefix) {
+    const sdkDown = !window.CSTRSync || !window.CSTRSync.configured || err?.message === "Firebase SDK not loaded";
+    if (sdkDown) {
+      return "Couldn't reach the sign-in service (this usually means the page didn't fully load). Please check your internet connection and reload the page, then try again.";
+    }
+    return `${fallbackPrefix}: ${err.message}`;
+  }
+
   // Shared "finish signing in" step used by every successful sign-in/sign-up path.
   function completeSignInSession(profile, user) {
     sessionStorage.setItem("cstr-class-record-login", "true");
@@ -771,7 +784,7 @@
         } else if (err.code === "auth/unauthorized-domain") {
           error.textContent = "Domain not authorized in Firebase Console. Please see FIREBASE_SETUP.md.";
         } else {
-          error.textContent = `Sign-in failed: ${err.message}`;
+          error.textContent = friendlyAuthErrorMessage(err, "Sign-in failed");
         }
         error.classList.add("error");
       }
@@ -815,7 +828,7 @@
         } else if (err.code === "auth/invalid-email") {
           error.textContent = "Please enter a valid email address.";
         } else {
-          error.textContent = `Sign-in failed: ${err.message}`;
+          error.textContent = friendlyAuthErrorMessage(err, "Sign-in failed");
         }
         error.classList.add("error");
       }
@@ -870,7 +883,7 @@
         } else if (err.code === "auth/invalid-email") {
           error.textContent = "Please enter a valid email address.";
         } else {
-          error.textContent = `Account creation failed: ${err.message}`;
+          error.textContent = friendlyAuthErrorMessage(err, "Account creation failed");
         }
         error.classList.add("error");
       }
@@ -929,7 +942,7 @@
         } else if (err.code === "auth/weak-password") {
           error.textContent = "Firebase requires that code/password to be at least 6 characters.";
         } else {
-          error.textContent = `Claim failed: ${err.message}`;
+          error.textContent = friendlyAuthErrorMessage(err, "Claim failed");
         }
         error.classList.add("error");
       }
@@ -959,7 +972,7 @@
     } catch (err) {
       console.error("Password reset error:", err);
       if (error) {
-        error.textContent = err.code === "auth/user-not-found" ? "No account found with that email." : `Couldn't send reset email: ${err.message}`;
+        error.textContent = err.code === "auth/user-not-found" ? "No account found with that email." : friendlyAuthErrorMessage(err, "Couldn't send reset email");
         error.classList.add("error");
       }
     }
@@ -1024,7 +1037,7 @@
       completeSignInSession(profile, user);
     } catch (err) {
       if (error) {
-        error.textContent = `Setup failed: ${err.message}`;
+        error.textContent = friendlyAuthErrorMessage(err, "Setup failed");
         error.classList.add("error");
       }
     }
@@ -1077,7 +1090,7 @@
         if (err.code === "auth/credential-already-in-use" || err.code === "auth/email-already-in-use") {
           error.textContent = "That code is already used as a password by another account. Please double-check your exact account code.";
         } else {
-          error.textContent = `Linking failed: ${err.message}`;
+          error.textContent = friendlyAuthErrorMessage(err, "Linking failed");
         }
         error.classList.add("error");
       }
@@ -2339,7 +2352,7 @@
       if (msg) {
         msg.textContent = ["auth/wrong-password", "auth/invalid-credential"].includes(err.code)
           ? "Current password is incorrect."
-          : `Couldn't change password: ${err.message}`;
+          : friendlyAuthErrorMessage(err, "Couldn't change password");
         msg.classList.add("error");
       }
     }
@@ -2370,7 +2383,7 @@
       if (msg2) { msg2.textContent = "Password set! You can now sign in with your email and this password, in addition to Google."; msg2.style.color = "#1a7f37"; }
     } catch (err) {
       console.error("Set password error:", err);
-      if (msg) { msg.textContent = `Couldn't set password: ${err.message}`; msg.classList.add("error"); }
+      if (msg) { msg.textContent = friendlyAuthErrorMessage(err, "Couldn't set password"); msg.classList.add("error"); }
     }
   }
 
