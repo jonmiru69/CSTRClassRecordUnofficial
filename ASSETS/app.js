@@ -46,6 +46,7 @@
   let autoSaveTimer = null;
   let saveToastTimer = null;
   let unsubscribeSync = null;
+  let isLinkingLegacyInProgress = false;
   // isStale = true means a DIFFERENT device just saved changes to this same
   // account while THIS device had unsaved edits in progress. Rather than
   // silently overwrite one or the other, saving is blocked until the teacher
@@ -732,20 +733,10 @@
       return;
     }
 
+    isLinkingLegacyInProgress = true;
     try {
-      // Check if account is ALREADY bound to a Google Account
-      const existingBinding = await window.CSTRSync.getLegacyBinding(legacyKey);
-      if (existingBinding && existingBinding.boundUid) {
-        const maskedEmail = maskEmail(existingBinding.boundEmail);
-        if (error) {
-          error.innerHTML = `🔒 <strong>ACCOUNT PROTECTED WITH 2FA</strong><br>This account is already permanently locked and bound to Google Account <strong>${maskedEmail}</strong>. Direct password login is disabled to prevent unauthorized access from leaked credentials.<br><br>Please click <strong>"Sign in with Google"</strong> above to access your class records.`;
-          error.classList.add("error");
-        }
-        return;
-      }
-
       if (success) {
-        success.textContent = "Account verified. Opening Google Sign-In to bind your credentials...";
+        success.textContent = "Opening Google Sign-In to bind your credentials...";
         success.style.display = "block";
       }
 
@@ -754,6 +745,7 @@
 
       const profile = await window.CSTRSync.bindLegacyAccount(legacyKey, user);
 
+      document.querySelector(".modal-backdrop")?.remove();
       sessionStorage.setItem("cstr-class-record-login", "true");
       sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
       sessionStorage.setItem("cstr-class-record-email", user.email || "");
@@ -770,6 +762,8 @@
         error.textContent = `Account linking failed: ${err.message}`;
         error.classList.add("error");
       }
+    } finally {
+      isLinkingLegacyInProgress = false;
     }
   }
 
@@ -778,27 +772,33 @@
     const backdrop = document.createElement("div");
     backdrop.className = "modal-backdrop onboarding-modal";
     backdrop.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="onboardTitle">
-      <h2 id="onboardTitle">Welcome to CSTR Class Record!</h2>
-      <p class="muted">Signed in as <strong>${safeValue(user.email || "")}</strong>. Choose how you would like to set up your account:</p>
+      <h2 id="onboardTitle">Set Up Your Account</h2>
+      <p class="muted">Signed in as <strong>${safeValue(user.email || "")}</strong>. Please select your account type:</p>
       
-      <div class="onboard-choice-card">
-        <h3 style="margin-top: 0;">Option A: New Teacher Workspace (Instant Setup)</h3>
-        <p class="muted">Creates your personal, blank class record workspace. You can immediately add classes, students, and compute grades.</p>
-        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Teacher Full Name
-          <input id="onboardTeacherName" type="text" value="${safeValue(user.displayName || '')}" placeholder="e.g. Maria Santos">
-        </label>
-        <button type="button" class="button button-primary" data-action="complete-new-teacher" style="width: 100%; margin-top: 10px;">✨ Create My Class Record</button>
-      </div>
-
-      <div class="onboard-divider"><span>OR</span></div>
-
-      <div class="onboard-choice-card">
-        <h3 style="margin-top: 0;">Option B: Link Existing Class Record</h3>
-        <p class="muted">If you are an existing CSTR teacher with class records saved under a previous account code, enter it below to claim and protect your data.</p>
-        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Legacy Account Code
+      <div class="onboard-choice-card" style="border: 2px solid var(--blue, #16364a); background: #f0f7fb;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+          <span style="font-size: 1.2rem;">📂</span>
+          <h3 style="margin: 0; color: #16364a;">Existing CSTR Teacher (Link Your Records)</h3>
+        </div>
+        <p class="muted" style="margin-bottom: 10px; font-size: 0.88rem;"><strong>Safe & Guaranteed:</strong> Enter your previous account code below to connect your existing classes, learners, and grades to this Google Account. <em>None of your data will be changed or deleted.</em></p>
+        <label class="field-label" style="text-align: left; margin: 6px 0;">Legacy Account Code
           <input id="onboardLegacyCode" type="password" placeholder="Enter legacy account code...">
         </label>
-        <button type="button" class="button button-outline" data-action="complete-link-legacy" style="width: 100%; margin-top: 10px;">🔐 Link & Import Existing Data</button>
+        <button type="button" class="button button-primary" data-action="complete-link-legacy" style="width: 100%; margin-top: 10px;">🔐 Link & Open My Existing Records</button>
+      </div>
+
+      <div class="onboard-divider"><span>OR IF YOU ARE BRAND NEW</span></div>
+
+      <div class="onboard-choice-card" style="border: 1px dashed var(--border);">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+          <span style="font-size: 1.2rem;">✨</span>
+          <h3 style="margin: 0;">Brand-New Teacher (No Previous Records)</h3>
+        </div>
+        <p class="muted" style="margin-bottom: 10px; font-size: 0.88rem;">Choose this <strong>only</strong> if you are a newly hired teacher who has never had a CSTR Class Record before. This creates a fresh, empty workspace.</p>
+        <label class="field-label" style="text-align: left; margin: 6px 0;">Teacher Full Name
+          <input id="onboardTeacherName" type="text" value="${safeValue(user.displayName || '')}" placeholder="e.g. Maria Santos">
+        </label>
+        <button type="button" class="button button-outline" data-action="complete-new-teacher" style="width: 100%; margin-top: 10px;">Create Brand-New Class Record</button>
       </div>
 
       <p id="onboardError" class="login-error" role="alert" style="margin-top: 15px;"></p>
@@ -854,7 +854,7 @@
 
     try {
       const profile = await window.CSTRSync.bindLegacyAccount(legacyKey, user);
-      document.querySelector(".modal-backdrop.onboarding-modal")?.remove();
+      document.querySelector(".modal-backdrop")?.remove();
 
       sessionStorage.setItem("cstr-class-record-login", "true");
       sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
@@ -2311,11 +2311,21 @@
     }
     if (action === "complete-new-teacher") {
       const user = window.CSTRSync.getCurrentUser();
-      if (user) completeNewTeacherSignup(user);
+      if (user) {
+        completeNewTeacherSignup(user);
+      } else {
+        const err = document.querySelector("#onboardError");
+        if (err) { err.textContent = "Your sign-in session expired. Please close this dialog and sign in with Google again."; err.classList.add("error"); }
+      }
     }
     if (action === "complete-link-legacy") {
       const user = window.CSTRSync.getCurrentUser();
-      if (user) completeOnboardLegacyLink(user);
+      if (user) {
+        completeOnboardLegacyLink(user);
+      } else {
+        const err = document.querySelector("#onboardError");
+        if (err) { err.textContent = "Your sign-in session expired. Please close this dialog and sign in with Google again."; err.classList.add("error"); }
+      }
     }
     
     if (action === "add-col") {
@@ -2647,11 +2657,20 @@
               sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
               sessionStorage.setItem("cstr-class-record-email", firebaseUser.email || "");
               sessionStorage.setItem("cstr-class-record-name", profile.name || firebaseUser.displayName || "");
-              render();
-              subscribeToSync();
-              startSaveIndicatorTicker();
+              // Only start the sync if it's not already in progress.
+              // performGoogleLogin() may have already called subscribeToSync() a moment ago,
+              // so we guard here to avoid kicking off a second redundant subscription.
+              if (!isDataLoaded && !isLoading) {
+                render();
+                subscribeToSync();
+              }
             } else if (sessionStorage.getItem("cstr-class-record-login") !== "true") {
-              showOnboardingModal(firebaseUser);
+              // Don't show onboarding modal if we're in the middle of linking a legacy account.
+              // performLegacyLink() sets this flag before opening the Google popup, so
+              // onAuthStateChanged fires while linking is still in progress.
+              if (!isLinkingLegacyInProgress) {
+                showOnboardingModal(firebaseUser);
+              }
             }
           } catch (err) {
             console.error("Auth state restore error:", err);

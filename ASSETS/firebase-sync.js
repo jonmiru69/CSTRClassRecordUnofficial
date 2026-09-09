@@ -136,8 +136,17 @@
       if (!user || !user.uid) throw new Error("Authenticated Google user required");
 
       const existingBinding = await this.getLegacyBinding(sanitized);
-      if (existingBinding && existingBinding.boundUid && existingBinding.boundUid !== user.uid) {
-        throw new Error("This account is already bound to another Google Account.");
+      if (existingBinding && existingBinding.boundUid) {
+        if (existingBinding.boundUid === user.uid) {
+          // Already bound to THIS Google user! Return existing or refreshed profile without error
+          const existingProfile = await this.getUserProfile(user.uid);
+          if (existingProfile && existingProfile.dataKey) {
+            return existingProfile;
+          }
+        } else {
+          const emailHint = existingBinding.boundEmail ? ` (${existingBinding.boundEmail})` : "";
+          throw new Error(`This legacy account is already bound to Google Account${emailHint}. Please sign in using that Google Account.`);
+        }
       }
 
       const now = Date.now();
@@ -162,6 +171,31 @@
       updates[`${USERS_PATH}/${user.uid}`] = userProfilePayload;
 
       await db.ref().update(updates);
+
+      // Safety check: verify that real class record data actually exists at this legacy key.
+      // We can read it now because the binding we just wrote grants us access.
+      // If data is null it means the code was mistyped — roll back immediately to protect the account.
+      try {
+        const dataSnap = await db.ref(`${DATA_PATH}/${sanitized}`).once("value");
+        if (!dataSnap.exists()) {
+          // Rollback: remove the binding and user profile we just created
+          const rollback = {};
+          rollback[`${BINDINGS_PATH}/${sanitized}`] = null;
+          rollback[`${USERS_PATH}/${user.uid}`] = null;
+          await db.ref().update(rollback);
+          throw new Error(
+            `No class records were found for the code "${legacyKey}". ` +
+            `Please double-check your exact legacy account code (spelling, capitalization). ` +
+            `Your account has NOT been modified.`
+          );
+        }
+      } catch (verifyErr) {
+        // Re-throw our own rollback error as-is; wrap any unexpected Firebase error.
+        if (verifyErr.message && verifyErr.message.startsWith("No class records")) throw verifyErr;
+        console.warn("CSTRSync: data verification after bind failed unexpectedly", verifyErr);
+        // Allow the bind to stand — network issue, not a wrong code.
+      }
+
       return userProfilePayload;
     },
 

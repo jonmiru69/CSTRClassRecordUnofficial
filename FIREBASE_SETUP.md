@@ -1,4 +1,4 @@
-﻿# Setting Up Live Sync & Google Authentication (Firebase)
+# Setting Up Live Sync & Google Authentication (Firebase)
 
 This web application uses **Firebase Realtime Database** with **Firebase Authentication (Google Sign-In)**. Every teacher signs in securely with their Google Account (which automatically supports 2-Step Verification / 2FA via Google Authenticator, Google Prompt, or Gmail at **zero cost**).
 
@@ -84,14 +84,14 @@ To ensure that your Firebase API key cannot be abused by external websites:
 1. Open the [Google Cloud Console Credentials Page](https://console.cloud.google.com/apis/credentials).
 2. Ensure project `cstr-class-record-global` is selected at the top.
 3. Under **API Keys**, click on the key used for Firebase (typically named `Browser key (auto created by Firebase)`).
-4. Under **Set application restrictions**, choose **Websites (HTTP referrers)**:
-   - Add `https://jonmiru69.github.io/*`
-   - Add `http://localhost/*`
-5. Under **API restrictions**, choose **Restrict key**:
-   - Check **Firebase Realtime Database API**
-   - Check **Identity Toolkit API** *(needed for Firebase Auth)*
-   - Check **Token Service API**
+4. Under **Set application restrictions**, choose **Websites (HTTP referrers)** and ensure ALL of these are added:
+   - `https://jonmiru69.github.io/*`
+   - `https://cstr-class-record-global.firebaseapp.com/*`  *(CRITICAL: this is where the Google OAuth popup runs!)*
+   - `https://cstr-class-record-global.web.app/*`
+   - `http://localhost/*`
+5. Under **API restrictions**, choose **"Don't restrict key"** (or if restricted, ensure *Identity Toolkit API*, *Token Service API*, and *Firebase Realtime Database API* are enabled). Setting it to *"Don't restrict key"* is recommended by Google for the Firebase Web Browser Key because your website HTTP Referrer restrictions in Step 4 and the Realtime Database Security Rules in Step 3 already fully protect your database.
 6. Click **Save**.
+7. **Wait 5 minutes**: Changes in Google Cloud Console take approximately 5–10 minutes to propagate across Google's worldwide servers.
 
 Now, even though the web config is committed to your frontend repository, the key is mathematically restricted to your approved website domains only.
 
