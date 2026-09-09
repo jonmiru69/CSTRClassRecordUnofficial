@@ -42,6 +42,12 @@
       subscribe() { return () => {}; },
       async save() { throw new Error("Firebase SDK not loaded"); },
       async signInWithGoogle() { throw new Error("Firebase SDK not loaded"); },
+      async signUpWithEmail() { throw new Error("Firebase SDK not loaded"); },
+      async signInWithEmail() { throw new Error("Firebase SDK not loaded"); },
+      async sendPasswordResetEmail() { throw new Error("Firebase SDK not loaded"); },
+      async changePassword() { throw new Error("Firebase SDK not loaded"); },
+      async setInitialPassword() { throw new Error("Firebase SDK not loaded"); },
+      hasPasswordProvider() { return false; },
       async signOut() {},
       getCurrentUser() { return null; }
     };
@@ -94,6 +100,58 @@
       provider.setCustomParameters({ prompt: "select_account" });
       const result = await auth.signInWithPopup(provider);
       return result.user;
+    },
+
+    // Creates a brand-new email/password account. Used both for brand-new
+    // teachers signing up directly, and for the legacy-claim flow (where the
+    // password passed in is the teacher's legacy account code).
+    async signUpWithEmail(email, password) {
+      const result = await auth.createUserWithEmailAndPassword(String(email || "").trim(), password);
+      return result.user;
+    },
+
+    // Typical email + password sign-in — no popup, no redirect.
+    async signInWithEmail(email, password) {
+      const result = await auth.signInWithEmailAndPassword(String(email || "").trim(), password);
+      return result.user;
+    },
+
+    // Sends Firebase's built-in password-reset email (a secure one-time link).
+    // There is no server in this project to mint or verify a typed-in
+    // confirmation code, so a reset link is the correct, zero-backend way to
+    // do "forgot password" on a static GitHub Pages site.
+    async sendPasswordResetEmail(email) {
+      await auth.sendPasswordResetEmail(String(email || "").trim());
+    },
+
+    // True if this account can sign in with email + password (as opposed to
+    // a Google-only account that has never set a password).
+    hasPasswordProvider(user) {
+      const target = user || auth.currentUser;
+      return Boolean(target && target.providerData.some((p) => p.providerId === "password"));
+    },
+
+    // Changes the password for an account that already has one. Firebase
+    // requires a recent sign-in for this, so the current password is used to
+    // re-authenticate first.
+    async changePassword(currentPassword, newPassword) {
+      const user = auth.currentUser;
+      if (!user || !user.email) throw new Error("You need to be signed in with an email address to change your password.");
+      const credential = firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+    },
+
+    // Adds a password sign-in option to an account that currently only has
+    // Google Sign-In, so it can also use typical email + password login
+    // afterward (no need to re-authenticate with a password here — linking a
+    // NEW credential onto an already-signed-in session doesn't require one).
+    async setInitialPassword(newPassword) {
+      const user = auth.currentUser;
+      if (!user || !user.email) throw new Error("No signed-in account with an email address was found.");
+      const credential = firebase.auth.EmailAuthProvider.credential(user.email, newPassword);
+      await user.linkWithCredential(credential);
+      return user;
     },
 
     async signOut() {
