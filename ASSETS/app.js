@@ -47,6 +47,7 @@
   let saveToastTimer = null;
   let unsubscribeSync = null;
   let isLinkingLegacyInProgress = false;
+  let loginPanel = "signin"; // "signin" | "signup" | "legacy" — which login-screen panel is showing
   // isStale = true means a DIFFERENT device just saved changes to this same
   // account while THIS device had unsaved edits in progress. Rather than
   // silently overwrite one or the other, saving is blocked until the teacher
@@ -635,44 +636,113 @@
   }
 
   function renderLogin() {
+    const titles = { signin: "Teacher Sign In", signup: "Create Your Account", legacy: "Claim Your Legacy Account" };
+    const panelBody = loginPanel === "signup" ? renderSignUpPanel()
+      : loginPanel === "legacy" ? renderLegacyClaimPanel()
+      : renderSignInPanel();
+
     return `<section class="login-screen">
       <div class="login-card">
         <div class="login-header-logo">
           <img src="ASSETS/cstr-logo.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
         </div>
         <p class="eyebrow">Colegio de Sto. Tomás – Recoletos</p>
-        <h1>Teacher Sign In</h1>
-        <p class="muted">Website for Class Record, with respect to DepEd Order No. 15, s. 2026. Secured with Google Authentication & 2FA.</p>
-        
-        <div class="login-cta-group">
-          <button type="button" class="button-google" data-action="google-login">
-            <svg class="google-icon" viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
-              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.79l7.97-6.2z"/>
-              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-            </svg>
-            <span>Sign in with Google</span>
-          </button>
-        </div>
+        <h1>${titles[loginPanel]}</h1>
+        <p class="muted">Website for Class Record, with respect to DepEd Order No. 15, s. 2026.</p>
 
-        <div class="login-divider"><span>OR FIRST-TIME LEGACY ACCOUNT LINKING</span></div>
-
-        <details class="legacy-login-details">
-          <summary class="legacy-toggle-link">Have an existing account created before this upgrade? Click here</summary>
-          <form id="loginForm" class="legacy-login-box">
-            <p class="legacy-helper-text">If you have class records from before this security upgrade (e.g. Sir Harty, Ma'am Sam), link your Google Account once below to claim and permanently lock your records to your Google credentials.</p>
-            <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Legacy Account Code
-              <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Enter legacy account code...">
-            </label>
-            <button type="submit" class="button button-outline" data-action="link-legacy" style="width: 100%; margin-top: 10px;">🔐 Link & Secure with Google</button>
-          </form>
-        </details>
+        ${panelBody}
 
         <p id="loginError" class="login-error" role="alert"></p>
         <p id="loginSuccess" class="login-success" role="status" style="display: none;"></p>
       </div>
     </section>`;
+  }
+
+  function renderSignInPanel() {
+    return `<form id="signinForm" class="legacy-login-box">
+        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Email
+          <input id="signinEmail" type="email" autocomplete="username" placeholder="you@example.com">
+        </label>
+        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Password
+          <input id="signinPassword" type="password" autocomplete="current-password" placeholder="Your password">
+        </label>
+        <button type="submit" class="button button-primary" data-action="email-signin" style="width: 100%; margin-top: 6px;">Sign In</button>
+      </form>
+      <p style="text-align: center; margin-top: 8px;"><a href="#" class="legacy-toggle-link" data-action="forgot-password">Forgot password?</a></p>
+
+      <div class="login-divider"><span>OR</span></div>
+      <div class="login-cta-group">
+        <button type="button" class="button-google" data-action="google-login">
+          <svg class="google-icon" viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.79l7.97-6.2z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          <span>Sign in with Google</span>
+        </button>
+      </div>
+
+      <div class="login-divider"><span>NEW HERE?</span></div>
+      <p style="text-align: center;">
+        <a href="#" class="legacy-toggle-link" data-action="show-signup">✨ Create a brand-new account</a>
+      </p>
+      <p style="text-align: center; margin-top: 6px;">
+        <a href="#" class="legacy-toggle-link" data-action="show-legacy-claim">🔐 Have an account from before this upgrade? Claim it here</a>
+      </p>`;
+  }
+
+  function renderSignUpPanel() {
+    return `<p class="legacy-helper-text" style="text-align: left;">Choose this only if you are a newly hired teacher who has never had a CSTR Class Record before. This creates a fresh, empty workspace.</p>
+      <form id="signupForm" class="legacy-login-box">
+        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Full Name
+          <input id="signupName" type="text" placeholder="e.g. Maria Santos">
+        </label>
+        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Email
+          <input id="signupEmail" type="email" autocomplete="username" placeholder="you@example.com">
+        </label>
+        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Password
+          <input id="signupPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+        </label>
+        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Confirm Password
+          <input id="signupPasswordConfirm" type="password" autocomplete="new-password" placeholder="Re-enter password">
+        </label>
+        <button type="submit" class="button button-primary" data-action="email-signup" style="width: 100%; margin-top: 6px;">✨ Create My Class Record</button>
+      </form>
+      <p style="text-align: center; margin-top: 10px;"><a href="#" class="legacy-toggle-link" data-action="show-signin">← Back to Sign In</a></p>`;
+  }
+
+  function renderLegacyClaimPanel() {
+    return `<p class="legacy-helper-text" style="text-align: left;">If you have class records from before this upgrade (e.g. Sir Harty, Ma'am Sam), claim them below. <strong>Your legacy account code becomes your password</strong> — you're free to change it anytime afterward from Settings.</p>
+      <form id="legacyClaimForm" class="legacy-login-box">
+        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Your Email
+          <input id="legacyClaimEmail" type="email" autocomplete="username" placeholder="you@example.com">
+        </label>
+        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Legacy Account Code
+          <input id="legacyClaimCode" type="password" autocomplete="off" placeholder="Enter legacy account code...">
+        </label>
+        <button type="submit" class="button button-outline" data-action="legacy-claim" style="width: 100%; margin-top: 6px;">🔐 Claim & Set Up Login</button>
+      </form>
+      <p style="text-align: center; margin-top: 10px;"><a href="#" class="legacy-toggle-link" data-action="show-signin">← Back to Sign In</a></p>`;
+  }
+
+  function showSignInPanel() { loginPanel = "signin"; render(); }
+  function showSignUpPanel() { loginPanel = "signup"; render(); }
+  function showLegacyClaimPanel() { loginPanel = "legacy"; render(); }
+
+  // Shared "finish signing in" step used by every successful sign-in/sign-up path.
+  function completeSignInSession(profile, user) {
+    sessionStorage.setItem("cstr-class-record-login", "true");
+    sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
+    sessionStorage.setItem("cstr-class-record-email", user.email || "");
+    sessionStorage.setItem("cstr-class-record-name", profile.name || user.displayName || "");
+    render();
+    if (!hasSeenWelcome()) {
+      markWelcomeSeen();
+      showWelcomeModal();
+    }
+    subscribeToSync();
+    startSaveIndicatorTicker();
   }
 
   async function performGoogleLogin() {
@@ -688,17 +758,7 @@
 
       const profile = await window.CSTRSync.getUserProfile(user.uid);
       if (profile && profile.dataKey) {
-        sessionStorage.setItem("cstr-class-record-login", "true");
-        sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
-        sessionStorage.setItem("cstr-class-record-email", user.email || "");
-        sessionStorage.setItem("cstr-class-record-name", profile.name || user.displayName || "");
-        render();
-        if (!hasSeenWelcome()) {
-          markWelcomeSeen();
-          showWelcomeModal();
-        }
-        subscribeToSync();
-        startSaveIndicatorTicker();
+        completeSignInSession(profile, user);
       } else {
         showOnboardingModal(user);
       }
@@ -717,53 +777,180 @@
     }
   }
 
-  async function performLegacyLink() {
-    const passwordInput = document.querySelector("#loginPassword");
-    const legacyKey = passwordInput ? passwordInput.value.trim() : "";
+  async function performEmailSignIn() {
+    const emailInput = document.querySelector("#signinEmail");
+    const passwordInput = document.querySelector("#signinPassword");
+    const email = emailInput ? emailInput.value.trim() : "";
+    const password = passwordInput ? passwordInput.value : "";
     const error = document.querySelector("#loginError");
     const success = document.querySelector("#loginSuccess");
     if (error) { error.textContent = ""; error.classList.remove("error"); }
     if (success) { success.textContent = ""; success.style.display = "none"; }
 
-    if (!legacyKey) {
+    if (!email || !password) {
+      if (error) { error.textContent = "Please enter your email and password."; error.classList.add("error"); }
+      return;
+    }
+
+    try {
+      setStatus("Signing in...", "saving");
+      const user = await window.CSTRSync.signInWithEmail(email, password);
+      if (!user) return;
+      const profile = await window.CSTRSync.getUserProfile(user.uid);
+      if (profile && profile.dataKey) {
+        completeSignInSession(profile, user);
+      } else {
+        showOnboardingModal(user);
+      }
+    } catch (err) {
+      console.error("Email sign-in error:", err);
       if (error) {
-        error.textContent = "Please enter your legacy account code.";
+        if (["auth/invalid-credential", "auth/wrong-password", "auth/user-not-found"].includes(err.code)) {
+          error.textContent = "Incorrect email or password.";
+        } else if (err.code === "auth/too-many-requests") {
+          error.textContent = "Too many attempts. Please wait a moment and try again.";
+        } else if (err.code === "auth/invalid-email") {
+          error.textContent = "Please enter a valid email address.";
+        } else {
+          error.textContent = `Sign-in failed: ${err.message}`;
+        }
         error.classList.add("error");
       }
+    }
+  }
+
+  async function performEmailSignUp() {
+    const nameInput = document.querySelector("#signupName");
+    const emailInput = document.querySelector("#signupEmail");
+    const passwordInput = document.querySelector("#signupPassword");
+    const confirmInput = document.querySelector("#signupPasswordConfirm");
+    const name = nameInput ? nameInput.value.trim() : "";
+    const email = emailInput ? emailInput.value.trim() : "";
+    const password = passwordInput ? passwordInput.value : "";
+    const confirmPassword = confirmInput ? confirmInput.value : "";
+    const error = document.querySelector("#loginError");
+    if (error) { error.textContent = ""; error.classList.remove("error"); }
+
+    if (!name || !email || !password) {
+      if (error) { error.textContent = "Please fill in your name, email, and password."; error.classList.add("error"); }
+      return;
+    }
+    if (password.length < 6) {
+      if (error) { error.textContent = "Password must be at least 6 characters."; error.classList.add("error"); }
+      return;
+    }
+    if (password !== confirmPassword) {
+      if (error) { error.textContent = "Passwords do not match."; error.classList.add("error"); }
+      return;
+    }
+
+    // Guards against a race with the global onAuthStateChanged listener: it
+    // fires as soon as the new account is created, possibly before
+    // registerNewTeacher() below finishes writing the profile — without this
+    // flag it could briefly show the Google-oriented onboarding modal on top
+    // of this native email signup.
+    isLinkingLegacyInProgress = true;
+    try {
+      setStatus("Creating your account...", "saving");
+      const user = await window.CSTRSync.signUpWithEmail(email, password);
+      const profile = await window.CSTRSync.registerNewTeacher(user, name);
+      state = createInitialState();
+      state.teacher.name = profile.name;
+      completeSignInSession(profile, user);
+    } catch (err) {
+      console.error("Email sign-up error:", err);
+      if (error) {
+        if (err.code === "auth/email-already-in-use") {
+          error.textContent = "An account with this email already exists. Try signing in instead.";
+        } else if (err.code === "auth/weak-password") {
+          error.textContent = "Password is too weak — please use at least 6 characters.";
+        } else if (err.code === "auth/invalid-email") {
+          error.textContent = "Please enter a valid email address.";
+        } else {
+          error.textContent = `Account creation failed: ${err.message}`;
+        }
+        error.classList.add("error");
+      }
+    } finally {
+      isLinkingLegacyInProgress = false;
+    }
+  }
+
+  async function performLegacyClaim() {
+    const emailInput = document.querySelector("#legacyClaimEmail");
+    const codeInput = document.querySelector("#legacyClaimCode");
+    const email = emailInput ? emailInput.value.trim() : "";
+    const legacyKey = codeInput ? codeInput.value.trim() : "";
+    const error = document.querySelector("#loginError");
+    const success = document.querySelector("#loginSuccess");
+    if (error) { error.textContent = ""; error.classList.remove("error"); }
+    if (success) { success.textContent = ""; success.style.display = "none"; }
+
+    if (!email || !legacyKey) {
+      if (error) { error.textContent = "Please enter your email and your legacy account code."; error.classList.add("error"); }
+      return;
+    }
+    if (legacyKey.length < 6) {
+      if (error) { error.textContent = "That code looks too short to use as a password (Firebase requires 6+ characters). Double-check your exact legacy account code."; error.classList.add("error"); }
       return;
     }
 
     isLinkingLegacyInProgress = true;
     try {
-      if (success) {
-        success.textContent = "Opening Google Sign-In to bind your credentials...";
-        success.style.display = "block";
-      }
-
-      const user = await window.CSTRSync.signInWithGoogle();
-      if (!user) return;
-
+      setStatus("Setting up your login...", "saving");
+      const user = await window.CSTRSync.signUpWithEmail(email, legacyKey);
       const profile = await window.CSTRSync.bindLegacyAccount(legacyKey, user);
-
-      document.querySelector(".modal-backdrop")?.remove();
-      sessionStorage.setItem("cstr-class-record-login", "true");
-      sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
-      sessionStorage.setItem("cstr-class-record-email", user.email || "");
-      sessionStorage.setItem("cstr-class-record-name", profile.name || user.displayName || "");
-
-      render();
-      alert(`SECURITY UPGRADE COMPLETE:\n\nYour account has been permanently bound to ${user.email}.\n\nFrom now on, sign in securely with 1 click using "Sign in with Google". Old passwords can no longer be used alone to access your data.`);
-      
-      subscribeToSync();
-      startSaveIndicatorTicker();
+      completeSignInSession(profile, user);
+      alert(`ACCOUNT CLAIMED:\n\nFrom now on you can sign in with:\nEmail: ${email}\nPassword: your legacy account code\n\nYou can change this password anytime from Settings.`);
     } catch (err) {
-      console.error("Legacy linking error:", err);
+      console.error("Legacy claim error:", err);
+      // If the auth account got created but the bind step failed (wrong code,
+      // already bound elsewhere, etc.), that new auth account is orphaned —
+      // remove it so the person can retry with the same email instead of
+      // hitting "email already in use".
+      const newUser = window.CSTRSync.getCurrentUser();
+      if (newUser && (!err.code || !err.code.startsWith("auth/"))) {
+        try { await newUser.delete(); } catch (cleanupErr) { console.warn("Cleanup of orphaned auth account failed", cleanupErr); }
+      }
       if (error) {
-        error.textContent = `Account linking failed: ${err.message}`;
+        if (err.code === "auth/email-already-in-use") {
+          error.textContent = "An account with this email already exists. Try signing in instead, or use a different email.";
+        } else if (err.code === "auth/weak-password") {
+          error.textContent = "Firebase requires that code/password to be at least 6 characters.";
+        } else {
+          error.textContent = `Claim failed: ${err.message}`;
+        }
         error.classList.add("error");
       }
     } finally {
       isLinkingLegacyInProgress = false;
+    }
+  }
+
+  async function performForgotPassword() {
+    const emailInput = document.querySelector("#signinEmail");
+    let email = emailInput ? emailInput.value.trim() : "";
+    if (!email) {
+      email = (prompt("Enter the email address for your account:") || "").trim();
+    }
+    const error = document.querySelector("#loginError");
+    const success = document.querySelector("#loginSuccess");
+    if (error) { error.textContent = ""; error.classList.remove("error"); }
+    if (success) { success.textContent = ""; success.style.display = "none"; }
+    if (!email) return;
+
+    try {
+      await window.CSTRSync.sendPasswordResetEmail(email);
+      if (success) {
+        success.textContent = `Password reset link sent to ${email}. Check your inbox (and spam folder) and click the link to set a new password.`;
+        success.style.display = "block";
+      }
+    } catch (err) {
+      console.error("Password reset error:", err);
+      if (error) {
+        error.textContent = err.code === "auth/user-not-found" ? "No account found with that email." : `Couldn't send reset email: ${err.message}`;
+        error.classList.add("error");
+      }
     }
   }
 
@@ -820,21 +1007,10 @@
       const profile = await window.CSTRSync.registerNewTeacher(user, teacherName);
       document.querySelector(".modal-backdrop.onboarding-modal")?.remove();
 
-      sessionStorage.setItem("cstr-class-record-login", "true");
-      sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
-      sessionStorage.setItem("cstr-class-record-email", user.email || "");
-      sessionStorage.setItem("cstr-class-record-name", profile.name);
-
       state = createInitialState();
       state.teacher.name = profile.name;
 
-      render();
-      if (!hasSeenWelcome()) {
-        markWelcomeSeen();
-        showWelcomeModal();
-      }
-      subscribeToSync();
-      startSaveIndicatorTicker();
+      completeSignInSession(profile, user);
     } catch (err) {
       if (error) {
         error.textContent = `Setup failed: ${err.message}`;
@@ -860,15 +1036,8 @@
       const profile = await window.CSTRSync.bindLegacyAccount(legacyKey, user);
       document.querySelector(".modal-backdrop")?.remove();
 
-      sessionStorage.setItem("cstr-class-record-login", "true");
-      sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
-      sessionStorage.setItem("cstr-class-record-email", user.email || "");
-      sessionStorage.setItem("cstr-class-record-name", profile.name || user.displayName || "");
-
-      render();
+      completeSignInSession(profile, user);
       alert(`SECURITY UPGRADE COMPLETE:\n\nYour account has been linked to ${user.email}. Loading your existing class records...`);
-      subscribeToSync();
-      startSaveIndicatorTicker();
     } catch (err) {
       if (error) {
         error.textContent = `Linking failed: ${err.message}`;
@@ -2066,6 +2235,107 @@
     return `<ul class="version-history-list">${rows}</ul>`;
   }
 
+  function renderAccountSection() {
+    const user = window.CSTRSync.getCurrentUser ? window.CSTRSync.getCurrentUser() : null;
+    const hasPassword = window.CSTRSync.hasPasswordProvider ? window.CSTRSync.hasPasswordProvider(user) : false;
+    return `<div class="section-heading" style="margin-top: 22px;"><div><p class="eyebrow">Account</p><h2 style="font-size: 1.1rem;">Sign-in &amp; Password</h2></div></div>
+      <p class="settings-note">Signed in as <strong>${safeValue(currentUserEmail())}</strong></p>
+      ${hasPassword ? `
+        <form id="changePasswordForm" class="legacy-login-box" style="margin-top: 10px;">
+          <label class="field-label" style="text-align: left;">Current Password
+            <input id="currentPassword" type="password" autocomplete="current-password">
+          </label>
+          <label class="field-label" style="text-align: left; margin-top: 8px;">New Password
+            <input id="newPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+          </label>
+          <label class="field-label" style="text-align: left; margin-top: 8px;">Confirm New Password
+            <input id="newPasswordConfirm" type="password" autocomplete="new-password">
+          </label>
+          <button type="submit" class="button button-primary" data-action="change-password" style="margin-top: 10px;">Change Password</button>
+        </form>
+      ` : `
+        <p class="settings-note">This account currently only signs in through Google. Set a password below to also be able to type in your email and password directly, like a typical login.</p>
+        <form id="setPasswordForm" class="legacy-login-box" style="margin-top: 10px;">
+          <label class="field-label" style="text-align: left;">New Password
+            <input id="setPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+          </label>
+          <label class="field-label" style="text-align: left; margin-top: 8px;">Confirm Password
+            <input id="setPasswordConfirm" type="password" autocomplete="new-password">
+          </label>
+          <button type="submit" class="button button-outline" data-action="set-password" style="margin-top: 10px;">Set Password</button>
+        </form>
+      `}
+      <p id="passwordChangeMsg" class="login-error" role="alert" style="margin-top: 6px;"></p>`;
+  }
+
+  async function performChangePassword() {
+    const currentInput = document.querySelector("#currentPassword");
+    const newInput = document.querySelector("#newPassword");
+    const confirmInput = document.querySelector("#newPasswordConfirm");
+    const msg = document.querySelector("#passwordChangeMsg");
+    const current = currentInput ? currentInput.value : "";
+    const next = newInput ? newInput.value : "";
+    const confirmValue = confirmInput ? confirmInput.value : "";
+    if (msg) { msg.textContent = ""; msg.classList.remove("error"); msg.style.color = ""; }
+
+    if (!current || !next) {
+      if (msg) { msg.textContent = "Please fill in both password fields."; msg.classList.add("error"); }
+      return;
+    }
+    if (next.length < 6) {
+      if (msg) { msg.textContent = "New password must be at least 6 characters."; msg.classList.add("error"); }
+      return;
+    }
+    if (next !== confirmValue) {
+      if (msg) { msg.textContent = "New passwords do not match."; msg.classList.add("error"); }
+      return;
+    }
+
+    try {
+      await window.CSTRSync.changePassword(current, next);
+      if (msg) { msg.textContent = "Password changed successfully."; msg.style.color = "#1a7f37"; }
+      const form = document.querySelector("#changePasswordForm");
+      if (form) form.reset();
+    } catch (err) {
+      console.error("Change password error:", err);
+      if (msg) {
+        msg.textContent = ["auth/wrong-password", "auth/invalid-credential"].includes(err.code)
+          ? "Current password is incorrect."
+          : `Couldn't change password: ${err.message}`;
+        msg.classList.add("error");
+      }
+    }
+  }
+
+  async function performSetPassword() {
+    const newInput = document.querySelector("#setPassword");
+    const confirmInput = document.querySelector("#setPasswordConfirm");
+    const msg = document.querySelector("#passwordChangeMsg");
+    const next = newInput ? newInput.value : "";
+    const confirmValue = confirmInput ? confirmInput.value : "";
+    if (msg) { msg.textContent = ""; msg.classList.remove("error"); msg.style.color = ""; }
+
+    if (!next || next.length < 6) {
+      if (msg) { msg.textContent = "Password must be at least 6 characters."; msg.classList.add("error"); }
+      return;
+    }
+    if (next !== confirmValue) {
+      if (msg) { msg.textContent = "Passwords do not match."; msg.classList.add("error"); }
+      return;
+    }
+
+    try {
+      await window.CSTRSync.setInitialPassword(next);
+      document.querySelector(".modal-backdrop")?.remove();
+      renderSettings();
+      const msg2 = document.querySelector("#passwordChangeMsg");
+      if (msg2) { msg2.textContent = "Password set! You can now sign in with your email and this password, in addition to Google."; msg2.style.color = "#1a7f37"; }
+    } catch (err) {
+      console.error("Set password error:", err);
+      if (msg) { msg.textContent = `Couldn't set password: ${err.message}`; msg.classList.add("error"); }
+    }
+  }
+
   function renderSettings() {
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
@@ -2078,6 +2348,7 @@
     modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle"><div class="section-heading"><div><p class="eyebrow">Live sync</p><h2 id="settingsTitle">Settings</h2></div>${button("✕ Close", "close-modal")}</div>
       ${syncStatusLine}
       ${lastLoadError ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;">⚠️ ${safeValue(lastLoadError)}</p>` : ""}
+      ${renderAccountSection()}
       <div class="section-heading" style="margin-top: 22px;"><div><p class="eyebrow">Recovery</p><h2 style="font-size: 1.1rem;">Restore a previous version</h2></div></div>
       <p class="settings-note">Every time changes are saved, the state just before that save is kept here on this device — use this if a value was cleared or deleted by accident. Restoring loads that version into the app; you'll still need to save it to sync the rollback to every device.</p>
       ${renderVersionHistoryList()}
@@ -2294,12 +2565,17 @@
     setStatus(`Cut ${bounds.maxRow - bounds.minRow + 1} rows × ${bounds.maxCol - bounds.minCol + 1} columns.`);
   });
 
-  // Login form submit listener (Enter key on form)
-  app.addEventListener("submit", (event) => {
-    if (event.target && event.target.id === "loginForm") {
-      event.preventDefault();
-      performLegacyLink();
-    }
+  // Form submit listeners (Enter key on any of these forms). Attached to
+  // `document`, not `app`, because Settings is a modal appended directly to
+  // document.body — outside #app — so its forms wouldn't bubble to an
+  // app-scoped listener.
+  document.addEventListener("submit", (event) => {
+    const id = event.target && event.target.id;
+    if (id === "signinForm") { event.preventDefault(); performEmailSignIn(); }
+    if (id === "signupForm") { event.preventDefault(); performEmailSignUp(); }
+    if (id === "legacyClaimForm") { event.preventDefault(); performLegacyClaim(); }
+    if (id === "changePasswordForm") { event.preventDefault(); performChangePassword(); }
+    if (id === "setPasswordForm") { event.preventDefault(); performSetPassword(); }
   });
 
   document.addEventListener("click", (event) => {
@@ -2310,8 +2586,28 @@
     if (action === "google-login") {
       performGoogleLogin();
     }
-    if (action === "link-legacy") {
-      performLegacyLink();
+    // Note: email-signin, email-signup, legacy-claim, change-password, and
+    // set-password are NOT handled here even though their buttons carry
+    // data-action — they're type="submit" buttons inside <form> elements,
+    // so a click already triggers the form's native submit event. Handling
+    // them here too would fire each action twice per click (once from this
+    // click listener, once from the submit listener below). The submit
+    // listener alone already covers both mouse clicks and Enter-key submits.
+    if (action === "forgot-password") {
+      event.preventDefault();
+      performForgotPassword();
+    }
+    if (action === "show-signin") {
+      event.preventDefault();
+      showSignInPanel();
+    }
+    if (action === "show-signup") {
+      event.preventDefault();
+      showSignUpPanel();
+    }
+    if (action === "show-legacy-claim") {
+      event.preventDefault();
+      showLegacyClaimPanel();
     }
     if (action === "complete-new-teacher") {
       const user = window.CSTRSync.getCurrentUser();
@@ -2496,10 +2792,10 @@
       if (event.target && event.target.id === "studentSearch") {
         event.preventDefault();
         searchStudent();
-      } else if (event.target && event.target.id === "loginPassword") {
-        event.preventDefault();
-        performLegacyLink();
       }
+      // Note: login-screen fields no longer need special-casing here — they're
+      // all inside real <form> elements now, so Enter already triggers the
+      // native submit event, which the document "submit" listener handles.
     }
   });
 
@@ -2676,9 +2972,10 @@
                 subscribeToSync();
               }
             } else if (sessionStorage.getItem("cstr-class-record-login") !== "true") {
-              // Don't show onboarding modal if we're in the middle of linking a legacy account.
-              // performLegacyLink() sets this flag before opening the Google popup, so
-              // onAuthStateChanged fires while linking is still in progress.
+              // Don't show onboarding modal if we're in the middle of an email
+              // sign-up or legacy claim — performEmailSignUp()/performLegacyClaim()
+              // set this flag first, since onAuthStateChanged can fire before
+              // their own profile write finishes.
               if (!isLinkingLegacyInProgress) {
                 showOnboardingModal(firebaseUser);
               }
