@@ -621,7 +621,209 @@
     return numeric.slice(0, firstDot + 1) + numeric.slice(firstDot + 1).replace(/\./g, "");
   }
 
+  function updateSiteBackground() {
+    const bg = document.querySelector("#siteBg");
+    if (!bg) return;
+    const isLoggedIn = sessionStorage.getItem("cstr-class-record-login") === "true";
+    bg.className = isLoggedIn ? "bg-sheets" : "bg-login";
+  }
+
+  // Cryptographic registration code verification (salted SHA-256).
+  // The secret code is NEVER hardcoded in plaintext in this repository.
+  const REGISTRATION_CODE_SALT = "cstr_reg_salt_2026_";
+  const REGISTRATION_CODE_HASH = "5bda9bb6cb78722954ba192da3ddf9f3f5a7181b6e2fe034718088f43602ce35";
+
+  function sha256Fallback(ascii) {
+    function rightRotate(value, amount) {
+      return (value >>> amount) | (value << (32 - amount));
+    }
+    const mathPow = Math.pow;
+    const maxWord = mathPow(2, 32);
+    let i, j;
+    let result = "";
+    const words = [];
+    const asciiBitLength = ascii.length * 8;
+    let hash = [
+      0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+      0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+    ];
+    const k = [
+      0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+      0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+      0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+      0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+      0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+      0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+      0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+      0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+    ];
+    let composite = ascii + "\x80";
+    while (composite.length % 64 - 56) composite += "\x00";
+    for (i = 0; i < composite.length; i++) {
+      j = composite.charCodeAt(i);
+      words[i >> 2] |= j << ((3 - i % 4) * 8);
+    }
+    words[words.length] = ((asciiBitLength / maxWord) | 0);
+    words[words.length] = (asciiBitLength | 0);
+    for (j = 0; j < words.length;) {
+      const w = words.slice(j, j += 16);
+      const oldHash = hash.slice(0);
+      for (i = 0; i < 64; i++) {
+        const w15 = w[i - 15], w2 = w[i - 2];
+        const s0 = rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3);
+        const s1 = rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10);
+        w[i] = (i < 16) ? w[i] : (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+        const s1_ = rightRotate(hash[4], 6) ^ rightRotate(hash[4], 11) ^ rightRotate(hash[4], 25);
+        const ch = (hash[4] & hash[5]) ^ (~hash[4] & hash[6]);
+        const temp1 = (hash[7] + s1_ + ch + k[i] + w[i]) | 0;
+        const s0_ = rightRotate(hash[0], 2) ^ rightRotate(hash[0], 13) ^ rightRotate(hash[0], 22);
+        const maj = (hash[0] & hash[1]) ^ (hash[0] & hash[2]) ^ (hash[1] & hash[2]);
+        const temp2 = (s0_ + maj) | 0;
+        hash = [(temp1 + temp2) | 0, hash[0], hash[1], hash[2], (hash[3] + temp1) | 0, hash[4], hash[5], hash[6]];
+      }
+      for (i = 0; i < 8; i++) hash[i] = (hash[i] + oldHash[i]) | 0;
+    }
+    for (i = 0; i < 8; i++) {
+      for (let b = 3; b >= 0; b--) {
+        const byte = (hash[i] >> (b * 8)) & 255;
+        result += (byte < 16 ? "0" : "") + byte.toString(16);
+      }
+    }
+    return result;
+  }
+
+  async function computeSha256Hex(str) {
+    try {
+      if (window.crypto && window.crypto.subtle && window.crypto.subtle.digest) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(str);
+        const hashBuffer = await window.crypto.subtle.digest("SHA-256", data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+      }
+    } catch (e) {
+      console.warn("SubtleCrypto unavailable or restricted, using fallback", e);
+    }
+    return sha256Fallback(str);
+  }
+
+  async function verifySecretRegistrationCode(inputCode) {
+    const trimmed = String(inputCode || "").trim();
+    if (!trimmed) return false;
+    const computed = await computeSha256Hex(REGISTRATION_CODE_SALT + trimmed);
+    return computed === REGISTRATION_CODE_HASH;
+  }
+
+  function isRegistrationAuthorized() {
+    return sessionStorage.getItem("cstr_reg_auth") === "true";
+  }
+
+  function showRegistrationCodeModal(onAuthorized) {
+    document.querySelector(".regcode-modal-backdrop")?.remove();
+    const backdrop = document.createElement("div");
+    backdrop.className = "regcode-modal-backdrop";
+    backdrop.id = "regCodeBackdrop";
+    backdrop.innerHTML = `<div class="regcode-modal" role="dialog" aria-modal="true" aria-labelledby="regCodeTitle">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+        <div>
+          <span class="regcode-badge">🛡️ Official Account Registration Gateway</span>
+          <h2 id="regCodeTitle">Input Secret Code for Official Account Registration</h2>
+        </div>
+        <button type="button" class="button" data-action="close-regcode-modal" style="min-height: 32px; padding: 4px 10px; border-radius: 6px;" title="Close">✕</button>
+      </div>
+      
+      <div class="regcode-formal-box">
+        <strong>Official Authorization Notice:</strong><br>
+        To register a new official CSTR Class Record account, an authorized registration code is strictly required. You must possess the authorized code if you are the system developer, or if you have been officially granted access and settled the one-time account registration fee directly with the system developer, <strong>Sir Johnmil Sanchez</strong>.
+      </div>
+
+      <form id="regCodeForm">
+        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">
+          Secret Admin Registration Code
+          <div class="regcode-input-wrap" style="margin-top: 6px;">
+            <input id="regSecretCodeInput" type="password" autocomplete="off" placeholder="Enter registration secret code..." required autofocus>
+            <button type="button" class="regcode-toggle-pw" data-action="toggle-regcode-pw" title="Toggle visibility" aria-label="Toggle code visibility">👁️</button>
+          </div>
+        </label>
+
+        <div class="regcode-actions">
+          <button type="submit" class="button button-primary" data-action="submit-regcode">🔐 Verify Code &amp; Proceed to Registration</button>
+          <button type="button" class="button button-outline" data-action="close-regcode-modal">← Cancel &amp; Back to Sign In</button>
+        </div>
+      </form>
+
+      <p id="regCodeError" class="login-error" role="alert" style="margin-top: 12px;"></p>
+    </div>`;
+
+    document.body.appendChild(backdrop);
+    const input = backdrop.querySelector("#regSecretCodeInput");
+    if (input) input.focus();
+
+    const form = backdrop.querySelector("#regCodeForm");
+    if (form) {
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const codeVal = input ? input.value : "";
+        const errEl = backdrop.querySelector("#regCodeError");
+        if (errEl) { errEl.textContent = ""; errEl.classList.remove("error"); }
+
+        const submitBtn = backdrop.querySelector('button[data-action="submit-regcode"]');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Verifying authorization..."; }
+
+        try {
+          const isValid = await verifySecretRegistrationCode(codeVal);
+          if (isValid) {
+            sessionStorage.setItem("cstr_reg_auth", "true");
+            backdrop.remove();
+            if (typeof onAuthorized === "function") {
+              onAuthorized();
+            } else {
+              showSignUpPanel();
+            }
+          } else {
+            if (errEl) {
+              errEl.textContent = "Invalid registration secret code. Please verify the code or contact developer Sir Johnmil Sanchez (sanchezramil2202@gmail.com) for official registration authorization.";
+              errEl.classList.add("error");
+            }
+            if (input) {
+              input.select();
+              input.focus();
+            }
+          }
+        } catch (verifyErr) {
+          if (errEl) {
+            errEl.textContent = "Verification encountered an error. Please try again.";
+            errEl.classList.add("error");
+          }
+        } finally {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "🔐 Verify Code & Proceed to Registration"; }
+        }
+      });
+    }
+
+    const toggleBtn = backdrop.querySelector('button[data-action="toggle-regcode-pw"]');
+    if (toggleBtn && input) {
+      toggleBtn.addEventListener("click", () => {
+        if (input.type === "password") {
+          input.type = "text";
+          toggleBtn.textContent = "🙈";
+        } else {
+          input.type = "password";
+          toggleBtn.textContent = "👁️";
+        }
+      });
+    }
+
+    const closeBtns = backdrop.querySelectorAll('button[data-action="close-regcode-modal"]');
+    closeBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        backdrop.remove();
+      });
+    });
+  }
+
   function render() {
+    updateSiteBackground();
     ensureActiveSelectionValid();
     const scrollLeft = currentView === "record" ? rememberTableScroll() : null;
     app.innerHTML = sessionStorage.getItem("cstr-class-record-login") === "true" ? renderApp() : renderLogin();
@@ -693,7 +895,7 @@
   }
 
   function renderSignUpPanel() {
-    return `<p class="legacy-helper-text" style="text-align: left;">Choose this only if you are a newly hired teacher who has never had a CSTR Class Record before. This creates a fresh, empty workspace.</p>
+    return `<p class="legacy-helper-text" style="text-align: left;">Enter your details below to create your official CSTR Class Record workspace.</p>
       <form id="signupForm" class="legacy-login-box">
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Full Name
           <input id="signupName" type="text" placeholder="e.g. Maria Santos">
@@ -727,7 +929,17 @@
   }
 
   function showSignInPanel() { loginPanel = "signin"; render(); }
-  function showSignUpPanel() { loginPanel = "signup"; render(); }
+  function showSignUpPanel() {
+    if (!isRegistrationAuthorized()) {
+      showRegistrationCodeModal(() => {
+        loginPanel = "signup";
+        render();
+      });
+      return;
+    }
+    loginPanel = "signup";
+    render();
+  }
   function showLegacyClaimPanel() { loginPanel = "legacy"; render(); }
 
   // Turns a raw Firebase/JS error into user-facing text. Specifically catches
@@ -1003,9 +1215,9 @@
       <div class="onboard-choice-card" style="border: 1px dashed var(--border);">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
           <span style="font-size: 1.2rem;">✨</span>
-          <h3 style="margin: 0;">Brand-New Teacher (No Previous Records)</h3>
+          <h3 style="margin: 0;">New User Account (Create Fresh Workspace)</h3>
         </div>
-        <p class="muted" style="margin-bottom: 10px; font-size: 0.88rem;">Choose this <strong>only</strong> if you are a newly hired teacher who has never had a CSTR Class Record before. This creates a fresh, empty workspace.</p>
+        <p class="muted" style="margin-bottom: 10px; font-size: 0.88rem;">Create a fresh, empty workspace for your classes, subjects, and learners.</p>
         <label class="field-label" style="text-align: left; margin: 6px 0;">Teacher Full Name
           <input id="onboardTeacherName" type="text" value="${safeValue(user.displayName || '')}" placeholder="e.g. Maria Santos">
         </label>
@@ -1023,6 +1235,10 @@
   }
 
   async function completeNewTeacherSignup(user) {
+    if (!isRegistrationAuthorized()) {
+      showRegistrationCodeModal(() => completeNewTeacherSignup(user));
+      return;
+    }
     const nameInput = document.querySelector("#onboardTeacherName");
     const teacherName = nameInput ? nameInput.value.trim() : (user.displayName || "Teacher");
     const error = document.querySelector("#onboardError");
@@ -1108,7 +1324,6 @@
       </div>
       <div class="header-actions-wrap">
         <div class="header-actions">
-          ${currentUserEmail() ? `<div class="user-chip" title="${safeValue(currentUserEmail())}">👤 <strong>${safeValue(currentUserName())}</strong> <span class="user-chip-email">(${safeValue(currentUserEmail())})</span></div>` : ""}
           ${button("💾 Save Changes", "save-changes", "button button-primary", `id="saveChanges"`)} ${button("Settings", "open-settings")} ${button("Log out", "logout")}
         </div>
         <p id="statusMessage" class="save-status" role="status" aria-live="polite"></p>
@@ -2289,8 +2504,19 @@
   function renderAccountSection() {
     const user = window.CSTRSync.getCurrentUser ? window.CSTRSync.getCurrentUser() : null;
     const hasPassword = window.CSTRSync.hasPasswordProvider ? window.CSTRSync.hasPasswordProvider(user) : false;
-    return `<div class="section-heading" style="margin-top: 22px;"><div><p class="eyebrow">Account</p><h2 style="font-size: 1.1rem;">Sign-in &amp; Password</h2></div></div>
-      <p class="settings-note">Signed in as <strong>${safeValue(currentUserEmail())}</strong></p>
+    const isGoogle = Boolean(user && user.providerData && user.providerData.some((p) => p.providerId === "google.com"));
+    const emailStr = safeValue(currentUserEmail() || (user && user.email) || "");
+    const nameStr = safeValue(currentUserName() || (user && user.displayName) || state.teacher.name || "Teacher");
+    const accountType = isGoogle ? "Google / Gmail Account" : hasPassword ? "Email & Password Account" : "Registered Account";
+
+    return `<div class="section-heading" style="margin-top: 22px;"><div><p class="eyebrow">Account</p><h2 style="font-size: 1.1rem;">Account &amp; Password</h2></div></div>
+      <div class="settings-account-card">
+        <div class="settings-account-avatar">👤</div>
+        <div class="settings-account-details">
+          <span class="settings-account-provider-badge ${hasPassword && !isGoogle ? 'badge-password' : ''}">${escapeHtml(accountType)}</span>
+          <p class="settings-account-status">Logged in as <strong>${nameStr}</strong> using <strong>${emailStr}</strong> in ${escapeHtml(accountType)}.</p>
+        </div>
+      </div>
       ${hasPassword ? `
         <form id="changePasswordForm" class="legacy-login-box" style="margin-top: 10px;">
           <label class="field-label" style="text-align: left;">Current Password
@@ -2814,6 +3040,7 @@
       sessionStorage.removeItem("cstr-class-record-user");
       sessionStorage.removeItem("cstr-class-record-email");
       sessionStorage.removeItem("cstr-class-record-name");
+      sessionStorage.removeItem("cstr_reg_auth");
       if (window.CSTRSync && window.CSTRSync.signOut) {
         window.CSTRSync.signOut();
       }

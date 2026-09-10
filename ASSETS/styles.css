@@ -44,20 +44,44 @@ html {
 }
 body { margin: 0; min-width: 320px; position: relative; overflow-x: hidden; background-color: #faf8f2; }
 
-/* Fixed full-viewport campus photo, washed into the site's white/light-yellow
-   tones. Lives outside #app so it is never wiped or covered by re-renders —
-   it stays put through login, logout, and every view change.
-   Deliberately no z-index here: #siteBg is the first element in <body>, and
-   #app's content has no z-index of its own, so plain DOM order already puts
-   #app on top — no stacking-context trick needed, nothing to fight with. */
+/* Fixed full-viewport background:
+   - On the login screen: campus photo, washed into white/light-yellow tones.
+   - On the sheets/app screen: geometrically balanced subtle shades of white,
+     subtle gold, and crimson red (no campus photo). */
 #siteBg {
   position: fixed; inset: 0;
+  transition: opacity 0.3s ease;
+}
+
+#siteBg,
+#siteBg.bg-login {
   background:
     linear-gradient(135deg, rgba(255,255,255,.92) 0%, rgba(255,255,255,.62) 42%, rgba(248,227,163,.40) 78%, rgba(240,203,110,.58) 100%),
     url("campus-bg.jpg") center 32% / cover no-repeat;
-  /* Slight contrast/saturation lift so the photo reads crisp and premium
-     rather than flat under the white/gold wash — not a blur, the opposite. */
   filter: contrast(1.06) saturate(1.08);
+}
+
+#siteBg.bg-sheets {
+  background-color: #FAF9F6;
+  background-image:
+    /* Top-left subtle crimson angle */
+    linear-gradient(135deg, rgba(142, 22, 38, 0.045) 0%, rgba(142, 22, 38, 0) 32%),
+    /* Top-right subtle gold angle */
+    linear-gradient(225deg, rgba(212, 175, 55, 0.065) 0%, rgba(212, 175, 55, 0) 36%),
+    /* Bottom-right subtle crimson angle */
+    linear-gradient(315deg, rgba(142, 22, 38, 0.048) 0%, rgba(142, 22, 38, 0) 34%),
+    /* Bottom-left subtle gold angle */
+    linear-gradient(45deg, rgba(212, 175, 55, 0.06) 0%, rgba(212, 175, 55, 0) 30%),
+    /* Clean geometric diagonal gold accent line */
+    linear-gradient(65deg, transparent 48%, rgba(212, 175, 55, 0.05) 48%, rgba(212, 175, 55, 0.05) 52%, transparent 52%),
+    /* Clean geometric diagonal crimson accent line */
+    linear-gradient(245deg, transparent 46%, rgba(142, 22, 38, 0.035) 46%, rgba(142, 22, 38, 0.035) 50%, transparent 50%),
+    /* Subtle geometric isometric micro-mesh */
+    repeating-linear-gradient(60deg, rgba(212, 175, 55, 0.018) 0px, rgba(212, 175, 55, 0.018) 1px, transparent 1px, transparent 60px),
+    repeating-linear-gradient(120deg, rgba(142, 22, 38, 0.015) 0px, rgba(142, 22, 38, 0.015) 1px, transparent 1px, transparent 60px),
+    /* Soft clean white-ivory background foundation */
+    linear-gradient(180deg, #FFFFFF 0%, #FAF9F6 50%, #F5F3ED 100%);
+  filter: none;
 }
 html, body { background: transparent; }
 /* #app needs to be a positioned element (not just static-flow) so it lands in
@@ -156,7 +180,7 @@ h3 { font-size: 1.05rem; margin-bottom: 8px; font-weight: 600; }
   transition: padding 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .app-header-brand { 
-  display: flex; align-items: center; gap: 16px; min-width: 0; 
+  display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1 1 auto;
   padding: 4px 0;
   transition: gap 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -167,7 +191,8 @@ h3 { font-size: 1.05rem; margin-bottom: 8px; font-weight: 600; }
 .header-logo img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .45)); }
 .app-header .eyebrow { color: var(--gold-light); margin-bottom: 3px; font-weight: 700; }
 .app-header .app-title { 
-  color: #fff; font-family: var(--font-serif); max-width: 850px; font-size: clamp(1.28rem, 2.8vw, 1.95rem); margin: 0 0 4px; line-height: 1.2; 
+  color: #fff; font-family: var(--font-serif); max-width: 100%; font-size: clamp(1.2rem, 2.4vw, 1.85rem); margin: 0 0 4px; line-height: 1.22;
+  word-break: normal; overflow-wrap: break-word;
   transition: font-size 0.25s cubic-bezier(0.16, 1, 0.3, 1), margin 0.25s ease;
 }
 .app-header .muted { color: rgba(255, 255, 255, .84); margin: 0; line-height: 1.4; font-size: 0.88rem; }
@@ -873,4 +898,178 @@ input.cell-selected {
 }
 .onboard-divider span {
   padding: 0 10px;
+}
+
+/* Settings Account Indicator Card */
+.settings-account-card {
+  margin: 14px 0 18px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, #fffdf8 0%, #faf6ec 100%);
+  border: 1.5px solid var(--gold);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.settings-account-avatar {
+  font-size: 1.7rem;
+  line-height: 1;
+  background: #fdf6df;
+  border: 1px solid var(--gold-light);
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.settings-account-details {
+  flex: 1;
+  min-width: 0;
+}
+.settings-account-provider-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  border: 1px solid #c2e7ff;
+  margin-bottom: 6px;
+}
+.settings-account-provider-badge.badge-password {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+.settings-account-status {
+  margin: 0;
+  font-size: 0.94rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+.settings-account-status strong {
+  color: #153f61;
+}
+
+/* Official Account Registration Gateway Popup */
+.regcode-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(20, 24, 33, 0.65);
+  backdrop-filter: blur(6px);
+  animation: backdropFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.regcode-modal {
+  width: min(100%, 540px);
+  background: #ffffff;
+  border: 2px solid var(--gold);
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg), 0 0 35px rgba(212, 175, 55, 0.25);
+  padding: 32px;
+  animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  position: relative;
+}
+.regcode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--maroon);
+  background: #fdf2f2;
+  border: 1px solid #fecaca;
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-bottom: 12px;
+}
+.regcode-modal h2 {
+  font-family: var(--font-serif);
+  font-size: 1.45rem;
+  color: var(--maroon-dark);
+  margin: 0 0 10px;
+  line-height: 1.28;
+}
+.regcode-formal-box {
+  background: #fdfaf4;
+  border-left: 4px solid var(--maroon);
+  border-right: 1px solid #fae8b6;
+  border-top: 1px solid #fae8b6;
+  border-bottom: 1px solid #fae8b6;
+  border-radius: 0 8px 8px 0;
+  padding: 14px 16px;
+  margin: 14px 0 20px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: #374151;
+}
+.regcode-formal-box strong {
+  color: var(--maroon);
+}
+.regcode-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.regcode-input-wrap input {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 48px 10px 14px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  font-family: var(--font-sans);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.regcode-input-wrap input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.2);
+  outline: none;
+}
+.regcode-toggle-pw {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  padding: 6px;
+  color: var(--muted);
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.regcode-toggle-pw:hover {
+  color: var(--text);
+}
+.regcode-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+.regcode-actions .button-primary {
+  min-height: 44px;
+  font-size: 0.96rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--maroon) 0%, var(--maroon-dark) 100%);
+  color: #ffffff;
+  border: 1.5px solid var(--gold);
+  box-shadow: 0 4px 14px rgba(110, 20, 20, 0.35);
+}
+.regcode-actions .button-primary:hover {
+  background: linear-gradient(135deg, var(--maroon-light) 0%, var(--maroon) 100%);
+  box-shadow: 0 6px 18px rgba(110, 20, 20, 0.45);
 }
