@@ -31,6 +31,8 @@ this requires.
   (Absent) and **M** (Missing) score as zero against that item's HPS; **E**
   (Excused) and **L** (Late) are excluded entirely, like a blank slot.
 - Spreadsheet-style bulk paste from Excel or Google Sheets.
+- Drag-select a row, column, or block, then type one value and press Enter
+  (or click/tab away) to fill it into every selected cell at once.
 - Section tabs color-coded per subject/section, arranged vertically.
 - A sticky maroon-and-gold header carrying the CSTR crest.
 - A **Save Changes** button that writes the complete state — roster, scores,
