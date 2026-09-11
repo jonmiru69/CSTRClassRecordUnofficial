@@ -59,6 +59,12 @@
   let stateRevision = 0;
   let lastSavedRevision = 0;
   let selectionState = { active: false, startRow: null, startCol: null, endRow: null, endCol: null };
+  // True once the user has actually typed into the anchor cell (the cell a
+  // multi-cell drag-selection started from) while that selection is active.
+  // Only an actual edit arms this — merely dragging out a selection never
+  // does — so a plain click-drag-then-click-away can never overwrite the
+  // other selected cells with a value nobody typed.
+  let fillArmed = false;
   let pendingAutoSaveChanges = 0;   // Logical edits accumulated since the last successful save
   let activeEditFieldKey = null;    // Identifies the field currently mid-edit, so multi-keystroke typing groups into one logical change
   let fieldEditIdleTimer = null;
@@ -1473,7 +1479,7 @@
         ${renderBulkColumnControl("pt", "PT", period.ptDates.length)}
         ${renderBulkColumnControl("qa", "QA", period.qaDates.length)}
       </div>
-      <p class="paste-hint"><strong>Bulk multi-select & paste tip:</strong> click and drag across input cells vertically or horizontally to select blocks. Use <strong>Ctrl+C</strong> to copy, <strong>Ctrl+X</strong> to cut, <strong>Delete</strong> to clear, or paste (Ctrl+V) copied spreadsheet blocks straight from Excel/Sheets.</p>
+      <p class="paste-hint"><strong>Bulk multi-select & paste tip:</strong> click and drag across input cells vertically or horizontally to select blocks. Use <strong>Ctrl+C</strong> to copy, <strong>Ctrl+X</strong> to cut, <strong>Delete</strong> to clear, or paste (Ctrl+V) copied spreadsheet blocks straight from Excel/Sheets. <strong>Bulk type-to-fill:</strong> after selecting a row, column, or block, just type a value into the first cell and press <strong>Enter</strong> (or click/tab away) — it fills that same value into every other cell in your selection.</p>
       <div class="legend"><span><i class="dot dot-red"></i>Raw score above HPS - correct before finalizing</span><span><i class="dot dot-code"></i>A = Absent (scored 0/HPS) · E = Excused (excluded) · L = Late (excluded)</span><span><i class="dot dot-missing"></i>M = Missing, no excuse (scored 0/HPS)</span><span>QA slots calculate uniformly across entered values.</span></div>
       ${renderRecordTable(section, period)}
       <div class="bulk-column-tools roster-slots-tools" aria-label="Add more name slots">
@@ -2704,6 +2710,18 @@
     return (Number.isFinite(row) && col !== null) ? { row, col } : null;
   }
 
+  // True when `input` is the cell a multi-cell selection was dragged out
+  // from (its "anchor") — the one cell where typing is still visible live
+  // while the rest of the selected block waits to receive the same value
+  // once the edit is committed.
+  function isMultiSelectAnchor(input) {
+    const bounds = getSelectionBounds();
+    if (!bounds || (bounds.minRow === bounds.maxRow && bounds.minCol === bounds.maxCol)) return false;
+    const coords = getCellCoords(input);
+    if (!coords) return false;
+    return coords.row === selectionState.startRow && coords.col === selectionState.startCol;
+  }
+
   function getSelectionBounds() {
     if (!selectionState.active && selectionState.startRow === null) return null;
     const minRow = Math.min(selectionState.startRow, selectionState.endRow);
@@ -2727,10 +2745,114 @@
 
   function clearSelection() {
     selectionState = { active: false, startRow: null, startCol: null, endRow: null, endCol: null };
+    fillArmed = false;
     document.querySelectorAll(".cell-selected").forEach((el) => el.classList.remove("cell-selected"));
   }
 
+  // Bulk-fill-by-typing: once a multi-cell block/row/column is selected and
+  // the user types a new value into the anchor cell (the cell the drag
+  // started from), committing that edit (Enter, Tab/click away, or starting
+  // a new selection) copies the anchor's final value into every other cell
+  // in the selected block — vertically down a column, horizontally across a
+  // row, or across a rectangular block of both. Score/HPS-style cells run
+  // the same sanitizeScoreValue() rule as normal typing and manual paste;
+  // the name column copies the text as-is. "BOYS"/"GIRLS" divider rows are
+  // always skipped so a sweeping selection can never overwrite a category
+  // label or its (intentionally always-blank) score cells.
+  //
+  // Deliberately does NOT call render(): it patches only the affected rows'
+  // existing <input> elements and recalculated summary cells directly, the
+  // same lightweight approach normal single-cell typing already uses. This
+  // keeps focus/scroll position on the rest of the page completely
+  // undisturbed, and — critically — avoids replacing DOM nodes in the
+  // middle of a click elsewhere on the page (e.g. clicking another button
+  // right after typing a fill value), which could otherwise cause that
+  // click to silently do nothing.
+  function commitPendingBulkFill() {
+    if (!fillArmed) return;
+    fillArmed = false;
+
+    const bounds = getSelectionBounds();
+    const isMulti = bounds && (bounds.minRow !== bounds.maxRow || bounds.minCol !== bounds.maxCol);
+    if (!isMulti) return;
+
+    const period = currentPeriod();
+    if (!period || !period.roster) return;
+    const srcRow = selectionState.startRow;
+    const srcCol = selectionState.startCol;
+    const wwLen = period.wwDates.length;
+    const ptLen = period.ptDates.length;
+    const qaLen = period.qaDates.length;
+    const totalCols = 1 + wwLen + ptLen + qaLen;
+    if (!Number.isFinite(srcRow) || srcCol === null || srcRow >= period.roster.length || srcCol >= totalCols) return;
+
+    const srcLearner = period.roster[srcRow];
+    let rawValue = "";
+    if (srcCol === 0) rawValue = srcLearner.name || "";
+    else if (srcCol <= wwLen) rawValue = srcLearner.ww[srcCol - 1] || "";
+    else if (srcCol <= wwLen + ptLen) rawValue = srcLearner.pt[srcCol - 1 - wwLen] || "";
+    else rawValue = srcLearner.qa[srcCol - 1 - wwLen - ptLen] || "";
+
+    let cellsFilled = 0;
+    let skippedCategoryRows = 0;
+    let nameColumnTouched = false;
+    const affectedRows = [];
+
+    for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
+      if (r >= period.roster.length) continue;
+      const learner = period.roster[r];
+      if (getLearnerCategory(learner.name)) { skippedCategoryRows += 1; continue; }
+      let rowChanged = false;
+      for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
+        if (c >= totalCols) continue;
+        if (c === 0) { learner.name = rawValue; nameColumnTouched = true; }
+        else if (c <= wwLen) learner.ww[c - 1] = sanitizeScoreValue(rawValue);
+        else if (c <= wwLen + ptLen) learner.pt[c - 1 - wwLen] = sanitizeScoreValue(rawValue);
+        else learner.qa[c - 1 - wwLen - ptLen] = sanitizeScoreValue(rawValue);
+        cellsFilled += 1;
+        rowChanged = true;
+      }
+      if (rowChanged) affectedRows.push(r);
+    }
+
+    if (!cellsFilled) { clearSelection(); return; }
+
+    // Re-sync each touched row's inputs and computed summaries straight from
+    // state, exactly like a normal single-cell edit does for its own row.
+    affectedRows.forEach((r) => {
+      const rowEl = document.querySelector(`[data-learner-row="${r}"]`);
+      if (!rowEl) return;
+      const learner = period.roster[r];
+      if (bounds.minCol === 0) {
+        const nameInput = rowEl.querySelector("[data-name-row]");
+        if (nameInput) nameInput.value = learner.name;
+      }
+      ["ww", "pt", "qa"].forEach((kind) => {
+        rowEl.querySelectorAll(`[data-score="${kind}"]`).forEach((cellInput) => {
+          const idx = Number(cellInput.dataset.index);
+          cellInput.value = learner[kind][idx];
+        });
+      });
+      updateLiveSummary(r);
+    });
+
+    if (nameColumnTouched) { updateAllNumberingAndCounts(); adjustNameColumnWidth(); }
+
+    clearSelection();
+    markStateDirty();
+
+    const rowsCount = bounds.maxRow - bounds.minRow + 1;
+    const colsCount = bounds.maxCol - bounds.minCol + 1;
+    const label = rawValue === "" ? "(blank)" : rawValue;
+    const note = skippedCategoryRows ? ` (${skippedCategoryRows} divider row${skippedCategoryRows === 1 ? "" : "s"} skipped)` : "";
+    setStatus(`Bulk-filled "${label}" across ${rowsCount} row${rowsCount === 1 ? "" : "s"} × ${colsCount} column${colsCount === 1 ? "" : "s"}.${note}`);
+  }
+
   app.addEventListener("mousedown", (event) => {
+    // Flush any pending type-to-fill BEFORE reacting to this new mousedown —
+    // whether it starts a fresh selection elsewhere or clicks a button — so
+    // the previous selection's typed value is never silently dropped.
+    commitPendingBulkFill();
     const input = event.target.closest(".record-table tbody input");
     if (!input || event.button !== 0) { if (!event.target.closest(".record-table tbody")) clearSelection(); return; }
     const coords = getCellCoords(input);
@@ -2763,6 +2885,7 @@
 
     if (event.key === "Delete" || event.key === "Backspace") {
       event.preventDefault();
+      fillArmed = false; // the block is being wiped, so any not-yet-committed typed fill is moot
       const period = currentPeriod();
       const wwLen = period.wwDates.length;
       const ptLen = period.ptDates.length;
@@ -2816,6 +2939,7 @@
   document.addEventListener("cut", (event) => {
     const bounds = getSelectionBounds();
     if (!bounds || (bounds.minRow === bounds.maxRow && bounds.minCol === bounds.maxCol && document.activeElement.tagName === "INPUT")) return;
+    fillArmed = false; // the block is being cut out, so any not-yet-committed typed fill is moot
     const period = currentPeriod();
     const lines = [];
     const wwLen = period.wwDates.length;
@@ -3075,10 +3199,19 @@
       if (event.target && event.target.id === "studentSearch") {
         event.preventDefault();
         searchStudent();
+        return;
       }
       // Note: login-screen fields no longer need special-casing here — they're
       // all inside real <form> elements now, so Enter already triggers the
       // native submit event, which the document "submit" listener handles.
+
+      // Pressing Enter right after typing into a multi-cell selection's
+      // anchor cell commits the bulk fill immediately, without needing to
+      // click away or Tab out first.
+      if (fillArmed && event.target && isMultiSelectAnchor(event.target)) {
+        event.preventDefault();
+        commitPendingBulkFill();
+      }
     }
   });
 
@@ -3134,13 +3267,20 @@
     if (stateChanged) {
       const fieldKey = getFieldKeyForInput(input);
       if (fieldKey) markFieldEditDirty(fieldKey); else markStateDirty();
+      // A real edit landed on the cell a multi-cell selection was dragged
+      // from — arm the bulk fill so the rest of the selected row/column/
+      // block picks up this same value once the edit is committed.
+      if (isMultiSelectAnchor(input)) fillArmed = true;
     }
   });
 
   // Leaving a field (click elsewhere, Tab, etc.) closes its logical-edit
-  // grouping right away, instead of waiting for the idle timeout.
+  // grouping right away, instead of waiting for the idle timeout, and — if
+  // a multi-cell selection is waiting on a typed fill value — commits that
+  // bulk fill now.
   app.addEventListener("focusout", () => {
     commitActiveFieldEdit();
+    commitPendingBulkFill();
   });
 
   // Change events (such as interactive subject switcher in class sheet)
