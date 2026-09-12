@@ -502,7 +502,52 @@
   }
   function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]); }
   function safeValue(value) { return escapeHtml(value === undefined || value === null ? "" : value); }
+  function icon(name, className = "ui-icon") {
+    const paths = {
+      home: '<path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2h-5v-7h-4v7H5a2 2 0 0 1-2-2Z"/>',
+      records: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5Zm16 0A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5Z"/>',
+      save: '<path d="M5 3h12l2 2v16H5Z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/>',
+      settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.2 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2.4v-4h.1A1.7 1.7 0 0 0 4.2 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.6 4.2a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2.4h4v.1A1.7 1.7 0 0 0 15 4.2a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.6a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.1v4h-.1a1.7 1.7 0 0 0-1.7 1Z"/>',
+      logout: '<path d="M10 17l5-5-5-5M15 12H3"/><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/>',
+      search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+      plus: '<path d="M12 5v14M5 12h14"/>',
+      arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+      back: '<path d="M19 12H5M11 18l-6-6 6-6"/>',
+      users: '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/>',
+      classes: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h6M7 16h8"/>',
+      lock: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+      unlock: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/>',
+      archive: '<path d="M3 6h18v4H3zM5 10v10h14V10M9 14h6"/>',
+      download: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
+      trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/>',
+      edit: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
+      chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+      check: '<path d="m5 12 4 4L19 6"/>',
+      alert: '<path d="M12 3 2 21h20Z"/><path d="M12 9v4M12 17h.01"/>',
+      close: '<path d="m6 6 12 12M18 6 6 18"/>',
+      eye: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/>',
+      more: '<circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/>'
+    };
+    return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.records}</svg>`;
+  }
+
   function button(label, action, className = "button", extra = "") { return `<button type="button" class="${className}" data-action="${action}" ${extra}>${label}</button>`; }
+
+  function dashboardMetrics() {
+    const activeSections = state.registry.filter((section) => !section.archived);
+    const archivedSections = state.registry.filter((section) => section.archived);
+    let learners = 0;
+    let totalPeriods = 0;
+    let lockedPeriods = 0;
+    activeSections.forEach((section) => {
+      const periods = state.sections[section.id] && Array.isArray(state.sections[section.id].periods) ? state.sections[section.id].periods : [];
+      totalPeriods += periods.length;
+      lockedPeriods += periods.filter((period) => period.locked).length;
+      if (periods[0] && Array.isArray(periods[0].roster)) learners += computeLearnerNumbering(periods[0].roster).totalLearners;
+    });
+    const completion = totalPeriods ? Math.round((lockedPeriods / totalPeriods) * 100) : 0;
+    return { activeSections, archivedSections, learners, totalPeriods, lockedPeriods, completion };
+  }
 
   function themeColorHex(name) {
     const shades = {
@@ -784,10 +829,10 @@
     backdrop.innerHTML = `<div class="regcode-modal" role="dialog" aria-modal="true" aria-labelledby="regCodeTitle">
       <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
         <div>
-          <span class="regcode-badge">🛡️ Official Account Registration Gateway</span>
+          <span class="regcode-badge">${icon("lock")} Official Account Registration Gateway</span>
           <h2 id="regCodeTitle">Input Secret Code for Official Account Registration</h2>
         </div>
-        <button type="button" class="button" data-action="close-regcode-modal" style="min-height: 32px; padding: 4px 10px; border-radius: 6px;" title="Close">✕</button>
+        <button type="button" class="icon-button" data-action="close-regcode-modal" title="Close" aria-label="Close">${icon("close")}</button>
       </div>
       
       <div class="regcode-formal-box">
@@ -800,13 +845,13 @@
           Secret Admin Registration Code
           <div class="regcode-input-wrap" style="margin-top: 6px;">
             <input id="regSecretCodeInput" type="password" autocomplete="off" placeholder="Enter registration secret code..." required autofocus>
-            <button type="button" class="regcode-toggle-pw" data-action="toggle-regcode-pw" title="Toggle visibility" aria-label="Toggle code visibility">👁️</button>
+            <button type="button" class="regcode-toggle-pw" data-action="toggle-regcode-pw" title="Toggle visibility" aria-label="Toggle code visibility">${icon("eye")}</button>
           </div>
         </label>
 
         <div class="regcode-actions">
           <button type="submit" class="button button-primary" data-action="submit-regcode">🔐 Verify Code &amp; Proceed to Registration</button>
-          <button type="button" class="button button-outline" data-action="close-regcode-modal">← Cancel &amp; Back to Sign In</button>
+          <button type="button" class="button button-outline" data-action="close-regcode-modal">${icon("back")} Cancel &amp; Back to Sign In</button>
         </div>
       </form>
 
@@ -867,7 +912,7 @@
           toggleBtn.textContent = "🙈";
         } else {
           input.type = "password";
-          toggleBtn.textContent = "👁️";
+          toggleBtn.innerHTML = icon("eye");
         }
       });
     }
@@ -1373,61 +1418,121 @@
 
   function renderApp() {
     const content = currentView === "home" ? renderHome() : currentView === "chooser" ? renderClassRecord() : renderSectionRecord();
-    return `<div class="aura-bg"><div class="aura-layer-1" aria-hidden="true"></div><div class="aura-layer-2" aria-hidden="true"></div><div class="aura-content"><header class="app-header"><div class="app-header-inner">
-      <div class="app-header-brand">
-        <span class="header-logo"><img src="ASSETS/cstr-logo.png" alt="Colegio de Sto. Tomás – Recoletos crest"></span>
-        <div><p class="eyebrow">CSTR • San Carlos City, Negros Occidental</p>
-        <h1 class="app-title">Colegio de Sto. Tomás – Recoletos, Incorporated</h1>
-        <p class="muted">Website for Class Record, with respect to DepEd Order No. 15, s. 2026.</p></div>
-      </div>
-      <div class="header-actions-wrap">
-        <div class="header-actions">
-          ${button("💾 Save Changes", "save-changes", "button button-primary", `id="saveChanges"`)} ${button("Settings", "open-settings")} ${button("Log out", "logout")}
+    const viewTitle = currentView === "home" ? "Overview" : currentView === "chooser" ? "Class records" : "Grade sheet";
+    const accountName = currentUserName() || state.teacher.name || "Teacher";
+    const initials = accountName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "TR";
+    return `<div class="aura-bg"><div class="aura-layer-1" aria-hidden="true"></div><div class="aura-layer-2" aria-hidden="true"></div>
+      <div class="aura-content app-layout">
+        <aside class="app-sidebar" aria-label="Application navigation">
+          <div class="sidebar-brand">
+            <span class="sidebar-logo"><img src="ASSETS/cstr-logo.png" alt="Colegio de Sto. Tomás – Recoletos crest"></span>
+            <span class="sidebar-brand-copy"><strong>CST-R</strong><small>Digital Class Record</small></span>
+          </div>
+          <nav class="sidebar-nav">
+            <p class="sidebar-label">Workspace</p>
+            <button class="sidebar-link" type="button" data-action="go-home" aria-current="${currentView === "home" ? "page" : "false"}">${icon("home")}<span>Overview</span></button>
+            <button class="sidebar-link" type="button" data-action="go-records" aria-current="${currentView === "chooser" || currentView === "record" ? "page" : "false"}">${icon("records")}<span>Class Records</span></button>
+          </nav>
+          <div class="sidebar-context">
+            <span class="sidebar-context-mark" aria-hidden="true">OAR</span>
+            <div><strong>Caritas et Scientia</strong><small>Charity and Science</small></div>
+          </div>
+          <div class="sidebar-account">
+            <span class="account-avatar" aria-hidden="true">${escapeHtml(initials)}</span>
+            <span class="sidebar-account-copy"><strong>${escapeHtml(accountName)}</strong><small>${escapeHtml(maskEmail(currentUserEmail()))}</small></span>
+            <button class="icon-button sidebar-settings" type="button" data-action="open-settings" aria-label="Open settings">${icon("settings")}</button>
+          </div>
+        </aside>
+        <div class="app-main">
+          <header class="app-header"><div class="app-header-inner">
+            <div class="page-context">
+              <p class="eyebrow">Teacher workspace</p>
+              <h1 class="app-title">${viewTitle}</h1>
+            </div>
+            <div class="header-actions-wrap">
+              <div class="header-actions">
+                ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", `id="saveChanges"`)}
+                ${button(`${icon("settings")}<span>Settings</span>`, "open-settings", "button button-secondary header-secondary")}
+                ${button(`${icon("logout")}<span class="logout-label">Log out</span>`, "logout", "button button-ghost header-logout", 'aria-label="Log out"')}
+              </div>
+              <div class="save-feedback">
+                <p id="statusMessage" class="save-status" role="status" aria-live="polite"></p>
+                <p id="saveMeta" class="save-meta" aria-live="polite"></p>
+              </div>
+            </div>
+          </div></header>
+          <div class="utility-bar"><div class="utility-bar-inner">
+            <div class="institution-context"><span class="institution-dot" aria-hidden="true"></span><span>CST-R Academic Records · Live workspace</span></div>
+            <div class="header-search" role="search">${icon("search")}<label class="sr-only" for="studentSearch">Search student by full name</label><input id="studentSearch" type="search" autocomplete="off" placeholder="Find a learner across records"><button type="button" class="button button-compact" data-action="search-student">Search</button></div>
+          </div></div>
+          <main class="app-shell">${content}</main>
         </div>
-        <p id="statusMessage" class="save-status" role="status" aria-live="polite"></p>
-        <p id="saveMeta" class="save-meta" aria-live="polite"></p>
       </div>
-    </div></header>
-    <div class="search-bar"><div class="search-bar-inner">
-      <div class="header-search" role="search"><label class="sr-only" for="studentSearch">Search student by full name</label><input id="studentSearch" type="search" autocomplete="off" placeholder="Search student's full name"><button type="button" class="button" data-action="search-student">Search</button></div>
-    </div></div>
-    <div class="app-shell">
-      <nav class="tabs" aria-label="Main navigation">
-        <button class="tab" type="button" data-action="go-home" aria-selected="${currentView === "home"}">Home</button>
-        <button class="tab" type="button" data-action="go-records" aria-selected="${currentView === "chooser" || currentView === "record"}">Class Record</button>
-      </nav>${content}</div></div></div>`;
+    </div>`;
   }
 
   function renderHome() {
+    const metrics = dashboardMetrics();
     const portrait = state.photo ? `<img class="profile-photo" src="${state.photo}" alt="Teacher portrait">` : `<span class="silhouette" aria-hidden="true"></span><span class="photo-caption">Upload photo</span>`;
-    return `<section class="home-grid"><div><input id="photoInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" hidden>
-      <button class="photo-frame" type="button" data-action="choose-photo" aria-label="Upload teacher photo">${portrait}</button></div>
-      <div>
-        <p class="eyebrow" style="margin: 0 0 10px;">Class record owner</p>
-        <div class="teacher-block">
-          <label class="teacher-name-field">
-            <span class="sr-only">Name</span>
-            <input type="text" class="teacher-name-input" data-teacher="name" value="${safeValue(state.teacher.name)}" placeholder="Full name">
-          </label>
-          <dl class="teacher-meta">
-            <div><dt>Age</dt><dd><input type="number" min="0" class="teacher-meta-input" data-teacher="age" value="${safeValue(state.teacher.age)}" placeholder="Age" aria-label="Age"></dd></div>
-            <div><dt>Specialization</dt><dd><input type="text" class="teacher-meta-input" data-teacher="specialization" value="${safeValue(state.teacher.specialization)}" placeholder="e.g. Science and Research" aria-label="Specialization"></dd></div>
-            <div><dt>School Level</dt><dd>
-              <select class="teacher-meta-input" data-teacher="level" aria-label="School level">
-                <option value="Elementary" ${state.teacher.level === "Elementary" ? "selected" : ""}>Elementary</option>
-                <option value="Secondary" ${state.teacher.level === "Secondary" ? "selected" : ""}>Secondary</option>
-              </select>
-            </dd></div>
-          </dl>
-          <label class="teacher-bio-field">
-            <span class="sr-only">Bio</span>
-            <textarea class="teacher-bio-input" data-teacher="bio" placeholder="Short bio, role description...">${safeValue(state.teacher.bio)}</textarea>
-          </label>
-          <p class="teacher-edit-hint">Changes save automatically after a brief pause. You can still use <strong>💾 Save Changes</strong> at any time.</p>
+    const recentClasses = metrics.activeSections.slice(0, 4).map((section) => {
+      const periods = state.sections[section.id] && state.sections[section.id].periods ? state.sections[section.id].periods : [];
+      const learnerCount = periods[0] ? computeLearnerNumbering(periods[0].roster).totalLearners : 0;
+      const locked = periods.filter((period) => period.locked).length;
+      return `<button type="button" class="recent-class-row" data-action="select-section" data-section="${section.id}">
+        <span class="recent-class-accent accent-${section.accent || section.theme}" aria-hidden="true"></span>
+        <span class="recent-class-main"><strong>${escapeHtml(section.subject)}</strong><small>${escapeHtml(section.level)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</small></span>
+        <span class="recent-class-stat"><strong>${learnerCount}</strong><small>Learners</small></span>
+        <span class="recent-class-stat"><strong>${locked}/${periods.length}</strong><small>Finalized</small></span>
+        ${icon("arrow", "ui-icon row-arrow")}
+      </button>`;
+    }).join("");
+
+    return `<section class="dashboard">
+      <div class="dashboard-hero">
+        <div>
+          <p class="eyebrow">Academic command center</p>
+          <h2>Welcome back, ${escapeHtml((state.teacher.name || "Teacher").split(/\s+/)[0])}.</h2>
+          <p>Manage classes, enter assessment scores, and finalize quarterly records from one focused workspace.</p>
         </div>
-        <div class="home-cta">${button("Proceed to Class Record →", "go-records", "button button-primary")}</div>
-        <p id="photoNote" class="form-note">Photo uploads accept PNG and JPEG files only.</p>
-      </div></section>`;
+        <div class="dashboard-hero-actions">
+          ${button(`${icon("records")}<span>Open class records</span>`, "go-records", "button button-primary")}
+          ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-secondary")}
+        </div>
+      </div>
+
+      <div class="metric-grid" aria-label="Class record overview">
+        <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
+        <article class="metric-card"><span class="metric-icon">${icon("users")}</span><div><p>Total learners</p><strong>${metrics.learners}</strong><small>Across active class rosters</small></div></article>
+        <article class="metric-card"><span class="metric-icon">${icon("lock")}</span><div><p>Finalized periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>Protected from accidental edits</small></div></article>
+        <article class="metric-card metric-progress"><span class="metric-icon">${icon("chart")}</span><div><p>Record readiness</p><strong>${metrics.completion}%</strong><div class="progress-track" aria-label="${metrics.completion}% of periods finalized"><span style="width:${metrics.completion}%"></span></div></div></article>
+      </div>
+
+      <div class="dashboard-grid">
+        <section class="dashboard-panel recent-panel">
+          <div class="panel-heading"><div><p class="eyebrow">Your workspace</p><h3>Active class records</h3></div>${button(`View all ${icon("arrow")}`, "go-records", "button button-ghost button-small")}</div>
+          <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4><p>Create your first class to begin building a roster and entering scores.</p>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
+        </section>
+
+        <section class="dashboard-panel profile-panel">
+          <div class="panel-heading"><div><p class="eyebrow">Profile</p><h3>Class record owner</h3></div><span class="autosave-pill">${icon("check")} Autosaved</span></div>
+          <div class="profile-editor">
+            <input id="photoInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" hidden>
+            <button class="photo-frame" type="button" data-action="choose-photo" aria-label="Upload teacher photo">${portrait}</button>
+            <div class="teacher-block">
+              <label class="profile-field profile-name-field"><span>Full name</span><input type="text" class="teacher-name-input" data-teacher="name" value="${safeValue(state.teacher.name)}" placeholder="Full name"></label>
+              <div class="profile-field-grid">
+                <label class="profile-field"><span>Age</span><input type="number" min="0" class="teacher-meta-input" data-teacher="age" value="${safeValue(state.teacher.age)}" placeholder="Age"></label>
+                <label class="profile-field"><span>School level</span><select class="teacher-meta-input" data-teacher="level"><option value="Elementary" ${state.teacher.level === "Elementary" ? "selected" : ""}>Elementary</option><option value="Secondary" ${state.teacher.level === "Secondary" ? "selected" : ""}>Secondary</option></select></label>
+              </div>
+              <label class="profile-field"><span>Specialization</span><input type="text" class="teacher-meta-input" data-teacher="specialization" value="${safeValue(state.teacher.specialization)}" placeholder="e.g. Science and Research"></label>
+              <label class="profile-field"><span>Professional bio</span><textarea class="teacher-bio-input" data-teacher="bio" placeholder="Short bio or role description">${safeValue(state.teacher.bio)}</textarea></label>
+              <p class="teacher-edit-hint">Profile edits are included in your next save.</p>
+            </div>
+          </div>
+          <p id="photoNote" class="form-note">PNG or JPEG, optimized automatically after upload.</p>
+        </section>
+      </div>
+    </section>`;
   }
 
   function renderClassRecord() {
@@ -1442,11 +1547,11 @@
 
     const sectionCards = visibleSections.length > 0 ? visibleSections.map((section) => `
       <div class="section-card-wrap">
-        <button type="button" class="kebab-btn" data-action="open-edit-section" data-section="${section.id}" aria-label="Edit or Archive Section">⋮</button>
+        <button type="button" class="kebab-btn" data-action="open-edit-section" data-section="${section.id}" aria-label="Edit or archive class">${icon("more")}</button>
         <button type="button" class="section-card accent-${section.accent || section.theme}" data-action="select-section" data-section="${section.id}">
           <div class="section-card-header">
             <span class="card-level-badge">${escapeHtml(section.level)}</span>
-            ${section.archived ? `<span class="card-archived-badge">📦 Archived</span>` : ""}
+            ${section.archived ? `<span class="card-archived-badge">${icon("archive")} Archived</span>` : ""}
           </div>
           <strong>${escapeHtml(section.subject)}</strong>
           ${section.section ? `<span class="section-card-section">${escapeHtml(section.section)}</span>` : ""}
@@ -1455,9 +1560,9 @@
             <span class="weight-pill">PT: ${section.weights[1]}%</span>
             <span class="weight-pill">EX: ${section.weights[2]}%</span>
           </div>
-          <small>Open grade sheet &rarr;</small>
+          <small class="section-card-link">Open grade sheet ${icon("arrow")}</small>
         </button>
-      </div>`).join("") : `<div style="grid-column: 1 / -1; padding: 32px; text-align: center; color: var(--muted); background: #fff; border: 1.5px dashed var(--border); border-radius: 12px;">No ${archiveFilter === "archived" ? "archived" : "active"} ${activeGroup} classes found.</div>`;
+      </div>`).join("") : `<div class="empty-state chooser-empty"><span class="empty-icon">${icon(archiveFilter === "archived" ? "archive" : "classes")}</span><h3>No ${archiveFilter === "archived" ? "archived" : "active"} ${activeGroup} classes</h3><p>${archiveFilter === "archived" ? "Archived classes will remain available here for future reference." : "Add a class to create its roster and grading periods."}</p>${archiveFilter === "active" ? button(`${icon("plus")}<span>Add a class</span>`, "open-add-class", "button button-primary") : ""}</div>`;
       
     return `<section class="record-chooser">
       <div class="section-heading">
@@ -1466,14 +1571,14 @@
           <h2>Select a level and section</h2>
           <p class="muted">Choose a school level first, then open the specific section. Grade sheets stay hidden until a section is selected.</p>
         </div>
-        ${button("+ Add Class", "open-add-class", "button button-primary")}
+        ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}
       </div>
       <div class="level-grid" aria-label="School levels">${groupCards}</div>
       
       <div class="archive-toggle-bar">
         <div class="archive-pills">
           <button type="button" class="archive-pill" data-action="set-archive-filter" data-filter="active" aria-selected="${archiveFilter === "active"}">Active Classes (${activeCount})</button>
-          <button type="button" class="archive-pill" data-action="set-archive-filter" data-filter="archived" aria-selected="${archiveFilter === "archived"}">📦 Archived Classes (${archivedCount})</button>
+          <button type="button" class="archive-pill" data-action="set-archive-filter" data-filter="archived" aria-selected="${archiveFilter === "archived"}">${icon("archive")} Archived Classes (${archivedCount})</button>
         </div>
         ${archiveFilter === "archived" ? `<span style="font-size:0.8rem;color:var(--muted);">Showing archived records. Stored safely for future reference.</span>` : ""}
       </div>
@@ -1489,7 +1594,7 @@
     if (activePeriodIndex >= periods.length) activePeriodIndex = 0;
     const period = currentPeriod();
     const { totalLearners } = computeLearnerNumbering(period.roster);
-    const periodTabs = periods.map((entry, index) => `<button type="button" class="tab theme-${section.theme}" data-action="select-period" data-period="${index}" aria-selected="${activePeriodIndex === index}">${entry.locked ? "🔒 " : ""}${escapeHtml(entry.name)}</button>`).join("");
+    const periodTabs = periods.map((entry, index) => `<button type="button" class="tab theme-${section.theme}" data-action="select-period" data-period="${index}" aria-selected="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(entry.name)}</span></button>`).join("");
     
     const sectionColorHex = themeColorHex(section.accent || section.theme);
     const sectionLocked = sectionHasLockedPeriod(section);
@@ -1499,12 +1604,12 @@
       : "";
 
     return `<div class="record-section">
-      <div class="record-back">${button("← Back to sections", "go-records")}</div>
+      <div class="record-back">${button(`${icon("back")}<span>Back to sections</span>`, "go-records", "button button-ghost")}</div>
       
       <div class="section-accent-bar" style="--section-accent-color: ${sectionColorHex}; background: ${sectionColorHex};"></div>
       
       <div class="class-header-card">
-        ${section.archived ? `<div class="archive-banner"><span>📦 This class record is currently archived in storage.</span><button type="button" class="button button-secondary" data-action="unarchive-section" data-section="${section.id}">Restore Class</button></div>` : ""}
+        ${section.archived ? `<div class="archive-banner"><span>${icon("archive")} This class record is currently archived.</span><button type="button" class="button button-secondary" data-action="unarchive-section" data-section="${section.id}">Restore class</button></div>` : ""}
         <div class="class-header-top">
           <div class="section-title-wrap">
             <h2>${escapeHtml(section.subject)}</h2>
@@ -1528,11 +1633,11 @@
       </div>
 
       <div class="period-tabs" aria-label="Grading period tabs">${periodTabs}</div>
-      <div class="period-toolbar"><label for="periodName">Period name</label><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name ${period.locked ? "disabled" : ""}>
-      ${button("+ Add Grading Period", "add-period", "button button-yellow")} ${button("⇩ Print-ready Excel", "export-excel", "button button-primary")}
-      ${button(period.locked ? "🔓 Unlock Quarter" : "🔒 Lock Quarter", "toggle-lock-period", "button button-outline", `title="Locking protects this quarter's names, scores, dates, HPS, and columns from edits or deletion — useful once grades are finalized, in case of an accidental typo."`)}
-      ${button("🗑 Delete Quarter", "delete-period", "button button-danger", period.locked ? "disabled" : "")}</div>
-      ${period.locked ? `<p class="locked-period-note">🔒 <strong>${escapeHtml(period.name)}</strong> is locked. Its names, scores, dates, HPS, and columns can't be edited, and it can't be deleted, until you unlock it.</p>` : ""}
+      <div class="period-toolbar"><label class="period-name-field" for="periodName"><span>Current period</span><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name ${period.locked ? "disabled" : ""}></label>
+      <div class="period-actions">${button(`${icon("plus")}<span>Add period</span>`, "add-period", "button button-secondary")} ${button(`${icon("download")}<span>Export Excel</span>`, "export-excel", "button button-primary")}
+      ${button(`${icon(period.locked ? "unlock" : "lock")}<span>${period.locked ? "Unlock period" : "Lock period"}</span>`, "toggle-lock-period", "button button-outline", `title="Locking protects this quarter's names, scores, dates, HPS, and columns from edits or deletion — useful once grades are finalized, in case of an accidental typo."`)}
+      ${button(`${icon("trash")}<span>Delete</span>`, "delete-period", "button button-danger", period.locked ? "disabled" : "")}</div></div>
+      ${period.locked ? `<p class="locked-period-note">${icon("lock")}<span><strong>${escapeHtml(period.name)}</strong> is locked. Names, scores, dates, HPS, and columns are protected until you unlock it.</span></p>` : ""}
       ${integrityNote}
       <div class="bulk-column-tools" aria-label="Bulk column controls">
         <span class="bulk-column-label">Columns — edit only the last activity columns; all other scores stay in place.</span>
@@ -1638,7 +1743,7 @@
       return `<td class="${tdBorderClass}"><input class="${inputClasses}" type="text" inputmode="text" maxlength="6" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cellsDisabled ? 'disabled tabindex="-1"' : ''} title="${invalidMessage || "Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)"}" aria-invalid="${invalidScore || aboveHps}" aria-label="Learner ${rowIndex + 1} ${kind.toUpperCase()} ${index + 1}"></td>`;
     }).join("");
     const result = learnerResult(learner, period, section.weights);
-    const deleteRowBtn = `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${sectionLocked ? "Unlock every grading period to delete rows" : "Delete this row from the roster (every quarter)"}" aria-label="Delete learner ${rowIndex + 1} row" ${sectionLocked ? "disabled" : ""}>🗑</button>`;
+    const deleteRowBtn = `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${sectionLocked ? "Unlock every grading period to delete rows" : "Delete this row from the roster (every quarter)"}" aria-label="Delete learner ${rowIndex + 1} row" ${sectionLocked ? "disabled" : ""}>${icon("trash")}</button>`;
     return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell" style="--section-name-bg:${nameShade.background};--section-name-color:${nameShade.color};"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td><td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td><td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
   }
 
@@ -1724,7 +1829,7 @@
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
     modal.innerHTML = `<section class="modal delete-confirmation" role="dialog" aria-modal="true" aria-labelledby="deletePeriodTitle">
-      <div class="section-heading"><div><p class="eyebrow">Grading period</p><h2 id="deletePeriodTitle">Delete this quarter?</h2></div>${button("✕ Close", "close-modal")}</div>
+      <div class="section-heading"><div><p class="eyebrow">Grading period</p><h2 id="deletePeriodTitle">Delete this quarter?</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
       <p>This permanently removes <strong>${escapeHtml(period.name)}</strong>, including every learner name and score entered under it. This cannot be undone.</p>
       <label class="delete-confirmation-label">Type <strong>DELETE</strong> to confirm
         <input id="deletePeriodConfirmation" autocomplete="off" spellcheck="false" aria-label="Type DELETE to confirm quarter deletion">
@@ -2266,7 +2371,7 @@
   function showSearchModal(message, isHtml = false) {
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
-    modal.innerHTML = `<section class="modal search-result-modal" role="dialog" aria-modal="true" aria-labelledby="studentSearchTitle"><div class="section-heading"><div><p class="eyebrow">Private grade check</p><h2 id="studentSearchTitle">Student result</h2></div>${button("✕ Close", "close-modal")}</div><div class="student-results">${isHtml ? message : `<p class="muted">${escapeHtml(message)}</p>`}</div></section>`;
+    modal.innerHTML = `<section class="modal search-result-modal" role="dialog" aria-modal="true" aria-labelledby="studentSearchTitle"><div class="section-heading"><div><p class="eyebrow">Private grade check</p><h2 id="studentSearchTitle">Student result</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div><div class="student-results">${isHtml ? message : `<p class="muted">${escapeHtml(message)}</p>`}</div></section>`;
     document.body.append(modal);
   }
 
@@ -2294,7 +2399,7 @@
       <section class="modal" role="dialog" aria-modal="true">
         <div class="section-heading">
           <div><p class="eyebrow">Class Record</p><h2>Add New Class</h2></div>
-          ${button("✕ Close", "close-modal")}
+          ${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}
         </div>
         <div class="settings-grid" style="margin-top: 15px;">
           <label>Grade Level 
@@ -2345,7 +2450,7 @@
       <section class="modal" role="dialog" aria-modal="true">
         <div class="section-heading">
           <div><p class="eyebrow">Settings</p><h2>Edit Class Section</h2></div>
-          ${button("✕ Close", "close-modal")}
+          ${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}
         </div>
         <div class="settings-grid" style="margin-top: 15px;">
           <label>Grade Level <input id="editSectionLevel" value="${safeValue(section.level)}"></label>
@@ -2370,8 +2475,8 @@
         <div class="stack-actions" style="margin-top:24px; justify-content:space-between; align-items:center;">
           <div>
             ${section.archived 
-              ? `<button type="button" class="button button-secondary" data-action="unarchive-section" data-section="${section.id}">📦 Restore Class</button> <button type="button" class="button button-danger" data-action="request-delete-section" data-section="${section.id}">Delete Permanently</button>`
-              : `<button type="button" class="button button-secondary" data-action="archive-section" data-section="${section.id}">📦 Archive Class</button>`}
+              ? `<button type="button" class="button button-secondary" data-action="unarchive-section" data-section="${section.id}">${icon("archive")} Restore Class</button> <button type="button" class="button button-danger" data-action="request-delete-section" data-section="${section.id}">${icon("trash")} Delete Permanently</button>`
+              : `<button type="button" class="button button-secondary" data-action="archive-section" data-section="${section.id}">${icon("archive")} Archive Class</button>`}
           </div>
           <button type="button" class="button button-primary" data-action="save-section-edit" data-section="${section.id}">Save Changes</button>
         </div>
@@ -2394,7 +2499,7 @@
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
     modal.innerHTML = `<section class="modal delete-confirmation" role="dialog" aria-modal="true" aria-labelledby="deleteClassTitle">
-      <div class="section-heading"><div><p class="eyebrow">Archived class</p><h2 id="deleteClassTitle">Delete permanently?</h2></div>${button("✕ Close", "close-modal")}</div>
+      <div class="section-heading"><div><p class="eyebrow">Archived class</p><h2 id="deleteClassTitle">Delete permanently?</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
       <p>This permanently removes <strong>${escapeHtml(className)}</strong>, including every grading period and learner record in this class. This cannot be undone.</p>
       <label class="delete-confirmation-label">Type <strong>DELETE PERMANENTLY</strong> to confirm
         <input id="deleteClassConfirmation" autocomplete="off" spellcheck="false" aria-label="Type DELETE PERMANENTLY to confirm permanent deletion">
@@ -2716,7 +2821,7 @@
 
     return `<div class="section-heading" style="margin-top: 22px;"><div><p class="eyebrow">Account</p><h2 style="font-size: 1.1rem;">Account &amp; Password</h2></div></div>
       <div class="settings-account-card">
-        <div class="settings-account-avatar">👤</div>
+        <div class="settings-account-avatar">${icon("users")}</div>
         <div class="settings-account-details">
           <span class="settings-account-provider-badge ${hasPassword && !isGoogle ? 'badge-password' : ''}">${escapeHtml(accountType)}</span>
           <p class="settings-account-status">Logged in as <strong>${nameStr}</strong> using <strong>${emailStr}</strong> in ${escapeHtml(accountType)}.</p>
@@ -2827,7 +2932,7 @@
         ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;">⚠️ Another device saved changes here${pendingRemoteAt ? ` at ${safeValue(new Date(pendingRemoteAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}` : ""} while you had unsaved edits. Choose which version to keep:</p>
            <div class="stack-actions">${button("Keep the OTHER device's version", "take-remote-version", "button button-primary")} ${button("Keep THIS device's version", "keep-local-version")}</div>`
         : `<p class="settings-note">🟢 Live sync connected. Changes saved here appear on every other device automatically — nothing to type in.</p>`;
-    modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle"><div class="section-heading"><div><p class="eyebrow">Live sync</p><h2 id="settingsTitle">Settings</h2></div>${button("✕ Close", "close-modal")}</div>
+    modal.innerHTML = `<section class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle"><div class="section-heading"><div><p class="eyebrow">Workspace preferences</p><h2 id="settingsTitle">Settings</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
       ${syncStatusLine}
       ${lastLoadError ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;">⚠️ ${safeValue(lastLoadError)}</p>` : ""}
       ${renderAccountSection()}
@@ -3392,7 +3497,7 @@
     if (action === "select-group") { 
       activeGroup = target.dataset.group; 
       const firstInGroup = state.registry.find((section) => section.group === activeGroup && !section.archived) || state.registry.find((section) => section.group === activeGroup) || state.registry[0];
-      activeSectionId = firstInGroup.id; 
+      activeSectionId = firstInGroup ? firstInGroup.id : ""; 
       activePeriodIndex = 0; 
       currentView = "chooser"; 
       render(); 
