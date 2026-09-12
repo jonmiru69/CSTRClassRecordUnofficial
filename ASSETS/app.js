@@ -368,7 +368,8 @@
       wwHps: Array(10).fill(""),
       ptHps: Array(8).fill(""),
       qaHps: Array(3).fill(""),
-      roster: emptyRoster(section.rosterSize || 50, 10, 8, 3)
+      roster: emptyRoster(section.rosterSize || 50, 10, 8, 3),
+      locked: false
     };
   }
 
@@ -435,6 +436,7 @@
 
         return {
           name: typeof period.name === "string" && period.name.trim() ? period.name : initialPeriod(section).name,
+          locked: period.locked === true,
           wwDates: fitArray(period.wwDates, wwLen),
           ptDates: fitArray(period.ptDates, ptLen),
           qaDates: fitArray(period.qaDates, qaLen),
@@ -472,6 +474,16 @@
     const section = currentSection();
     const bucket = section && state.sections[section.id];
     return bucket && Array.isArray(bucket.periods) ? bucket.periods[activePeriodIndex] : undefined;
+  }
+
+  // Every grading period in a section shares one roster array length
+  // (addRosterSlots keeps them all in sync). That means adding or removing
+  // roster rows edits every period's data at once, including a locked one —
+  // so those roster-wide actions must stay blocked while ANY period in the
+  // section is locked, not just the one currently on screen.
+  function sectionHasLockedPeriod(section) {
+    const bucket = section && state.sections[section.id];
+    return !!(bucket && Array.isArray(bucket.periods) && bucket.periods.some((p) => p.locked));
   }
 
   // Call right after anything replaces `state` wholesale (data load, version
@@ -1437,9 +1449,10 @@
     if (activePeriodIndex >= periods.length) activePeriodIndex = 0;
     const period = currentPeriod();
     const { totalLearners } = computeLearnerNumbering(period.roster);
-    const periodTabs = periods.map((entry, index) => `<button type="button" class="tab theme-${section.theme}" data-action="select-period" data-period="${index}" aria-selected="${activePeriodIndex === index}">${escapeHtml(entry.name)}</button>`).join("");
+    const periodTabs = periods.map((entry, index) => `<button type="button" class="tab theme-${section.theme}" data-action="select-period" data-period="${index}" aria-selected="${activePeriodIndex === index}">${entry.locked ? "🔒 " : ""}${escapeHtml(entry.name)}</button>`).join("");
     
     const sectionColorHex = themeColorHex(section.accent || section.theme);
+    const sectionLocked = sectionHasLockedPeriod(section);
 
     return `<div class="record-section">
       <div class="record-back">${button("← Back to sections", "go-records")}</div>
@@ -1471,42 +1484,45 @@
       </div>
 
       <div class="period-tabs" aria-label="Grading period tabs">${periodTabs}</div>
-      <div class="period-toolbar"><label for="periodName">Period name</label><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name>
-      ${button("+ Add Grading Period", "add-period", "button button-yellow")} ${button("⇩ Print-ready Excel", "export-excel", "button button-primary")}</div>
+      <div class="period-toolbar"><label for="periodName">Period name</label><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name ${period.locked ? "disabled" : ""}>
+      ${button("+ Add Grading Period", "add-period", "button button-yellow")} ${button("⇩ Print-ready Excel", "export-excel", "button button-primary")}
+      ${button(period.locked ? "🔓 Unlock Quarter" : "🔒 Lock Quarter", "toggle-lock-period", "button button-outline", `title="Locking protects this quarter's names, scores, dates, HPS, and columns from edits or deletion — useful once grades are finalized, in case of an accidental typo."`)}
+      ${button("🗑 Delete Quarter", "delete-period", "button button-danger", period.locked ? "disabled" : "")}</div>
+      ${period.locked ? `<p class="locked-period-note">🔒 <strong>${escapeHtml(period.name)}</strong> is locked. Its names, scores, dates, HPS, and columns can't be edited, and it can't be deleted, until you unlock it.</p>` : ""}
       <div class="bulk-column-tools" aria-label="Bulk column controls">
         <span class="bulk-column-label">Columns — edit only the last activity columns; all other scores stay in place.</span>
-        ${renderBulkColumnControl("ww", "WW", period.wwDates.length)}
-        ${renderBulkColumnControl("pt", "PT", period.ptDates.length)}
-        ${renderBulkColumnControl("qa", "QA", period.qaDates.length)}
+        ${renderBulkColumnControl("ww", "WW", period.wwDates.length, period.locked)}
+        ${renderBulkColumnControl("pt", "PT", period.ptDates.length, period.locked)}
+        ${renderBulkColumnControl("qa", "QA", period.qaDates.length, period.locked)}
       </div>
       <p class="paste-hint"><strong>Bulk multi-select & paste tip:</strong> click and drag across input cells vertically or horizontally to select blocks. Use <strong>Ctrl+C</strong> to copy, <strong>Ctrl+X</strong> to cut, <strong>Delete</strong> to clear, or paste (Ctrl+V) copied spreadsheet blocks straight from Excel/Sheets. <strong>Bulk type-to-fill:</strong> after selecting a row, column, or block, just type a value into the first cell and press <strong>Enter</strong> (or click/tab away) — it fills that same value into every other cell in your selection.</p>
       <div class="legend"><span><i class="dot dot-red"></i>Raw score above HPS - correct before finalizing</span><span><i class="dot dot-code"></i>A = Absent (scored 0/HPS) · E = Excused (excluded) · L = Late (excluded)</span><span><i class="dot dot-missing"></i>M = Missing, no excuse (scored 0/HPS)</span><span>QA slots calculate uniformly across entered values.</span></div>
       ${renderRecordTable(section, period)}
       <div class="bulk-column-tools roster-slots-tools" aria-label="Add more name slots">
-        <span class="bulk-column-label">Roster fits ${section.rosterSize} learners — need more rows?</span>
+        <span class="bulk-column-label">Roster fits ${section.rosterSize} learners — need more rows?${sectionLocked ? " Unlock every quarter to change the roster." : ""}</span>
         <div class="bulk-column-control">
           <label class="sr-only" for="rosterSlotCount">Number of name slots to add</label>
-          <input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" aria-label="Number of name slots to add">
-          <button type="button" class="col-btn col-btn-wide" data-action="add-roster-slots" title="Add name slots">+ Add slots</button>
+          <input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" aria-label="Number of name slots to add" ${sectionLocked ? "disabled" : ""}>
+          <button type="button" class="col-btn col-btn-wide" data-action="add-roster-slots" title="Add name slots" ${sectionLocked ? "disabled" : ""}>+ Add slots</button>
           <small>${section.rosterSize} active</small>
         </div>
       </div>
       </div>`;
   }
 
-  function renderBulkColumnControl(kind, label, count) {
-    return `<div class="bulk-column-control"><strong>${label}</strong><label class="sr-only" for="${kind}ColumnCount">Number of ${label} columns</label><input id="${kind}ColumnCount" type="number" min="1" max="50" value="1" data-column-count="${kind}" aria-label="Number of ${label} columns"><button type="button" class="col-btn col-btn-wide" data-action="bulk-add-col" data-kind="${kind}" title="Add columns">Add</button><button type="button" class="col-btn col-btn-wide" data-action="bulk-remove-col" data-kind="${kind}" title="Remove last columns">Remove</button><small>${count} active</small></div>`;
+  function renderBulkColumnControl(kind, label, count, locked) {
+    return `<div class="bulk-column-control"><strong>${label}</strong><label class="sr-only" for="${kind}ColumnCount">Number of ${label} columns</label><input id="${kind}ColumnCount" type="number" min="1" max="50" value="1" data-column-count="${kind}" aria-label="Number of ${label} columns" ${locked ? "disabled" : ""}><button type="button" class="col-btn col-btn-wide" data-action="bulk-add-col" data-kind="${kind}" title="Add columns" ${locked ? "disabled" : ""}>Add</button><button type="button" class="col-btn col-btn-wide" data-action="bulk-remove-col" data-kind="${kind}" title="Remove last columns" ${locked ? "disabled" : ""}>Remove</button><small>${count} active</small></div>`;
   }
 
   function renderRecordTable(section, period) {
     const dateHeaders = (kind, values, labels = []) => values.map((value, index) => {
       const label = labels[index] ? `<span>${labels[index]}</span>` : "";
       const borderClass = (index === 0 && kind === "pt") ? "border-start-pt" : (index === 0 && kind === "qa") ? "border-start-qa" : "";
-      return `<th scope="col" class="activity-date-cell ${borderClass}">${label}<input class="activity-date" type="text" maxlength="12" placeholder="Date" data-date="${kind}" data-index="${index}" value="${safeValue(value)}" aria-label="${kind.toUpperCase()} activity ${index + 1} date"></th>`;
+      return `<th scope="col" class="activity-date-cell ${borderClass}">${label}<input class="activity-date" type="text" maxlength="12" placeholder="Date" data-date="${kind}" data-index="${index}" value="${safeValue(value)}" aria-label="${kind.toUpperCase()} activity ${index + 1} date" ${period.locked ? "disabled" : ""}></th>`;
     }).join("");
     const hpsInputs = (kind, values) => values.map((value, index) => {
       const borderClass = (index === 0 && kind === "pt") ? "border-start-pt" : (index === 0 && kind === "qa") ? "border-start-qa" : "";
-      return `<td class="${borderClass}"><input type="number" min="0" step="any" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(value)}" aria-label="${kind.toUpperCase()} ${index + 1} highest possible score"></td>`;
+      return `<td class="${borderClass}"><input type="number" min="0" step="any" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(value)}" aria-label="${kind.toUpperCase()} ${index + 1} highest possible score" ${period.locked ? "disabled" : ""}></td>`;
     }).join("");
     const { numbering } = computeLearnerNumbering(period.roster);
     
@@ -1515,7 +1531,8 @@
     const qaLen = period.qaDates.length;
     const qaLabels = qaLen === 3 ? ["ST 1 (30%)", "ST 2 (30%)", "Term Exam (40%)"] : [];
 
-    const rows = period.roster.map((learner, rowIndex) => renderLearnerRow(learner, rowIndex, period, section, numbering[rowIndex])).join("");
+    const sectionLocked = sectionHasLockedPeriod(section);
+    const rows = period.roster.map((learner, rowIndex) => renderLearnerRow(learner, rowIndex, period, section, numbering[rowIndex], sectionLocked)).join("");
     
     return `<div class="table-wrap"><table class="record-table compact-record"><thead>
       <tr class="component-row">
@@ -1523,18 +1540,18 @@
         <th class="name-cell" scope="col" rowspan="3">Learner name</th>
         <th class="component-header component-ww" scope="colgroup" colspan="${wwLen + 3}">
           Written Works (${section.weights[0]}%)
-          <button type="button" class="col-btn" data-action="add-col" data-kind="ww" title="Add Column">+</button>
-          <button type="button" class="col-btn" data-action="remove-col" data-kind="ww" title="Remove Column">-</button>
+          <button type="button" class="col-btn" data-action="add-col" data-kind="ww" title="Add Column" ${period.locked ? "disabled" : ""}>+</button>
+          <button type="button" class="col-btn" data-action="remove-col" data-kind="ww" title="Remove Column" ${period.locked ? "disabled" : ""}>-</button>
         </th>
         <th class="component-header component-pt border-start-pt" scope="colgroup" colspan="${ptLen + 3}">
           Performance Tasks (${section.weights[1]}%)
-          <button type="button" class="col-btn" data-action="add-col" data-kind="pt" title="Add Column">+</button>
-          <button type="button" class="col-btn" data-action="remove-col" data-kind="pt" title="Remove Column">-</button>
+          <button type="button" class="col-btn" data-action="add-col" data-kind="pt" title="Add Column" ${period.locked ? "disabled" : ""}>+</button>
+          <button type="button" class="col-btn" data-action="remove-col" data-kind="pt" title="Remove Column" ${period.locked ? "disabled" : ""}>-</button>
         </th>
         <th class="component-header component-qa border-start-qa" scope="colgroup" colspan="${qaLen + 3}">
           Quarterly Assessment (${section.weights[2]}%)
-          <button type="button" class="col-btn" data-action="add-col" data-kind="qa" title="Add Column">+</button>
-          <button type="button" class="col-btn" data-action="remove-col" data-kind="qa" title="Remove Column">-</button>
+          <button type="button" class="col-btn" data-action="add-col" data-kind="qa" title="Add Column" ${period.locked ? "disabled" : ""}>+</button>
+          <button type="button" class="col-btn" data-action="remove-col" data-kind="qa" title="Remove Column" ${period.locked ? "disabled" : ""}>-</button>
         </th>
         <th class="initial-header" scope="col" rowspan="3">Initial<br>Grade</th>
         <th class="transmuted-header" scope="col" rowspan="3">Final Transmuted<br>Grade</th>
@@ -1559,19 +1576,21 @@
       </thead><tbody>${rows}</tbody></table></div>`;
   }
 
-  function renderLearnerRow(learner, rowIndex, period, section, numDisplay) {
+  function renderLearnerRow(learner, rowIndex, period, section, numDisplay, sectionLocked) {
     const cat = getLearnerCategory(learner.name);
     const catClass = cat ? `row-category row-category-${cat}` : "";
     const nameShade = sectionNameShade(section.accent || section.theme);
+    const cellsDisabled = cat || period.locked;
 
     const scoreInputs = (kind, values, hpsValues) => values.map((value, index) => {
       const tdBorderClass = (index === 0 && kind === "pt") ? "border-start-pt" : (index === 0 && kind === "qa") ? "border-start-qa" : "";
       const codeValue = typeof value === "string" ? value.trim().toUpperCase() : "";
       const inputClasses = [hasRawAboveHps(value, hpsValues[index]) ? "invalid" : "", isAttendanceCode(value) ? "code-cell" : "", codeValue === "M" ? "code-cell-missing" : ""].filter(Boolean).join(" ");
-      return `<td class="${tdBorderClass}"><input class="${inputClasses}" type="text" inputmode="text" maxlength="6" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cat ? 'disabled tabindex="-1"' : ''} title="Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)" aria-label="Learner ${rowIndex + 1} ${kind.toUpperCase()} ${index + 1}"></td>`;
+      return `<td class="${tdBorderClass}"><input class="${inputClasses}" type="text" inputmode="text" maxlength="6" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cellsDisabled ? 'disabled tabindex="-1"' : ''} title="Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)" aria-label="Learner ${rowIndex + 1} ${kind.toUpperCase()} ${index + 1}"></td>`;
     }).join("");
     const result = learnerResult(learner, period, section.weights);
-    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell" style="--section-name-bg:${nameShade.background};--section-name-color:${nameShade.color};"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name"></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td><td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td><td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
+    const deleteRowBtn = `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${sectionLocked ? "Unlock every grading period to delete rows" : "Delete this row from the roster (every quarter)"}" aria-label="Delete learner ${rowIndex + 1} row" ${sectionLocked ? "disabled" : ""}>🗑</button>`;
+    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell" style="--section-name-bg:${nameShade.background};--section-name-color:${nameShade.color};"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td><td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td><td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
   }
 
   function learnerResult(learner, period, weights) {
@@ -1613,6 +1632,46 @@
     render();
   }
 
+  // Locking a quarter protects it from accidental edits or typos once its
+  // grades are finalized: every input in that period (names, dates, HPS,
+  // scores, columns) becomes read-only and it can't be deleted, until it's
+  // unlocked again.
+  function toggleLockPeriod() {
+    const period = currentPeriod();
+    if (!period) return;
+    period.locked = !period.locked;
+    markStateDirty();
+    render();
+    setStatus(period.locked
+      ? `Locked "${period.name}". It's now protected from edits and deletion until you unlock it.`
+      : `Unlocked "${period.name}". It can be edited again.`);
+  }
+
+  function deletePeriod() {
+    const section = currentSection();
+    const periods = state.sections[section.id].periods;
+    const period = currentPeriod();
+    if (!period) return;
+    if (period.locked) {
+      setStatus("This grading period is locked — unlock it first before deleting.", "error");
+      return;
+    }
+    if (periods.length <= 1) {
+      setStatus("Keep at least one grading period.", "error");
+      return;
+    }
+    const confirmed = confirm(`Delete "${period.name}"? This permanently removes every learner name and score entered under this grading period. This cannot be undone.`);
+    if (!confirmed) return;
+
+    const deletedName = period.name;
+    periods.splice(activePeriodIndex, 1);
+    activePeriodIndex = Math.max(0, Math.min(activePeriodIndex, periods.length - 1));
+    markStateDirty();
+    render();
+    setStatus(`Deleted grading period "${deletedName}".`);
+    showSaveToast("Grading period deleted. Autosave is queued.", "info");
+  }
+
   // Adds more empty name slots to every grading period in the current
   // section (keeping every period's roster the same length, same as
   // normalizeState already enforces on load) — for classes that grow past
@@ -1622,6 +1681,10 @@
   function addRosterSlots(amount) {
     if (!Number.isInteger(amount) || amount <= 0) return;
     const section = currentSection();
+    if (sectionHasLockedPeriod(section)) {
+      setStatus("Roster changes apply to every grading period — unlock all of them first.", "error");
+      return;
+    }
     const periods = state.sections[section.id].periods;
     periods.forEach((period) => {
       const wwLen = period.wwDates.length;
@@ -1637,9 +1700,53 @@
     setStatus(`Added ${amount} more name slot${amount === 1 ? "" : "s"}. Roster capacity is now ${section.rosterSize}.`);
   }
 
+  // Removes one name slot at rowIndex from every grading period's roster
+  // (mirroring addRosterSlots, which adds to every period at once) so all
+  // periods keep the same roster length. Asks for confirmation since this
+  // deletes real data — the learner's name and every score entered for them
+  // across every quarter in this class.
+  function deleteRosterRow(rowIndex) {
+    const section = currentSection();
+    const periods = state.sections[section.id].periods;
+    if (!periods.length || !periods[0].roster.length) return;
+    if (rowIndex < 0 || rowIndex >= periods[0].roster.length) return;
+    if (periods[0].roster.length <= 1) {
+      setStatus("Keep at least one name slot in the roster.", "error");
+      return;
+    }
+    if (sectionHasLockedPeriod(section)) {
+      setStatus("Roster changes apply to every grading period — unlock all of them first.", "error");
+      return;
+    }
+
+    const rowHasData = periods.some((p) => {
+      const learner = p.roster[rowIndex];
+      if (!learner) return false;
+      if ((learner.name || "").trim()) return true;
+      return [...learner.ww, ...learner.pt, ...learner.qa].some((value) => String(value).trim() !== "");
+    });
+    const learnerName = (currentPeriod().roster[rowIndex].name || "").trim();
+    if (rowHasData) {
+      const confirmMsg = learnerName
+        ? `Remove "${learnerName}" from the roster? This deletes their row — name and scores — from every grading period in this class. This cannot be undone.`
+        : "This row has data entered in another grading period. Remove it from the roster in every grading period? This cannot be undone.";
+      if (!confirm(confirmMsg)) return;
+    }
+
+    periods.forEach((p) => { p.roster.splice(rowIndex, 1); });
+    section.rosterSize = Math.max(1, (section.rosterSize || periods[0].roster.length + 1) - 1);
+    markStateDirty();
+    render();
+    setStatus(`Removed 1 name slot. Roster capacity is now ${section.rosterSize}.`);
+  }
+
   function changeColumnCount(kind, amount) {
     if (!["ww", "pt", "qa"].includes(kind) || !Number.isInteger(amount) || amount === 0) return;
     const period = currentPeriod();
+    if (period.locked) {
+      setStatus("This grading period is locked — unlock it first to change columns.", "error");
+      return;
+    }
     const dates = period[`${kind}Dates`];
     const hps = period[`${kind}Hps`];
     if (amount > 0) {
@@ -2777,7 +2884,7 @@
     if (!isMulti) return;
 
     const period = currentPeriod();
-    if (!period || !period.roster) return;
+    if (!period || !period.roster || period.locked) return;
     const srcRow = selectionState.startRow;
     const srcCol = selectionState.startCol;
     const wwLen = period.wwDates.length;
@@ -2855,6 +2962,10 @@
     commitPendingBulkFill();
     const input = event.target.closest(".record-table tbody input");
     if (!input || event.button !== 0) { if (!event.target.closest(".record-table tbody")) clearSelection(); return; }
+    // A locked period's cells are all `disabled`, but this guards multi-cell
+    // select/fill/paste/cut/copy too, since they all key off this selection.
+    const activePeriod = currentPeriod();
+    if (activePeriod && activePeriod.locked) return;
     const coords = getCellCoords(input);
     if (!coords) return;
     selectionState.active = true;
@@ -2887,6 +2998,7 @@
       event.preventDefault();
       fillArmed = false; // the block is being wiped, so any not-yet-committed typed fill is moot
       const period = currentPeriod();
+      if (period.locked) { clearSelection(); return; }
       const wwLen = period.wwDates.length;
       const ptLen = period.ptDates.length;
       const qaLen = period.qaDates.length;
@@ -3057,6 +3169,15 @@
       const countInput = document.querySelector('[data-column-count="roster"]');
       const count = Math.min(100, Math.max(1, Number.parseInt(countInput && countInput.value, 10) || 10));
       addRosterSlots(count);
+    }
+    if (action === "delete-roster-row") {
+      deleteRosterRow(Number(target.dataset.row));
+    }
+    if (action === "toggle-lock-period") {
+      toggleLockPeriod();
+    }
+    if (action === "delete-period") {
+      deletePeriod();
     }
 
     if (action === "export-excel") exportCurrentSheet();
@@ -3306,6 +3427,7 @@
   function applyBulkPaste(startRow, startCol, text) {
     const section = currentSection();
     const period = currentPeriod();
+    if (period && period.locked) { setStatus("This grading period is locked and can't be edited.", "error"); return; }
     if (!Number.isFinite(startRow) || startCol === null) return;
 
     const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
