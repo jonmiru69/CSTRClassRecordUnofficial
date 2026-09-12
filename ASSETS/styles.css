@@ -481,6 +481,21 @@ select.teacher-meta-input { cursor: pointer; -webkit-appearance: menulist; appea
 .period-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 18px 0; }
 .period-name { width: min(100%, 340px); min-height: 40px; border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 12px; background: #fff; font-weight: 600; }
 
+.locked-period-note { margin: -8px 0 14px; padding: 8px 14px; background: #fff7e6; border: 1px solid #f0d38a; border-radius: 8px; font-size: .82rem; color: #6b5300; }
+
+.button:disabled, .col-btn:disabled, .row-delete-btn:disabled { opacity: .4; cursor: not-allowed; }
+.record-table input:disabled, .period-name:disabled, .bulk-column-control input:disabled { background: #f1f3f5; color: #94a3b8; cursor: not-allowed; }
+
+.name-cell-inner { display: flex; align-items: center; gap: 4px; }
+.name-cell-inner .text-input { flex: 1; min-width: 0; }
+.row-delete-btn {
+  flex-shrink: 0; width: 20px; height: 20px; border: none; border-radius: 4px;
+  background: transparent; color: #991b1b; font-size: .7rem; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; opacity: .45;
+}
+.row-delete-btn:hover:not(:disabled) { opacity: 1; background: #fbe1e1; }
+
 /* ----------------------------------------------------
    Record Table & Numeric Cells (Courier Numbers)
 ---------------------------------------------------- */
