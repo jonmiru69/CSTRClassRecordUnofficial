@@ -1647,6 +1647,36 @@
       : `Unlocked "${period.name}". It can be edited again.`);
   }
 
+  // Opens a type-to-confirm modal instead of deleting right away — a
+  // one-tap confirm was too easy to hit by accident given how much data
+  // (every learner name/score under this quarter) a delete wipes out.
+  function requestDeletePeriod() {
+    const period = currentPeriod();
+    if (!period) return;
+    if (period.locked) {
+      setStatus("This grading period is locked — unlock it first before deleting.", "error");
+      return;
+    }
+    const periods = state.sections[currentSection().id].periods;
+    if (periods.length <= 1) {
+      setStatus("Keep at least one grading period.", "error");
+      return;
+    }
+    document.querySelector(".modal-backdrop")?.remove();
+    const modal = document.createElement("div");
+    modal.className = "modal-backdrop";
+    modal.innerHTML = `<section class="modal delete-confirmation" role="dialog" aria-modal="true" aria-labelledby="deletePeriodTitle">
+      <div class="section-heading"><div><p class="eyebrow">Grading period</p><h2 id="deletePeriodTitle">Delete this quarter?</h2></div>${button("✕ Close", "close-modal")}</div>
+      <p>This permanently removes <strong>${escapeHtml(period.name)}</strong>, including every learner name and score entered under it. This cannot be undone.</p>
+      <label class="delete-confirmation-label">Type <strong>DELETE</strong> to confirm
+        <input id="deletePeriodConfirmation" autocomplete="off" spellcheck="false" aria-label="Type DELETE to confirm quarter deletion">
+      </label>
+      <div class="stack-actions delete-confirmation-actions">${button("Cancel", "close-modal", "button button-secondary")} ${button("Delete Quarter", "confirm-delete-period", "button button-danger")}</div>
+    </section>`;
+    document.body.append(modal);
+    modal.querySelector("#deletePeriodConfirmation")?.focus();
+  }
+
   function deletePeriod() {
     const section = currentSection();
     const periods = state.sections[section.id].periods;
@@ -1660,12 +1690,16 @@
       setStatus("Keep at least one grading period.", "error");
       return;
     }
-    const confirmed = confirm(`Delete "${period.name}"? This permanently removes every learner name and score entered under this grading period. This cannot be undone.`);
-    if (!confirmed) return;
+    const confirmation = document.querySelector("#deletePeriodConfirmation")?.value.trim().toUpperCase();
+    if (confirmation !== "DELETE") {
+      showSaveToast("Type DELETE to confirm this deletion.", "error");
+      return;
+    }
 
     const deletedName = period.name;
     periods.splice(activePeriodIndex, 1);
     activePeriodIndex = Math.max(0, Math.min(activePeriodIndex, periods.length - 1));
+    document.querySelector(".modal-backdrop")?.remove();
     markStateDirty();
     render();
     setStatus(`Deleted grading period "${deletedName}".`);
@@ -3177,6 +3211,9 @@
       toggleLockPeriod();
     }
     if (action === "delete-period") {
+      requestDeletePeriod();
+    }
+    if (action === "confirm-delete-period") {
       deletePeriod();
     }
 
