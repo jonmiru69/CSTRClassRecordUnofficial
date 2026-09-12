@@ -1,8 +1,8 @@
 ﻿{
   "rules": {
     "cstr-class-record-bindings": {
-      ".read": "auth != null",
       "$legacyKey": {
+        ".read": "auth != null && (!data.exists() || data.child('boundUid').val() === auth.uid)",
         ".write": "auth != null && (!data.exists() || data.child('boundUid').val() === auth.uid)",
         ".validate": "newData.hasChildren(['boundUid', 'boundEmail']) && newData.child('boundUid').val() === auth.uid"
       }

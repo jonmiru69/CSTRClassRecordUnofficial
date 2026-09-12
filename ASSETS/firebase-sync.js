@@ -240,7 +240,16 @@
       updates[`${BINDINGS_PATH}/${sanitized}`] = bindingPayload;
       updates[`${USERS_PATH}/${user.uid}`] = userProfilePayload;
 
-      await db.ref().update(updates);
+      try {
+        await db.ref().update(updates);
+      } catch (error) {
+        // A protected existing binding should not disclose another teacher's
+        // name or email. Give the claimant a usable, privacy-preserving error.
+        if (error && error.code === "PERMISSION_DENIED") {
+          throw new Error("This legacy account cannot be claimed. Verify the account code or sign in with the account that already owns it.");
+        }
+        throw error;
+      }
 
       // Safety check: verify that real class record data actually exists at this legacy key.
       // We can read it now because the binding we just wrote grants us access.

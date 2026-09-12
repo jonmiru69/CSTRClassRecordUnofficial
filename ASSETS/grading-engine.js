@@ -252,7 +252,9 @@
     const initial = calculateInitialGrade(ww, pt, qa);
     return {
       ww, pt, qa, initial,
-      passes: ww.weighted === 24 && pt.weighted === 36 && qa.weighted === 25.8 && initial.rounded === 86 && initial.transmuted === 89 && initial.descriptor === "Benchmarking"
+      // 24 + 36 + 25.8 = 85.8. Keep this example aligned with the same
+      // precision and transmutation path used by the live class sheet.
+      passes: ww.weighted === 24 && pt.weighted === 36 && qa.weighted === 25.8 && initial.rounded === 85.8 && initial.transmuted === 88 && initial.descriptor === "Benchmarking"
     };
   }
 

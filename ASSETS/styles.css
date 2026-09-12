@@ -482,6 +482,7 @@ select.teacher-meta-input { cursor: pointer; -webkit-appearance: menulist; appea
 .period-name { width: min(100%, 340px); min-height: 40px; border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 12px; background: #fff; font-weight: 600; }
 
 .locked-period-note { margin: -8px 0 14px; padding: 8px 14px; background: #fff7e6; border: 1px solid #f0d38a; border-radius: 8px; font-size: .82rem; color: #6b5300; }
+.integrity-note { margin: -8px 0 14px; padding: 10px 14px; background: #fff7f6; border: 1px solid #f2b8b5; border-left: 4px solid #991b1b; border-radius: 8px; color: #7f1d1d; font-size: .84rem; line-height: 1.45; }
 
 .button:disabled, .col-btn:disabled, .row-delete-btn:disabled { opacity: .4; cursor: not-allowed; }
 .record-table input:disabled, .period-name:disabled, .bulk-column-control input:disabled { background: #f1f3f5; color: #94a3b8; cursor: not-allowed; }
@@ -527,6 +528,7 @@ select.teacher-meta-input { cursor: pointer; -webkit-appearance: menulist; appea
 .record-table input { width: 58px; min-height: 32px; padding: 4px 3px; border: 1px solid #ccd4dc; border-radius: 5px; text-align: center; background: #fff; font-size: 0.8rem; }
 .record-table input:focus { border-color: #2980b9; outline: none; box-shadow: 0 0 0 2px rgba(41, 128, 185, 0.25); }
 .record-table input.invalid { border-color: var(--red); background: #fff7f6; font-weight: 800; color: #a82424; }
+.record-table input[aria-invalid="true"] { box-shadow: 0 0 0 2px rgba(153, 27, 27, .12); }
 .record-table input.code-cell { background: var(--code-cell-bg); color: var(--code-cell-text); font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: .03em; }
 .record-table input.code-cell-missing { background: var(--missing-cell-bg); color: var(--missing-cell-text); border-color: var(--missing-cell-text); font-weight: 800; }
 
@@ -755,6 +757,30 @@ input.cell-selected {
   .level-grid { grid-template-columns: 1fr; }
   .section-card-grid { grid-template-columns: 1fr; }
   .record-table .name-cell, .compact-record .name-cell { min-width: 200px; width: 200px; }
+}
+
+@media (max-width: 520px) {
+  .login-screen { padding: 14px; }
+  .login-card { padding: 24px 20px; border-radius: 14px; }
+  .app-shell { padding: 10px 10px 44px; }
+  .app-header-inner { padding: 11px 12px; }
+  .period-toolbar { align-items: stretch; }
+  .period-toolbar > label { width: 100%; }
+  .period-toolbar .period-name { width: 100%; }
+  .period-toolbar .button { flex: 1 1 145px; }
+  .bulk-column-tools { align-items: flex-start; }
+  .bulk-column-control { flex-wrap: wrap; }
+  .modal { padding: 20px 16px; border-radius: 14px; }
+  .regcode-modal { padding: 24px 18px; border-radius: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
 }
 
 /* ----------------------------------------------------

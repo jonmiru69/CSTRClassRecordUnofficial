@@ -639,6 +639,46 @@
     return numeric.slice(0, firstDot + 1) + numeric.slice(firstDot + 1).replace(/\./g, "");
   }
 
+  // Scores remain text while a teacher is typing so partial decimals stay
+  // usable. This only drives integrity feedback; grading formulas stay intact.
+  function getPeriodInputIntegrity(period) {
+    const issues = { invalidHps: 0, invalidScores: 0, aboveHps: 0 };
+    if (!period) return issues;
+    ["ww", "pt", "qa"].forEach((kind) => {
+      const hpsValues = period[`${kind}Hps`] || [];
+      hpsValues.forEach((value) => {
+        if (value === "" || value === null || value === undefined) return;
+        const hps = Number(value);
+        if (!Number.isFinite(hps) || hps <= 0) issues.invalidHps += 1;
+      });
+      (period.roster || []).forEach((learner) => {
+        (learner[kind] || []).forEach((value, index) => {
+          if (value === "" || value === null || value === undefined || isAttendanceCode(value)) return;
+          const score = Number(value);
+          if (!Number.isFinite(score) || score < 0) {
+            issues.invalidScores += 1;
+            return;
+          }
+          const hps = Number(hpsValues[index]);
+          if (Number.isFinite(hps) && hps > 0 && score > hps) issues.aboveHps += 1;
+        });
+      });
+    });
+    return issues;
+  }
+
+  function hasPeriodInputIssues(issues) {
+    return issues.invalidHps > 0 || issues.invalidScores > 0 || issues.aboveHps > 0;
+  }
+
+  function periodInputIssueMessage(issues) {
+    const parts = [];
+    if (issues.invalidHps) parts.push(`${issues.invalidHps} invalid HPS value${issues.invalidHps === 1 ? "" : "s"}`);
+    if (issues.invalidScores) parts.push(`${issues.invalidScores} invalid score${issues.invalidScores === 1 ? "" : "s"}`);
+    if (issues.aboveHps) parts.push(`${issues.aboveHps} score${issues.aboveHps === 1 ? "" : "s"} above HPS`);
+    return parts.join("; ");
+  }
+
   function updateSiteBackground() {
     const bg = document.querySelector("#siteBg");
     if (!bg) return;
@@ -1453,6 +1493,10 @@
     
     const sectionColorHex = themeColorHex(section.accent || section.theme);
     const sectionLocked = sectionHasLockedPeriod(section);
+    const inputIntegrity = getPeriodInputIntegrity(period);
+    const integrityNote = hasPeriodInputIssues(inputIntegrity)
+      ? `<p class="integrity-note" role="status"><strong>Review needed before locking:</strong> ${escapeHtml(periodInputIssueMessage(inputIntegrity))}. Correct these values to keep the record valid.</p>`
+      : "";
 
     return `<div class="record-section">
       <div class="record-back">${button("← Back to sections", "go-records")}</div>
@@ -1489,6 +1533,7 @@
       ${button(period.locked ? "🔓 Unlock Quarter" : "🔒 Lock Quarter", "toggle-lock-period", "button button-outline", `title="Locking protects this quarter's names, scores, dates, HPS, and columns from edits or deletion — useful once grades are finalized, in case of an accidental typo."`)}
       ${button("🗑 Delete Quarter", "delete-period", "button button-danger", period.locked ? "disabled" : "")}</div>
       ${period.locked ? `<p class="locked-period-note">🔒 <strong>${escapeHtml(period.name)}</strong> is locked. Its names, scores, dates, HPS, and columns can't be edited, and it can't be deleted, until you unlock it.</p>` : ""}
+      ${integrityNote}
       <div class="bulk-column-tools" aria-label="Bulk column controls">
         <span class="bulk-column-label">Columns — edit only the last activity columns; all other scores stay in place.</span>
         ${renderBulkColumnControl("ww", "WW", period.wwDates.length, period.locked)}
@@ -1585,8 +1630,12 @@
     const scoreInputs = (kind, values, hpsValues) => values.map((value, index) => {
       const tdBorderClass = (index === 0 && kind === "pt") ? "border-start-pt" : (index === 0 && kind === "qa") ? "border-start-qa" : "";
       const codeValue = typeof value === "string" ? value.trim().toUpperCase() : "";
-      const inputClasses = [hasRawAboveHps(value, hpsValues[index]) ? "invalid" : "", isAttendanceCode(value) ? "code-cell" : "", codeValue === "M" ? "code-cell-missing" : ""].filter(Boolean).join(" ");
-      return `<td class="${tdBorderClass}"><input class="${inputClasses}" type="text" inputmode="text" maxlength="6" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cellsDisabled ? 'disabled tabindex="-1"' : ''} title="Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)" aria-label="Learner ${rowIndex + 1} ${kind.toUpperCase()} ${index + 1}"></td>`;
+      const rawNumber = Number(value);
+      const invalidScore = !isAttendanceCode(value) && value !== "" && (!Number.isFinite(rawNumber) || rawNumber < 0);
+      const aboveHps = hasRawAboveHps(value, hpsValues[index]);
+      const inputClasses = [aboveHps || invalidScore ? "invalid" : "", isAttendanceCode(value) ? "code-cell" : "", codeValue === "M" ? "code-cell-missing" : ""].filter(Boolean).join(" ");
+      const invalidMessage = invalidScore ? "Invalid score. Enter zero or a positive number, or an attendance code." : "";
+      return `<td class="${tdBorderClass}"><input class="${inputClasses}" type="text" inputmode="text" maxlength="6" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cellsDisabled ? 'disabled tabindex="-1"' : ''} title="${invalidMessage || "Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)"}" aria-invalid="${invalidScore || aboveHps}" aria-label="Learner ${rowIndex + 1} ${kind.toUpperCase()} ${index + 1}"></td>`;
     }).join("");
     const result = learnerResult(learner, period, section.weights);
     const deleteRowBtn = `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${sectionLocked ? "Unlock every grading period to delete rows" : "Delete this row from the roster (every quarter)"}" aria-label="Delete learner ${rowIndex + 1} row" ${sectionLocked ? "disabled" : ""}>🗑</button>`;
@@ -1639,6 +1688,15 @@
   function toggleLockPeriod() {
     const period = currentPeriod();
     if (!period) return;
+    if (!period.locked) {
+      const issues = getPeriodInputIntegrity(period);
+      if (hasPeriodInputIssues(issues)) {
+        const message = `Correct ${periodInputIssueMessage(issues)} before locking this grading period.`;
+        setStatus(message, "error");
+        showSaveToast(message, "error");
+        return;
+      }
+    }
     period.locked = !period.locked;
     markStateDirty();
     render();
@@ -3353,6 +3411,15 @@
 
   // Keydown shortcuts
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      const registrationModal = document.querySelector(".regcode-modal-backdrop");
+      const standardModal = document.querySelector(".modal-backdrop");
+      if (registrationModal || standardModal) {
+        event.preventDefault();
+        (registrationModal || standardModal).remove();
+        return;
+      }
+    }
     if (event.key === "Enter") {
       if (event.target && event.target.id === "studentSearch") {
         event.preventDefault();
@@ -3421,7 +3488,12 @@
       if (sanitized !== input.value) input.value = sanitized;
       currentPeriod().roster[row][kind][index] = sanitized; updateLiveSummary(row); stateChanged = true;
     }
-    if (input.dataset.hps) { currentPeriod()[`${input.dataset.hps}Hps`][Number(input.dataset.index)] = input.value; updateAllSummaries(); stateChanged = true; }
+    if (input.dataset.hps) {
+      currentPeriod()[`${input.dataset.hps}Hps`][Number(input.dataset.index)] = input.value;
+      input.classList.toggle("invalid", input.value !== "" && (!Number.isFinite(Number(input.value)) || Number(input.value) <= 0));
+      input.setAttribute("aria-invalid", String(input.classList.contains("invalid")));
+      updateAllSummaries(); stateChanged = true;
+    }
     if (stateChanged) {
       const fieldKey = getFieldKeyForInput(input);
       if (fieldKey) markFieldEditDirty(fieldKey); else markStateDirty();
