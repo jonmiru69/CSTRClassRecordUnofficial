@@ -1,5 +1,19 @@
 # CSTR Class Record — Live
 
+## September 13 workspace and registration revision
+
+This package includes the revised collapsible workspace, compact sheet controls,
+automatic per-period completion and reversible HPS adjustments. Read
+[REVISION_GUIDE.md](REVISION_GUIDE.md) for behavior and validation details.
+
+**Deployment requirement:** the registration code gate needs a private secret
+and updated database rules activated before publishing these frontend files —
+100% on the free Firebase Spark plan, no Cloud Functions or billing upgrade
+required. Follow [SECURE_REGISTRATION_SETUP.md](SECURE_REGISTRATION_SETUP.md).
+Existing approved teachers need to be migrated individually; review accounts
+one at a time. This package does not include an admin code or production
+credentials.
+
 A client-side class-record web application for Colegio de Sto. Tomas -
 Recoletos, Incorporated, San Carlos City, Negros Occidental. It is designed
 for the class-record owner(s) named in the app and displays this label
@@ -16,8 +30,8 @@ this requires.
 
 - Secure authentication via **Google Sign-In with 2FA support** (Google Authenticator, prompt, or Gmail verification codes at zero cost).
 - Zero plaintext passwords in code or repository files.
-- Ironclad per-teacher isolation in Firebase Realtime Database: each teacher can only read and write their own class records.
-- Automated Google-based self sign-up for new teachers without developer code changes.
+- Per-teacher access rules requiring authenticated, administrator-approved accounts.
+- Google and email registration require server-verified administrator authorization.
 - Safe legacy account linking preserving all existing class records without data loss.
 - Seven class records, each with a 42-row blank roster, independent grading
   periods, HPS fields, learner scores, and grade calculations.

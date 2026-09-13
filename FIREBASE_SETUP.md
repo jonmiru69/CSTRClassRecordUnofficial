@@ -1,5 +1,12 @@
 # Setting Up Live Sync & Authentication (Firebase)
 
+> IMPORTANT — September 13 revision: follow SECURE_REGISTRATION_SETUP.md first.
+> The provider settings below alone no longer activate registration — a
+> private admin code and the registration-gated database rules are also
+> required. This still runs entirely on the free Spark plan (see Section 9);
+> no Cloud Functions or billing upgrade are involved. Do not deploy the new
+> rules before migrating reviewed existing users.
+
 This web application uses **Firebase Realtime Database** with **Firebase Authentication**. Teachers can sign in either with **Google Sign-In** or with a **typical email + password login** (with a working "Change Password" and "Forgot password" flow). Both methods land in the exact same secure, per-teacher database rules — a teacher's UID is a UID either way.
 
 This is a one-time configuration done by the site owner/developer in the Firebase and Google Cloud consoles.
@@ -49,37 +56,12 @@ These rules ensure that:
 
 1. In the left navigation bar, go to **Build → Realtime Database**.
 2. Click the **Rules** tab at the top.
-3. Replace the entire contents of the editor with the code from `firebase-database-rules.json`:
-
-```json
-{
-  "rules": {
-    "cstr-class-record-bindings": {
-      ".read": "auth != null",
-      "$legacyKey": {
-        ".write": "auth != null && (!data.exists() || data.child('boundUid').val() === auth.uid)",
-        ".validate": "newData.hasChildren(['boundUid', 'boundEmail']) && newData.child('boundUid').val() === auth.uid"
-      }
-    },
-    "cstr-class-record-users": {
-      "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid"
-      }
-    },
-    "cstr-class-record-data": {
-      "$userKey": {
-        ".read": "auth != null && ($userKey === auth.uid || root.child('cstr-class-record-bindings').child($userKey).child('boundUid').val() === auth.uid)",
-        ".write": "auth != null && ($userKey === auth.uid || root.child('cstr-class-record-bindings').child($userKey).child('boundUid').val() === auth.uid)"
-      }
-    },
-    "$other": {
-      ".read": false,
-      ".write": false
-    }
-  }
-}
-```
+3. Replace the entire contents of the editor with the exact, current contents
+   of `firebase-database-rules.json` in this package (it also adds the
+   registration-code nodes covered in `SECURE_REGISTRATION_SETUP.md` — every
+   class-record rule below now additionally requires a
+   `cstr-registration-approved/{uid}` record to exist, which only the code
+   gate can create). Don't retype it by hand; copy the file's contents.
 4. Click **Publish**.
 
 ---

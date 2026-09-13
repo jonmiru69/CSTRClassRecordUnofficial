@@ -1,22 +1,39 @@
-﻿{
+{
   "rules": {
+    "cstr-registration-secret": {
+      ".read": false,
+      ".write": false
+    },
+    "cstr-registration-tickets": {
+      ".read": false,
+      "$ticketId": {
+        ".write": "(!data.exists() && newData.hasChildren(['code','used','expiresAt']) && newData.child('code').isString() && newData.child('code').val().length > 0 && newData.child('code').val() === root.child('cstr-registration-secret').child('code').val() && newData.child('used').isBoolean() && newData.child('used').val() === false && newData.child('expiresAt').isNumber() && newData.child('expiresAt').val() > now && newData.child('expiresAt').val() <= now + 630000) || (data.exists() && auth != null && data.child('used').val() === false && data.child('expiresAt').val() > now && newData.child('used').val() === true && newData.child('usedByUid').val() === auth.uid && newData.child('code').val() === data.child('code').val() && newData.child('expiresAt').val() === data.child('expiresAt').val())"
+      }
+    },
+    "cstr-registration-approved": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && !data.exists() && newData.child('ticketId').isString() && root.child('cstr-registration-tickets').child(newData.child('ticketId').val()).child('used').val() === true && root.child('cstr-registration-tickets').child(newData.child('ticketId').val()).child('usedByUid').val() === auth.uid"
+      }
+    },
     "cstr-class-record-bindings": {
       "$legacyKey": {
-        ".read": "auth != null && (!data.exists() || data.child('boundUid').val() === auth.uid)",
-        ".write": "auth != null && (!data.exists() || data.child('boundUid').val() === auth.uid)",
-        ".validate": "newData.hasChildren(['boundUid', 'boundEmail']) && newData.child('boundUid').val() === auth.uid"
+        ".read": "auth != null && root.child('cstr-registration-approved').child(auth.uid).exists() && (!data.exists() || data.child('boundUid').val() === auth.uid)",
+        ".write": "auth != null && root.child('cstr-registration-approved').child(auth.uid).exists() && (!data.exists() || data.child('boundUid').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['boundUid', 'boundEmail']) && newData.child('boundUid').val() === auth.uid && root.child('cstr-class-record-data').child($legacyKey).exists()"
       }
     },
     "cstr-class-record-users": {
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid"
+        ".read": "auth != null && root.child('cstr-registration-approved').child(auth.uid).exists() && auth.uid === $uid",
+        ".write": "auth != null && root.child('cstr-registration-approved').child(auth.uid).exists() && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['dataKey','name']) && (newData.child('dataKey').val() === auth.uid || newData.child('isLegacy').val() === true)"
       }
     },
     "cstr-class-record-data": {
       "$userKey": {
-        ".read": "auth != null && ($userKey === auth.uid || root.child('cstr-class-record-bindings').child($userKey).child('boundUid').val() === auth.uid)",
-        ".write": "auth != null && ($userKey === auth.uid || root.child('cstr-class-record-bindings').child($userKey).child('boundUid').val() === auth.uid)"
+        ".read": "auth != null && root.child('cstr-registration-approved').child(auth.uid).exists() && ($userKey === auth.uid || root.child('cstr-class-record-bindings').child($userKey).child('boundUid').val() === auth.uid)",
+        ".write": "auth != null && root.child('cstr-registration-approved').child(auth.uid).exists() && ($userKey === auth.uid || root.child('cstr-class-record-bindings').child($userKey).child('boundUid').val() === auth.uid)"
       }
     },
     "$other": {
