@@ -97,9 +97,12 @@
 
     // Signs in with Google using OAuth popup
     async signInWithGoogle() {
+      window.CSTRRegistration.requireGrant();
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
       const result = await auth.signInWithPopup(provider);
+      try { await window.CSTRRegistration.enroll(result.user); }
+      catch (error) { await auth.signOut(); throw error; }
       return result.user;
     },
 
@@ -107,13 +110,16 @@
     // teachers signing up directly, and for the legacy-claim flow (where the
     // password passed in is the teacher's legacy account code).
     async signUpWithEmail(email, password) {
-      const result = await auth.createUserWithEmailAndPassword(String(email || "").trim(), password);
-      return result.user;
+      return window.CSTRRegistration.createEmail(String(email || "").trim(), password);
     },
 
     // Typical email + password sign-in — no popup, no redirect.
     async signInWithEmail(email, password) {
       const result = await auth.signInWithEmailAndPassword(String(email || "").trim(), password);
+      if (!await window.CSTRRegistration.isApproved(result.user)) {
+        await auth.signOut();
+        throw new Error("This account requires administrator approval. Contact the developer before signing in.");
+      }
       return result.user;
     },
 
@@ -219,6 +225,7 @@
         }
       }
 
+      if (!await window.CSTRRegistration.isApproved(user)) throw new Error("Administrator registration approval required.");
       const now = Date.now();
       const bindingPayload = {
         boundUid: user.uid,
@@ -282,6 +289,9 @@
     async registerNewTeacher(user, teacherName) {
       if (!user || !user.uid) throw new Error("Authenticated Google user required");
 
+      if (!await window.CSTRRegistration.isApproved(user)) throw new Error("Administrator registration approval required.");
+      const existing = await this.getUserProfile(user.uid);
+      if (existing?.dataKey) return existing;
       const now = Date.now();
       const userProfilePayload = {
         dataKey: user.uid,

@@ -30,6 +30,11 @@
   let activeGroup = "JHS";
   let activeSectionId = DEFAULT_REGISTRY[0]?.id || "";
   let activePeriodIndex = 0;
+  let sidebarCollapsed = window.innerWidth <= 720;
+  try { const stored = localStorage.getItem("cstr-sidebar-collapsed"); if (stored !== null) sidebarCollapsed = stored === "true"; } catch (_) {}
+  const hpsEdits = new WeakMap();
+  let lastRenderedRecord = "";
+  const completionSeen = new WeakMap();
   let archiveFilter = "active"; // "active" | "archived"
   let state = createInitialState();
 
@@ -83,14 +88,15 @@
 
   function rememberTableScroll() {
     const wrap = document.querySelector(".table-wrap");
-    return wrap ? wrap.scrollLeft : null;
+    return wrap ? { left: wrap.scrollLeft, top: wrap.scrollTop } : null;
   }
 
   function restoreTableScroll(scrollLeft) {
     if (scrollLeft === null) return;
     requestAnimationFrame(() => {
       const wrap = document.querySelector(".table-wrap");
-      if (wrap) wrap.scrollLeft = scrollLeft;
+      if (wrap) { wrap.scrollLeft = scrollLeft.left; wrap.scrollTop = scrollLeft.top; }
+      sizeSheetWorkspace();
     });
   }
 
@@ -158,7 +164,14 @@
   function persistLocalDraft() {
     if (!isSignedIn()) return;
     try {
-      localStorage.setItem(localDraftKey(), JSON.stringify({ savedAt: new Date().toISOString(), state }));
+      let recoveryState = state;
+      const input = document.activeElement;
+      if (input?.dataset?.hps && hpsEdits.has(input)) {
+        recoveryState = cloneState(state);
+        const period = recoveryState.sections[activeSectionId]?.periods[activePeriodIndex];
+        if (period) window.CSTRRecordTools.adjustHps(period, input.dataset.hps, Number(input.dataset.index), hpsEdits.get(input), input.value);
+      }
+      localStorage.setItem(localDraftKey(), JSON.stringify({ savedAt: new Date().toISOString(), state: recoveryState }));
     } catch (error) {
       // Cloud saves remain available even if the browser has no space for a recovery copy.
     }
@@ -262,6 +275,7 @@
       scheduleAutoSaveMaxWait();
     }
     updateSaveIndicators();
+    updateCompletionIndicators();
     queueAutoSave();
   }
 
@@ -429,7 +443,7 @@
         return;
       }
 
-      base.sections[section.id].periods = loaded.periods.map((period) => {
+      base.sections[section.id].periods = loaded.periods.map((period, periodIndex) => {
         const wwLen = Array.isArray(period.wwDates) ? period.wwDates.length : 10;
         const ptLen = Array.isArray(period.ptDates) ? period.ptDates.length : 8;
         const qaLen = Array.isArray(period.qaDates) ? period.qaDates.length : 3;
@@ -437,6 +451,8 @@
         return {
           name: typeof period.name === "string" && period.name.trim() ? period.name : initialPeriod(section).name,
           locked: period.locked === true,
+          quarter: period.quarter || (section.group === "SHS" ? periodIndex % 2 + 1 : periodIndex + 1),
+          semester: period.semester || (section.group === "SHS" ? Math.floor(periodIndex / 2) + 1 : 0),
           wwDates: fitArray(period.wwDates, wwLen),
           ptDates: fitArray(period.ptDates, ptLen),
           qaDates: fitArray(period.qaDates, qaLen),
@@ -449,7 +465,8 @@
               name: learner && typeof learner.name === "string" ? learner.name : "",
               ww: fitArray(learner && learner.ww, wwLen),
               pt: fitArray(learner && learner.pt, ptLen),
-              qa: fitArray(learner && learner.qa, qaLen)
+              qa: fitArray(learner && learner.qa, qaLen),
+              hpsOriginals: window.CSTRRecordTools.normalizeOrigins(learner, { ww: wwLen, pt: ptLen, qa: qaLen })
             };
           })
         };
@@ -525,6 +542,9 @@
       check: '<path d="m5 12 4 4L19 6"/>',
       alert: '<path d="M12 3 2 21h20Z"/><path d="M12 9v4M12 17h.01"/>',
       close: '<path d="m6 6 12 12M18 6 6 18"/>',
+      chevron: '<path d="m6 9 6 6 6-6"/>',
+      panel: '<rect x="3" y="3" width="18" height="18"/><path d="M9 3v18m5-13 4 4-4 4"/>',
+      print: '<path d="M6 8V3h12v5M6 17H3V8h18v9h-3M6 14h12v7H6zM17 11h.01"/>',
       eye: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/>',
       more: '<circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/>'
     };
@@ -542,7 +562,7 @@
     activeSections.forEach((section) => {
       const periods = state.sections[section.id] && Array.isArray(state.sections[section.id].periods) ? state.sections[section.id].periods : [];
       totalPeriods += periods.length;
-      lockedPeriods += periods.filter((period) => period.locked).length;
+      lockedPeriods += periods.filter((period) => window.CSTRRecordTools.completion(period).complete).length;
       if (periods[0] && Array.isArray(periods[0].roster)) learners += computeLearnerNumbering(periods[0].roster).totalLearners;
     });
     const completion = totalPeriods ? Math.round((lockedPeriods / totalPeriods) * 100) : 0;
@@ -644,7 +664,7 @@
     document.querySelectorAll(".name-cell input").forEach((input) => {
       if (input.value.length > maxLen) maxLen = input.value.length;
     });
-    const newWidth = Math.max(220, Math.ceil(maxLen * 8.8 + 36));
+    const newWidth = Math.min(380, Math.max(190, Math.ceil(maxLen * 7.2 + 36)));
     document.documentElement.style.setProperty("--name-col-width", `${newWidth}px`);
   }
 
@@ -731,94 +751,16 @@
     bg.className = isLoggedIn ? "bg-sheets" : "bg-login";
   }
 
-  // Cryptographic registration code verification (salted SHA-256).
-  // The secret code is NEVER hardcoded in plaintext in this repository.
-  const REGISTRATION_CODE_SALT = "cstr_reg_salt_2026_";
-  const REGISTRATION_CODE_HASH = "5bda9bb6cb78722954ba192da3ddf9f3f5a7181b6e2fe034718088f43602ce35";
-
-  function sha256Fallback(ascii) {
-    function rightRotate(value, amount) {
-      return (value >>> amount) | (value << (32 - amount));
-    }
-    const mathPow = Math.pow;
-    const maxWord = mathPow(2, 32);
-    let i, j;
-    let result = "";
-    const words = [];
-    const asciiBitLength = ascii.length * 8;
-    let hash = [
-      0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-      0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
-    ];
-    const k = [
-      0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-      0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-      0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-      0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-      0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-      0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-      0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-      0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
-    ];
-    let composite = ascii + "\x80";
-    while (composite.length % 64 - 56) composite += "\x00";
-    for (i = 0; i < composite.length; i++) {
-      j = composite.charCodeAt(i);
-      words[i >> 2] |= j << ((3 - i % 4) * 8);
-    }
-    words[words.length] = ((asciiBitLength / maxWord) | 0);
-    words[words.length] = (asciiBitLength | 0);
-    for (j = 0; j < words.length;) {
-      const w = words.slice(j, j += 16);
-      const oldHash = hash.slice(0);
-      for (i = 0; i < 64; i++) {
-        const w15 = w[i - 15], w2 = w[i - 2];
-        const s0 = rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3);
-        const s1 = rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10);
-        w[i] = (i < 16) ? w[i] : (w[i - 16] + s0 + w[i - 7] + s1) | 0;
-        const s1_ = rightRotate(hash[4], 6) ^ rightRotate(hash[4], 11) ^ rightRotate(hash[4], 25);
-        const ch = (hash[4] & hash[5]) ^ (~hash[4] & hash[6]);
-        const temp1 = (hash[7] + s1_ + ch + k[i] + w[i]) | 0;
-        const s0_ = rightRotate(hash[0], 2) ^ rightRotate(hash[0], 13) ^ rightRotate(hash[0], 22);
-        const maj = (hash[0] & hash[1]) ^ (hash[0] & hash[2]) ^ (hash[1] & hash[2]);
-        const temp2 = (s0_ + maj) | 0;
-        hash = [(temp1 + temp2) | 0, hash[0], hash[1], hash[2], (hash[3] + temp1) | 0, hash[4], hash[5], hash[6]];
-      }
-      for (i = 0; i < 8; i++) hash[i] = (hash[i] + oldHash[i]) | 0;
-    }
-    for (i = 0; i < 8; i++) {
-      for (let b = 3; b >= 0; b--) {
-        const byte = (hash[i] >> (b * 8)) & 255;
-        result += (byte < 16 ? "0" : "") + byte.toString(16);
-      }
-    }
-    return result;
-  }
-
-  async function computeSha256Hex(str) {
-    try {
-      if (window.crypto && window.crypto.subtle && window.crypto.subtle.digest) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(str);
-        const hashBuffer = await window.crypto.subtle.digest("SHA-256", data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-      }
-    } catch (e) {
-      console.warn("SubtleCrypto unavailable or restricted, using fallback", e);
-    }
-    return sha256Fallback(str);
-  }
-
-  async function verifySecretRegistrationCode(inputCode) {
-    const trimmed = String(inputCode || "").trim();
-    if (!trimmed) return false;
-    const computed = await computeSha256Hex(REGISTRATION_CODE_SALT + trimmed);
-    return computed === REGISTRATION_CODE_HASH;
-  }
-
+  // Authorization is an expiring server-issued ticket; sessionStorage flags
+  // and client-side hashes are never accepted as security evidence.
   function isRegistrationAuthorized() {
-    return sessionStorage.getItem("cstr_reg_auth") === "true";
+    return Boolean(window.CSTRRegistration?.authorized());
+  }
+
+  async function verifySecretRegistrationCode(code) {
+    const email = document.querySelector("#regEmailInput")?.value.trim();
+    await window.CSTRRegistration.authorize(code, email);
+    return true;
   }
 
   function showRegistrationCodeModal(onAuthorized) {
@@ -841,6 +783,7 @@
       </div>
 
       <form id="regCodeForm">
+        <label class="field-label">Account email<input id="regEmailInput" type="email" autocomplete="email" required placeholder="Email you will use to sign in"></label>
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">
           Secret Admin Registration Code
           <div class="regcode-input-wrap" style="margin-top: 6px;">
@@ -850,7 +793,7 @@
         </label>
 
         <div class="regcode-actions">
-          <button type="submit" class="button button-primary" data-action="submit-regcode">🔐 Verify Code &amp; Proceed to Registration</button>
+          <button type="submit" class="button button-primary" data-action="submit-regcode"> Verify Code &amp; Proceed to Registration</button>
           <button type="button" class="button button-outline" data-action="close-regcode-modal">${icon("back")} Cancel &amp; Back to Sign In</button>
         </div>
       </form>
@@ -876,10 +819,10 @@
         try {
           const isValid = await verifySecretRegistrationCode(codeVal);
           if (isValid) {
-            sessionStorage.setItem("cstr_reg_auth", "true");
+            // The verified ticket remains in memory for this registration only.
             backdrop.remove();
             if (typeof onAuthorized === "function") {
-              onAuthorized();
+              await onAuthorized();
             } else {
               showSignUpPanel();
             }
@@ -895,11 +838,11 @@
           }
         } catch (verifyErr) {
           if (errEl) {
-            errEl.textContent = "Verification encountered an error. Please try again.";
+            errEl.textContent = verifyErr.message || "Authorization could not be verified. Try again.";
             errEl.classList.add("error");
           }
         } finally {
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "🔐 Verify Code & Proceed to Registration"; }
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = " Verify Code & Proceed to Registration"; }
         }
       });
     }
@@ -909,7 +852,7 @@
       toggleBtn.addEventListener("click", () => {
         if (input.type === "password") {
           input.type = "text";
-          toggleBtn.textContent = "🙈";
+          toggleBtn.innerHTML = icon("eye");
         } else {
           input.type = "password";
           toggleBtn.innerHTML = icon("eye");
@@ -929,7 +872,17 @@
     updateSiteBackground();
     ensureActiveSelectionValid();
     const scrollLeft = currentView === "record" ? rememberTableScroll() : null;
-    app.innerHTML = sessionStorage.getItem("cstr-class-record-login") === "true" ? renderApp() : renderLogin();
+    const signedIn = isSignedIn();
+    const recordKey = signedIn && currentView === "record" ? activeSectionId + ":" + activePeriodIndex : "";
+    const existing = app.querySelector(".app-layout");
+    if (existing && signedIn && recordKey && recordKey === lastRenderedRecord) {
+      const template = document.createElement("template");
+      template.innerHTML = renderApp();
+      window.CSTRStableDOM.patch(existing, template.content.querySelector(".app-layout"));
+    } else {
+      app.innerHTML = signedIn ? renderApp() : renderLogin();
+    }
+    lastRenderedRecord = recordKey;
     if (sessionStorage.getItem("cstr-class-record-login") === "true") {
       syncSaveControl();
       updateSaveIndicators();
@@ -938,6 +891,8 @@
       updateHeaderScroll();
     }
     restoreTableScroll(scrollLeft);
+    updateCompletionIndicators();
+    sizeSheetWorkspace();
   }
 
   function renderLogin() {
@@ -990,10 +945,10 @@
 
       <div class="login-divider"><span>NEW HERE?</span></div>
       <p style="text-align: center;">
-        <a href="#" class="legacy-toggle-link" data-action="show-signup">✨ Create a brand-new account</a>
+        <a href="#" class="legacy-toggle-link" data-action="show-signup"> Create a brand-new account</a>
       </p>
       <p style="text-align: center; margin-top: 6px;">
-        <a href="#" class="legacy-toggle-link" data-action="show-legacy-claim">🔐 Have an account from before this upgrade? Claim it here</a>
+        <a href="#" class="legacy-toggle-link" data-action="show-legacy-claim"> Have an account from before this upgrade? Claim it here</a>
       </p>`;
   }
 
@@ -1012,7 +967,7 @@
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Confirm Password
           <input id="signupPasswordConfirm" type="password" autocomplete="new-password" placeholder="Re-enter password">
         </label>
-        <button type="submit" class="button button-primary" data-action="email-signup" style="width: 100%; margin-top: 6px;">✨ Create My Class Record</button>
+        <button type="submit" class="button button-primary" data-action="email-signup" style="width: 100%; margin-top: 6px;"> Create My Class Record</button>
       </form>
       <p style="text-align: center; margin-top: 10px;"><a href="#" class="legacy-toggle-link" data-action="show-signin">← Back to Sign In</a></p>`;
   }
@@ -1026,7 +981,7 @@
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Account Code (becomes your password)
           <input id="legacyClaimCode" type="password" autocomplete="off" placeholder="Enter your account code...">
         </label>
-        <button type="submit" class="button button-outline" data-action="legacy-claim" style="width: 100%; margin-top: 6px;">🔐 Claim & Set Up Login</button>
+        <button type="submit" class="button button-outline" data-action="legacy-claim" style="width: 100%; margin-top: 6px;"> Claim & Set Up Login</button>
       </form>
       <p style="text-align: center; margin-top: 10px;"><a href="#" class="legacy-toggle-link" data-action="show-signin">← Back to Sign In</a></p>`;
   }
@@ -1073,7 +1028,21 @@
     startSaveIndicatorTicker();
   }
 
+  function showGoogleContinuation(prefillAccountCode) {
+    // A fresh click after verification preserves the browser's popup permission.
+    const modal = document.createElement("div");
+    modal.className = "modal-backdrop";
+    modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="googleContinueTitle"><h2 id="googleContinueTitle">Registration authorized</h2><p>Continue with the Google account matching the email you entered.</p><button type="button" class="button button-primary" id="authorizedGoogleContinue">Continue with Google</button>${button("Cancel","close-modal","button")}</section>`;
+    document.body.append(modal);
+    modal.querySelector("#authorizedGoogleContinue").addEventListener("click", () => { modal.remove(); performGoogleLogin(prefillAccountCode); });
+    modal.querySelector("#authorizedGoogleContinue").focus();
+  }
+
   async function performGoogleLogin(prefillAccountCode) {
+    if (!isRegistrationAuthorized()) {
+      showRegistrationCodeModal(() => showGoogleContinuation(prefillAccountCode));
+      return;
+    }
     const error = document.querySelector("#loginError");
     const success = document.querySelector("#loginSuccess");
     if (error) { error.textContent = ""; error.classList.remove("error"); }
@@ -1151,6 +1120,7 @@
   }
 
   async function performEmailSignUp() {
+    if (!isRegistrationAuthorized()) { showRegistrationCodeModal(showSignUpPanel); return; }
     const nameInput = document.querySelector("#signupName");
     const emailInput = document.querySelector("#signupEmail");
     const passwordInput = document.querySelector("#signupPassword");
@@ -1208,6 +1178,7 @@
   }
 
   async function performLegacyClaim() {
+    if (!isRegistrationAuthorized()) { showRegistrationCodeModal(() => {}); return; }
     const emailInput = document.querySelector("#legacyClaimEmail");
     const codeInput = document.querySelector("#legacyClaimCode");
     const email = emailInput ? emailInput.value.trim() : "";
@@ -1227,9 +1198,11 @@
     }
 
     isLinkingLegacyInProgress = true;
+    let createdUser = null;
     try {
       setStatus("Setting up your login...", "saving");
       const user = await window.CSTRSync.signUpWithEmail(email, legacyKey);
+      createdUser = user;
       const profile = await window.CSTRSync.bindLegacyAccount(legacyKey, user);
       completeSignInSession(profile, user);
       alert(`ACCOUNT CLAIMED:\n\nFrom now on you can sign in with:\nEmail: ${email}\nPassword: your account code\n\nYou can change this password anytime from Settings.`);
@@ -1239,9 +1212,10 @@
       // already bound elsewhere, etc.), that new auth account is orphaned —
       // remove it so the person can retry with the same email instead of
       // hitting "email already in use".
-      const newUser = window.CSTRSync.getCurrentUser();
-      if (newUser && (!err.code || !err.code.startsWith("auth/"))) {
-        try { await newUser.delete(); } catch (cleanupErr) { console.warn("Cleanup of orphaned auth account failed", cleanupErr); }
+      // Keep the authorized account if linking fails. A retry must never
+      // delete an existing identity or unrelated teacher's account.
+      if (createdUser) {
+        try { await window.CSTRSync.signOut(); } catch (_) {}
       }
       if (error) {
         if (err.code === "auth/email-already-in-use") {
@@ -1310,14 +1284,14 @@
         <label class="field-label" style="text-align: left; margin: 6px 0;">Account Code
           <input id="onboardLegacyCode" type="password" placeholder="Enter your account code..." value="${prefillAccountCode ? safeValue(prefillAccountCode) : ""}">
         </label>
-        <button type="button" class="button button-primary" data-action="complete-link-legacy" style="width: 100%; margin-top: 10px;">🔐 Link & Open My Existing Records</button>
+        <button type="button" class="button button-primary" data-action="complete-link-legacy" style="width: 100%; margin-top: 10px;"> Link & Open My Existing Records</button>
       </div>
 
       <div class="onboard-divider"><span>OR IF YOU ARE BRAND NEW</span></div>
 
       <div class="onboard-choice-card" style="border: 1px dashed var(--border);">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-          <span style="font-size: 1.2rem;">✨</span>
+          <span style="font-size: 1.2rem;"></span>
           <h3 style="margin: 0;">New User Account (Create Fresh Workspace)</h3>
         </div>
         <p class="muted" style="margin-bottom: 10px; font-size: 0.88rem;">Create a fresh, empty workspace for your classes, subjects, and learners.</p>
@@ -1338,8 +1312,8 @@
   }
 
   async function completeNewTeacherSignup(user) {
-    if (!isRegistrationAuthorized()) {
-      showRegistrationCodeModal(() => completeNewTeacherSignup(user));
+    if (!await window.CSTRRegistration.isApproved(user)) {
+      showRegistrationCodeModal(async () => { await window.CSTRRegistration.enroll(user); completeNewTeacherSignup(user); });
       return;
     }
     const nameInput = document.querySelector("#onboardTeacherName");
@@ -1419,56 +1393,31 @@
   function renderApp() {
     const content = currentView === "home" ? renderHome() : currentView === "chooser" ? renderClassRecord() : renderSectionRecord();
     const viewTitle = currentView === "home" ? "Overview" : currentView === "chooser" ? "Class records" : "Grade sheet";
-    const accountName = currentUserName() || state.teacher.name || "Teacher";
-    const initials = accountName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "TR";
-    return `<div class="aura-bg"><div class="aura-layer-1" aria-hidden="true"></div><div class="aura-layer-2" aria-hidden="true"></div>
-      <div class="aura-content app-layout">
-        <aside class="app-sidebar" aria-label="Application navigation">
-          <div class="sidebar-brand">
-            <span class="sidebar-logo"><img src="ASSETS/cstr-logo.png" alt="Colegio de Sto. Tomás – Recoletos crest"></span>
-            <span class="sidebar-brand-copy"><strong>CST-R</strong><small>Digital Class Record</small></span>
-          </div>
-          <nav class="sidebar-nav">
-            <p class="sidebar-label">Workspace</p>
-            <button class="sidebar-link" type="button" data-action="go-home" aria-current="${currentView === "home" ? "page" : "false"}">${icon("home")}<span>Overview</span></button>
-            <button class="sidebar-link" type="button" data-action="go-records" aria-current="${currentView === "chooser" || currentView === "record" ? "page" : "false"}">${icon("records")}<span>Class Records</span></button>
-          </nav>
-          <div class="sidebar-context">
-            <span class="sidebar-context-mark" aria-hidden="true">OAR</span>
-            <div><strong>Caritas et Scientia</strong><small>Charity and Science</small></div>
-          </div>
-          <div class="sidebar-account">
-            <span class="account-avatar" aria-hidden="true">${escapeHtml(initials)}</span>
-            <span class="sidebar-account-copy"><strong>${escapeHtml(accountName)}</strong><small>${escapeHtml(maskEmail(currentUserEmail()))}</small></span>
-            <button class="icon-button sidebar-settings" type="button" data-action="open-settings" aria-label="Open settings">${icon("settings")}</button>
-          </div>
-        </aside>
-        <div class="app-main">
-          <header class="app-header"><div class="app-header-inner">
-            <div class="page-context">
-              <p class="eyebrow">Teacher workspace</p>
-              <h1 class="app-title">${viewTitle}</h1>
-            </div>
-            <div class="header-actions-wrap">
-              <div class="header-actions">
-                ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", `id="saveChanges"`)}
-                ${button(`${icon("settings")}<span>Settings</span>`, "open-settings", "button button-secondary header-secondary")}
-                ${button(`${icon("logout")}<span class="logout-label">Log out</span>`, "logout", "button button-ghost header-logout", 'aria-label="Log out"')}
-              </div>
-              <div class="save-feedback">
-                <p id="statusMessage" class="save-status" role="status" aria-live="polite"></p>
-                <p id="saveMeta" class="save-meta" aria-live="polite"></p>
-              </div>
-            </div>
-          </div></header>
-          <div class="utility-bar"><div class="utility-bar-inner">
-            <div class="institution-context"><span class="institution-dot" aria-hidden="true"></span><span>CST-R Academic Records · Live workspace</span></div>
-            <div class="header-search" role="search">${icon("search")}<label class="sr-only" for="studentSearch">Search student by full name</label><input id="studentSearch" type="search" autocomplete="off" placeholder="Find a learner across records"><button type="button" class="button button-compact" data-action="search-student">Search</button></div>
-          </div></div>
-          <main class="app-shell">${content}</main>
+    return `<div class="aura-bg"><div class="aura-content app-layout ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${currentView === "record" ? "sheet-layout" : ""}">
+      <aside class="app-sidebar" aria-label="Application navigation" id="workspaceSidebar">
+        <div class="sidebar-brand"><span class="sidebar-logo"><img src="ASSETS/cstr-logo.png" alt="CST-R crest"></span><span class="sidebar-brand-copy"><strong>CST-R</strong><small>Digital Class Record</small></span></div>
+        <button type="button" class="sidebar-toggle sidebar-link" data-action="toggle-sidebar" aria-controls="workspaceSidebar" aria-expanded="${!sidebarCollapsed}" aria-label="${sidebarCollapsed ? "Expand navigation" : "Retract navigation"}" title="Expand or retract navigation">${icon("panel")}<span>Retract navigation</span></button>
+        <nav class="sidebar-nav" aria-label="Workspace"><p class="sidebar-label">Workspace</p>
+          <button class="sidebar-link" type="button" data-action="go-home" aria-current="${currentView === "home" ? "page" : "false"}" title="Overview">${icon("home")}<span>Overview</span></button>
+          <button class="sidebar-link" type="button" data-action="go-records" aria-current="${currentView !== "home" ? "page" : "false"}" title="Class records">${icon("records")}<span>Class records</span></button>
+        </nav>
+        <section class="sidebar-search-block" aria-label="Find a learner"><p class="sidebar-label">Learner lookup</p>
+          <button type="button" class="sidebar-link search-expand" data-action="expand-search" aria-label="Expand learner search" title="Find a learner">${icon("search")}<span>Find a learner</span></button>
+          <div class="header-search sidebar-search" role="search"><label for="studentSearch">Find a learner</label><input id="studentSearch" type="search" autocomplete="off" placeholder="Student's complete name"><button type="button" class="button button-secondary" data-action="search-student">${icon("search")}<span>Search learner</span></button></div>
+        </section>
+        <nav class="sidebar-account-tools" aria-label="Account"><p class="sidebar-label">Account</p>
+          <button class="sidebar-link" type="button" data-action="open-settings" title="Settings">${icon("settings")}<span>Settings</span></button>
+          <button class="sidebar-link" type="button" data-action="logout" title="Log out">${icon("logout")}<span>Log out</span></button>
+          <p class="sidebar-owner">${escapeHtml(currentUserName() || state.teacher.name || "Teacher")}</p>
+        </nav>
+      </aside>
+      <div class="app-main"><header class="app-header"><div class="app-header-inner">
+        <div class="page-context"><p class="eyebrow">Teacher workspace</p><h1 class="app-title">${viewTitle}</h1></div>
+        <div class="header-actions-wrap"><div class="save-feedback"><p id="statusMessage" class="save-status" role="status" aria-live="polite"></p><p id="saveMeta" class="save-meta" aria-live="polite"></p></div>
+          ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", 'id="saveChanges"')}
         </div>
-      </div>
-    </div>`;
+      </div></header><div class="app-shell">${content}</div></div>
+    </div></div>`;
   }
 
   function renderHome() {
@@ -1477,7 +1426,7 @@
     const recentClasses = metrics.activeSections.slice(0, 4).map((section) => {
       const periods = state.sections[section.id] && state.sections[section.id].periods ? state.sections[section.id].periods : [];
       const learnerCount = periods[0] ? computeLearnerNumbering(periods[0].roster).totalLearners : 0;
-      const locked = periods.filter((period) => period.locked).length;
+      const locked = periods.filter((period) => window.CSTRRecordTools.completion(period).complete).length;
       return `<button type="button" class="recent-class-row" data-action="select-section" data-section="${section.id}">
         <span class="recent-class-accent accent-${section.accent || section.theme}" aria-hidden="true"></span>
         <span class="recent-class-main"><strong>${escapeHtml(section.subject)}</strong><small>${escapeHtml(section.level)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</small></span>
@@ -1503,7 +1452,7 @@
       <div class="metric-grid" aria-label="Class record overview">
         <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
         <article class="metric-card"><span class="metric-icon">${icon("users")}</span><div><p>Total learners</p><strong>${metrics.learners}</strong><small>Across active class rosters</small></div></article>
-        <article class="metric-card"><span class="metric-icon">${icon("lock")}</span><div><p>Finalized periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>Protected from accidental edits</small></div></article>
+        <article class="metric-card"><span class="metric-icon">${icon("lock")}</span><div><p>Finalized periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>Completed assessment data</small></div></article>
         <article class="metric-card metric-progress"><span class="metric-icon">${icon("chart")}</span><div><p>Record readiness</p><strong>${metrics.completion}%</strong><div class="progress-track" aria-label="${metrics.completion}% of periods finalized"><span style="width:${metrics.completion}%"></span></div></div></article>
       </div>
 
@@ -1514,7 +1463,7 @@
         </section>
 
         <section class="dashboard-panel profile-panel">
-          <div class="panel-heading"><div><p class="eyebrow">Profile</p><h3>Class record owner</h3></div><span class="autosave-pill">${icon("check")} Autosaved</span></div>
+          <div class="panel-heading"><div><p class="eyebrow">Profile</p><h3>Class record owner</h3></div><span class="autosave-pill">Profile</span></div>
           <div class="profile-editor">
             <input id="photoInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" hidden>
             <button class="photo-frame" type="button" data-action="choose-photo" aria-label="Upload teacher photo">${portrait}</button>
@@ -1594,7 +1543,6 @@
     if (activePeriodIndex >= periods.length) activePeriodIndex = 0;
     const period = currentPeriod();
     const { totalLearners } = computeLearnerNumbering(period.roster);
-    const periodTabs = periods.map((entry, index) => `<button type="button" class="tab theme-${section.theme}" data-action="select-period" data-period="${index}" aria-selected="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(entry.name)}</span></button>`).join("");
     
     const sectionColorHex = themeColorHex(section.accent || section.theme);
     const sectionLocked = sectionHasLockedPeriod(section);
@@ -1603,61 +1551,77 @@
       ? `<p class="integrity-note" role="status"><strong>Review needed before locking:</strong> ${escapeHtml(periodInputIssueMessage(inputIntegrity))}. Correct these values to keep the record valid.</p>`
       : "";
 
+    const shade = sectionNameShade(section.accent || section.theme);
     return `<div class="record-section">
-      <div class="record-back">${button(`${icon("back")}<span>Back to sections</span>`, "go-records", "button button-ghost")}</div>
-      
-      <div class="section-accent-bar" style="--section-accent-color: ${sectionColorHex}; background: ${sectionColorHex};"></div>
-      
-      <div class="class-header-card">
-        ${section.archived ? `<div class="archive-banner"><span>${icon("archive")} This class record is currently archived.</span><button type="button" class="button button-secondary" data-action="unarchive-section" data-section="${section.id}">Restore class</button></div>` : ""}
-        <div class="class-header-top">
-          <div class="section-title-wrap">
-            <h2>${escapeHtml(section.subject)}</h2>
-            <span id="liveLearnerCount" class="learner-count-badge">${totalLearners} Learner${totalLearners === 1 ? "" : "s"}</span>
-            ${section.archived ? `<span class="card-archived-badge">Archived</span>` : ""}
-          </div>
-          <div>
-            <label style="font-size:0.82rem; font-weight:700; color:var(--muted); margin-right:6px;" for="sheetSubjectSelect">Grading System / Subject:</label>
-            <select id="sheetSubjectSelect" class="subject-interactive-select" data-action="change-sheet-subject" title="Click to assign or change subject and weight distribution">
-              ${SUBJECT_PRESETS.map(p => `<option value="${p.name}" ${section.subject === p.name ? "selected" : ""}>${p.label}</option>`).join("")}
-              <option value="custom" ${!SUBJECT_PRESETS.some(p => p.name === section.subject) ? "selected" : ""}>Other / Custom (${section.weights.join("/")}%)</option>
-            </select>
+      <div class="record-back">${button(`${icon("back")}<span>Sections</span>`, "go-records", "button button-ghost")}</div>
+      <section class="class-header-card" style="--class-color:${sectionColorHex};--class-surface:${shade.background};--class-ink:${shade.color}">
+        ${section.archived ? `<div class="archive-banner"><span>Archived class</span>${button("Restore class", "unarchive-section", "button", `data-section="${section.id}"`)}</div>` : ""}
+        <div class="class-identity">
+          <details class="subject-picker"><summary aria-label="Change subject and grading weights"><span>${escapeHtml(section.subject)}</span>${icon("chevron")}</summary>
+            <div class="subject-menu" aria-label="Subject choices">
+              ${SUBJECT_PRESETS.map(p => `<button type="button" data-action="choose-sheet-subject" data-subject="${escapeHtml(p.name)}" ${sectionLocked ? "disabled" : ""}><span>${escapeHtml(p.name)}</span><span class="weight-preview" role="tooltip">WW ${p.weights[0]}% · PT ${p.weights[1]}% · QA ${p.weights[2]}%</span></button>`).join("")}
+              <button type="button" data-action="choose-sheet-subject" data-subject="custom" ${sectionLocked ? "disabled" : ""}>Other / Custom<span class="weight-preview">Review subject settings</span></button>
+              ${sectionLocked ? '<p>Unlock all periods to change grading weights.</p>' : ""}
+            </div>
+          </details>
+          <h2 class="class-name">${escapeHtml(section.section || section.level)}</h2>
+          <div class="class-context-line"><span id="liveLearnerCount">${totalLearners} learner${totalLearners === 1 ? "" : "s"}</span><span>${escapeHtml(section.level)}</span><span>WW ${section.weights[0]}% · PT ${section.weights[1]}% · QA ${section.weights[2]}%</span></div>
+        </div>
+        <div class="class-period-area">
+          <div class="period-tabs" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-selected="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${window.CSTRRecordTools.completion(entry).complete ? "Finalized" : "In progress"}">${window.CSTRRecordTools.completion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
+          <div class="period-toolbar">
+            <label class="period-name-field" for="periodName"><span>Period name</span><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name ${period.locked ? "disabled" : ""}></label>
+            <div id="periodCompletion" class="period-completion" role="status">${renderCompletionLabel(period, section, activePeriodIndex)}</div>
+            <div class="period-actions">
+              ${button(`${icon("plus")} Add period`, "add-period", "button button-secondary")}
+              ${button(`${icon(period.locked ? "unlock" : "lock")} ${period.locked ? "Unlock" : "Lock"} period`, "toggle-lock-period", "button button-secondary")}
+              ${button(`${icon("trash")} Delete period`, "delete-period", "button button-danger", period.locked ? "disabled" : "")}
+              ${button(icon("print"), "export-excel", "button icon-button", 'aria-label="Download print-ready Excel sheet" title="Download print-ready Excel sheet"')}
+            </div>
           </div>
         </div>
-        ${section.section ? `<p class="section-subtitle" style="margin: 4px 0 0; font-weight:600; color:#475569;">Section: ${escapeHtml(section.section)}</p>` : ""}
-        <div class="class-header-meta">
-          <span>Level: <strong>${section.level}</strong></span>
-          <span>Weights: <strong>WW ${section.weights[0]}% | PT ${section.weights[1]}% | EX ${section.weights[2]}%</strong></span>
-          <span>Roster capacity: <strong>${section.rosterSize}</strong></span>
-        </div>
+      </section>
+      ${period.locked ? '<p class="locked-period-note">This period is locked. Unlock it to edit its scores and activities.</p>' : ""}
+      <div id="periodIntegrity">${integrityNote}</div>
+      <div class="sheet-utilities">
+        <details class="column-options"><summary>Manage columns ${icon("chevron")}</summary><div class="bulk-column-tools" aria-label="Bulk column controls">${renderBulkColumnControl("ww","WW",period.wwDates.length,period.locked)}${renderBulkColumnControl("pt","PT",period.ptDates.length,period.locked)}${renderBulkColumnControl("qa","QA",period.qaDates.length,period.locked)}</div></details>
+        <span class="sheet-caption">Assessment entries</span>
+        <details class="sheet-help"><summary aria-label="Grade sheet help and legend" title="Grade sheet help and legend">?</summary><div class="sheet-help-panel">
+          <h3>Working in your grade sheet</h3>
+          <p>Drag across cells to select a block. Copy with Ctrl+C, cut with Ctrl+X, clear with Delete, or paste a spreadsheet block with Ctrl+V.</p>
+          <p>To fill a selection with one value, type in its first cell and press Enter or Tab.</p>
+          <h3>Score legend</h3><dl><dt>Red outline</dt><dd>Score above HPS or invalid value. Correct before finalizing.</dd><dt>A — Absent · M — Missing</dt><dd>Counted as zero against HPS.</dd><dt>E — Excused · L — Late</dt><dd>Excluded from the grade calculation.</dd><dt>Quarterly assessment</dt><dd>With three QA slots, ST1/ST2/Term Exam use 30%/30%/40%, normalized to included entries. Other slot counts use the existing uniform calculation.</dd></dl>
+          <p>Finalized means every named learner has an entry for every visible WW, PT and QA activity, and every HPS is valid. Remove unused columns. A manual lock is separate.</p>
+          <p>Lowering HPS caps scores above it when you leave the field. Restoring the original HPS restores those original scores unless you explicitly edited them afterward.</p>
+        </div></details>
       </div>
-
-      <div class="period-tabs" aria-label="Grading period tabs">${periodTabs}</div>
-      <div class="period-toolbar"><label class="period-name-field" for="periodName"><span>Current period</span><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name ${period.locked ? "disabled" : ""}></label>
-      <div class="period-actions">${button(`${icon("plus")}<span>Add period</span>`, "add-period", "button button-secondary")} ${button(`${icon("download")}<span>Export Excel</span>`, "export-excel", "button button-primary")}
-      ${button(`${icon(period.locked ? "unlock" : "lock")}<span>${period.locked ? "Unlock period" : "Lock period"}</span>`, "toggle-lock-period", "button button-outline", `title="Locking protects this quarter's names, scores, dates, HPS, and columns from edits or deletion — useful once grades are finalized, in case of an accidental typo."`)}
-      ${button(`${icon("trash")}<span>Delete</span>`, "delete-period", "button button-danger", period.locked ? "disabled" : "")}</div></div>
-      ${period.locked ? `<p class="locked-period-note">${icon("lock")}<span><strong>${escapeHtml(period.name)}</strong> is locked. Names, scores, dates, HPS, and columns are protected until you unlock it.</span></p>` : ""}
-      ${integrityNote}
-      <div class="bulk-column-tools" aria-label="Bulk column controls">
-        <span class="bulk-column-label">Columns — edit only the last activity columns; all other scores stay in place.</span>
-        ${renderBulkColumnControl("ww", "WW", period.wwDates.length, period.locked)}
-        ${renderBulkColumnControl("pt", "PT", period.ptDates.length, period.locked)}
-        ${renderBulkColumnControl("qa", "QA", period.qaDates.length, period.locked)}
-      </div>
-      <p class="paste-hint"><strong>Bulk multi-select & paste tip:</strong> click and drag across input cells vertically or horizontally to select blocks. Use <strong>Ctrl+C</strong> to copy, <strong>Ctrl+X</strong> to cut, <strong>Delete</strong> to clear, or paste (Ctrl+V) copied spreadsheet blocks straight from Excel/Sheets. <strong>Bulk type-to-fill:</strong> after selecting a row, column, or block, just type a value into the first cell and press <strong>Enter</strong> (or click/tab away) — it fills that same value into every other cell in your selection.</p>
-      <div class="legend"><span><i class="dot dot-red"></i>Raw score above HPS - correct before finalizing</span><span><i class="dot dot-code"></i>A = Absent (scored 0/HPS) · E = Excused (excluded) · L = Late (excluded)</span><span><i class="dot dot-missing"></i>M = Missing, no excuse (scored 0/HPS)</span><span>QA slots calculate uniformly across entered values.</span></div>
       ${renderRecordTable(section, period)}
-      <div class="bulk-column-tools roster-slots-tools" aria-label="Add more name slots">
-        <span class="bulk-column-label">Roster fits ${section.rosterSize} learners — need more rows?${sectionLocked ? " Unlock every quarter to change the roster." : ""}</span>
-        <div class="bulk-column-control">
-          <label class="sr-only" for="rosterSlotCount">Number of name slots to add</label>
-          <input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" aria-label="Number of name slots to add" ${sectionLocked ? "disabled" : ""}>
-          <button type="button" class="col-btn col-btn-wide" data-action="add-roster-slots" title="Add name slots" ${sectionLocked ? "disabled" : ""}>+ Add slots</button>
-          <small>${section.rosterSize} active</small>
-        </div>
-      </div>
-      </div>`;
+      <div class="bulk-column-tools roster-slots-tools"><label for="rosterSlotCount">Add learner rows</label><input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" ${sectionLocked ? "disabled" : ""}>${button("Add rows","add-roster-slots","button button-secondary",sectionLocked ? "disabled" : "")}</div>
+    </div>`;
+  }
+
+  function renderCompletionLabel(period, section, index) {
+    const result = window.CSTRRecordTools.completion(period);
+    const label = escapeHtml(window.CSTRRecordTools.periodLabel(period, section.group, index));
+    return `<span class="${result.complete ? "is-complete" : "is-incomplete"}">${result.complete ? "Finalized" : "In progress"} · ${label}</span><small>${result.filled} / ${result.expected} score entries</small>`;
+  }
+
+  function updateCompletionIndicators() {
+    if (currentView !== "record" || !currentPeriod()) return;
+    const section = currentSection(), period = currentPeriod();
+    const node = document.querySelector("#periodCompletion");
+    if (node) node.innerHTML = renderCompletionLabel(period, section, activePeriodIndex);
+    const complete = window.CSTRRecordTools.completion(period).complete;
+    const previous = completionSeen.get(period);
+    completionSeen.set(period, complete);
+    if (previous === false && complete) showSaveToast(`Finalized: ${window.CSTRRecordTools.periodLabel(period, section.group, activePeriodIndex)}`);
+    document.querySelectorAll("[data-period-dot]").forEach(dot => {
+      const value = window.CSTRRecordTools.completion(state.sections[section.id].periods[Number(dot.dataset.periodDot)]).complete;
+      dot.textContent = value ? "✓" : "·";
+      dot.setAttribute("aria-label", value ? "Finalized" : "In progress");
+    });
+    const issues = getPeriodInputIntegrity(period), integrity = document.querySelector("#periodIntegrity");
+    if (integrity) integrity.innerHTML = hasPeriodInputIssues(issues) ? `<p class="integrity-note">Review needed: ${escapeHtml(periodInputIssueMessage(issues))}.</p>` : "";
   }
 
   function renderBulkColumnControl(kind, label, count, locked) {
@@ -1779,7 +1743,12 @@
     const section = currentSection();
     const periods = state.sections[section.id].periods;
     const period = initialPeriod(section);
-    period.name = nextPeriodName(section, periods.length);
+    const ordinal = Math.max(...periods.map((p, i) => section.group === "SHS"
+      ? ((p.semester || Math.floor(i / 2) + 1) - 1) * 2 + (p.quarter || i % 2 + 1)
+      : (p.quarter || i + 1)));
+    period.name = nextPeriodName(section, ordinal);
+    period.quarter = section.group === "SHS" ? ordinal % 2 + 1 : ordinal + 1;
+    period.semester = section.group === "SHS" ? Math.floor(ordinal / 2) + 1 : 0;
     periods.push(period);
     activePeriodIndex = periods.length - 1;
     markStateDirty();
@@ -1965,7 +1934,12 @@
     }
     dates.splice(-removable, removable);
     hps.splice(-removable, removable);
-    period.roster.forEach((learner) => learner[kind].splice(-removable, removable));
+    period.roster.forEach((learner) => {
+      learner[kind].splice(-removable, removable);
+      if (learner.hpsOriginals?.[kind]) Object.keys(learner.hpsOriginals[kind]).forEach(key => {
+        if (Number(key) >= dates.length) delete learner.hpsOriginals[kind][key];
+      });
+    });
     markStateDirty();
     render();
     setStatus(`Removed the last ${removable} ${kind.toUpperCase()} column${removable === 1 ? "" : "s"}.`);
@@ -2144,7 +2118,7 @@
 
   function isPeriodFinalized(period, section) {
     const learners = period.roster.filter((learner) => learner.name.trim() && !getLearnerCategory(learner.name));
-    return learners.length > 0 && learners.every((learner) => Number.isFinite(learnerResult(learner, period, section.weights).initial.rounded));
+    return window.CSTRRecordTools.completion(period).complete;
   }
 
   function isLearnerAssessmentComplete(learner, period) {
@@ -2154,10 +2128,10 @@
       const hps = Number(hpsValue);
       if (!hpsPresent || !Number.isFinite(hps) || hps <= 0) return false;
       if (isZeroScoreCode(score)) return true;
-      if (isExcludedCode(score)) return false;
+      if (isExcludedCode(score)) return true;
       const raw = Number(score);
       const scorePresent = score !== "" && score !== null && score !== undefined && !isAttendanceCode(score);
-      return scorePresent && Number.isFinite(raw);
+      return scorePresent && Number.isFinite(raw) && raw >= 0 && raw <= hps;
     }));
   }
 
@@ -2566,7 +2540,9 @@
     ["ww", "pt", "qa"].forEach((kind) => row.querySelectorAll(`[data-score="${kind}"]`).forEach((input) => {
       const index = Number(input.dataset.index);
       const cellValue = learner[kind][index];
-      input.classList.toggle("invalid", hasRawAboveHps(cellValue, period[`${kind}Hps`][index]));
+      const bad = hasRawAboveHps(cellValue, period[kind + "Hps"][index]) || (cellValue !== "" && !isAttendanceCode(cellValue) && (!Number.isFinite(Number(cellValue)) || Number(cellValue) < 0));
+      input.classList.toggle("invalid", bad);
+      input.setAttribute("aria-invalid", String(bad));
       input.classList.toggle("code-cell", isAttendanceCode(cellValue));
       input.classList.toggle("code-cell-missing", typeof cellValue === "string" && cellValue.trim().toUpperCase() === "M");
     }));
@@ -2587,18 +2563,18 @@
 
     if (!isSyncConfigured()) {
       btn.disabled = false;
-      setStatus("⚠️ Live sync isn't set up yet — see FIREBASE_SETUP.md. Saving on this device only.");
+      setStatus(" Live sync isn't set up yet — see FIREBASE_SETUP.md. Saving on this device only.");
     } else if (isLoading) {
       btn.disabled = true;
       setStatus("Connecting to live sync... Please wait.", "saving");
     } else if (!isDataLoaded) {
       btn.disabled = true;
       setStatus(lastLoadError
-        ? `⚠️ DATA LOCKED — connection failed: ${lastLoadError}`
-        : "⚠️ DATA LOCKED: waiting for the live database to respond.", "error");
+        ? ` DATA LOCKED — connection failed: ${lastLoadError}`
+        : " DATA LOCKED: waiting for the live database to respond.", "error");
     } else if (isStale) {
       btn.disabled = false;
-      setStatus("⚠️ Another device saved changes here. Open Settings to resolve before saving.", "error");
+      setStatus(" Another device saved changes here. Open Settings to resolve before saving.", "error");
     } else {
       btn.disabled = false;
       setStatus("Ready to save. ✓ (live sync on)");
@@ -2606,6 +2582,12 @@
   }
 
   async function saveToFirebase({ automatic = false } = {}) {
+    const focused = document.activeElement;
+    if (focused?.dataset?.hps && hpsEdits.has(focused)) {
+      if (automatic) { scheduleAutoSaveMaxWait(); return false; }
+      commitHpsField(focused);
+    }
+    commitPendingBulkFill();
     if (!isSignedIn()) { setStatus("Sign in before saving.", "error"); return false; }
     if (!isSyncConfigured()) {
       if (!automatic) setStatus("Live sync isn't set up yet — see FIREBASE_SETUP.md.", "error");
@@ -2613,14 +2595,14 @@
     }
     if (!isDataLoaded) {
       if (!automatic) {
-        setStatus("⚠️ BLOCKED: Cannot save unsynchronized data. Waiting for live sync to connect.", "error");
+        setStatus(" BLOCKED: Cannot save unsynchronized data. Waiting for live sync to connect.", "error");
         alert("SAFETY BLOCK:\n\nYou are attempting to save before this device has confirmed the current saved data.\n\nTo avoid overwriting and losing class records, saving has been blocked until live sync finishes connecting.");
       }
       return false;
     }
     if (isStale) {
       if (!automatic) {
-        setStatus("⚠️ BLOCKED: another device saved newer changes here.", "error");
+        setStatus(" BLOCKED: another device saved newer changes here.", "error");
         alert("SAFETY BLOCK:\n\nAnother device saved changes to this same account while you had unsaved edits open here.\n\nTo avoid silently overwriting their changes, saving has been blocked. Open Settings to review and choose which version to keep.");
       }
       return false;
@@ -2633,6 +2615,7 @@
     }
 
     const savedRevision = stateRevision;
+    const savedChangeCount = pendingAutoSaveChanges;
     const stateSnapshot = cloneState(state);
     const currentUser = currentUserKey();
     isSaving = true;
@@ -2641,8 +2624,19 @@
       await window.CSTRSync.ready;
       await window.CSTRSync.save(currentUser, stateSnapshot);
       lastSavedRevision = Math.max(lastSavedRevision, savedRevision);
-      if (stateRevision === savedRevision) localStorage.removeItem(localDraftKey());
-      finalizeSavedBatch();
+      if (stateRevision === savedRevision) {
+        localStorage.removeItem(localDraftKey());
+        finalizeSavedBatch();
+      } else {
+        // Edits made during this network request belong to the NEXT save.
+        // Never mark them clean or discard their device recovery copy.
+        if (preBatchSnapshot) pushVersionSnapshot(preBatchSnapshot);
+        preBatchSnapshot = stateSnapshot;
+        pendingAutoSaveChanges = Math.max(1, pendingAutoSaveChanges - savedChangeCount);
+        lastSavedAt = new Date();
+        persistLocalDraft(); updateSaveIndicators(); scheduleAutoSaveMaxWait();
+        saveQueued = true;
+      }
       setStatus(automatic ? "Autosaved ✓ (live on every device)" : "Saved ✓ (live on every device)");
       showSaveToast(automatic ? "All changes autosaved — live on every device." : "Changes saved — live on every device.");
       return true;
@@ -2682,7 +2676,7 @@
       const localDraft = restoreLocalDraft();
       if (localDraft) state = localDraft;
       isDataLoaded = true; isLoading = false; pendingAutoSaveChanges = 0;
-      commitActiveFieldEdit(); establishCleanBaseline(); updateSaveIndicators(); syncSaveControl();
+      commitActiveFieldEdit(); establishCleanBaseline(); render(); updateSaveIndicators(); syncSaveControl();
       if (localDraft) showSaveToast("Restored the latest autosaved copy from this device.", "info");
       return;
     }
@@ -2694,10 +2688,10 @@
       if (firstUpdateHandled || requestId !== loadRequestId) return;
       firstUpdateHandled = true;
       if (localDraft) state = localDraft;
-      isDataLoaded = true; isLoading = false; pendingAutoSaveChanges = 0;
+      isDataLoaded = false; isLoading = false; pendingAutoSaveChanges = 0;
       commitActiveFieldEdit(); establishCleanBaseline(); updateSaveIndicators();
       lastLoadError = "Could not reach the live database (offline?). Working from this device's last saved copy.";
-      setStatus(`⚠️ ${lastLoadError}`, "error");
+      setStatus(` ${lastLoadError}`, "error");
       if (localDraft) showSaveToast("Offline — restored the latest local copy. Will sync once back online.", "info");
       render();
     }, 6000);
@@ -2735,10 +2729,10 @@
         if (firstUpdateHandled) return;
         firstUpdateHandled = true;
         if (localDraft) state = localDraft;
-        isDataLoaded = true; isLoading = false; pendingAutoSaveChanges = 0;
+        isDataLoaded = false; isLoading = false; pendingAutoSaveChanges = 0;
         commitActiveFieldEdit(); establishCleanBaseline(); updateSaveIndicators();
         lastLoadError = error.message;
-        setStatus(`⚠️ Live sync error: ${error.message}. Working from this device's last saved copy.`, "error");
+        setStatus(` Live sync error: ${error.message}. Working from this device's last saved copy.`, "error");
         render();
       }
     );
@@ -2747,6 +2741,7 @@
   // Handles a push that arrives AFTER the initial load — i.e. a genuine
   // change saved from another browser/device for this same account.
   function handleRemoteUpdate(remoteState, meta) {
+    isDataLoaded = true; // A real server response is required before cloud writes.
     if (meta.isOwnEcho) return; // hearing our own save reflected back — already applied locally
     if (pendingAutoSaveChanges === 0 && !isSaving && !isStale) {
       // Nothing unsaved on this device — safe to take the newer copy immediately.
@@ -2762,7 +2757,7 @@
       isStale = true;
       pendingRemoteState = remoteState;
       pendingRemoteAt = meta.savedAt;
-      setStatus("⚠️ Another device just saved changes here. Open Settings to review before your next save.", "error");
+      setStatus(" Another device just saved changes here. Open Settings to review before your next save.", "error");
       showSaveToast("Heads up: another device saved changes while you were editing.", "error");
     }
   }
@@ -2927,14 +2922,14 @@
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
     const syncStatusLine = !isSyncConfigured()
-      ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;">⚠️ Live sync isn't set up yet. See FIREBASE_SETUP.md in the repo, fill in ASSETS/firebase-sync.js, and redeploy.</p>`
+      ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> Live sync isn't set up yet. See FIREBASE_SETUP.md in the repo, fill in ASSETS/firebase-sync.js, and redeploy.</p>`
       : isStale
-        ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;">⚠️ Another device saved changes here${pendingRemoteAt ? ` at ${safeValue(new Date(pendingRemoteAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}` : ""} while you had unsaved edits. Choose which version to keep:</p>
+        ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> Another device saved changes here${pendingRemoteAt ? ` at ${safeValue(new Date(pendingRemoteAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}` : ""} while you had unsaved edits. Choose which version to keep:</p>
            <div class="stack-actions">${button("Keep the OTHER device's version", "take-remote-version", "button button-primary")} ${button("Keep THIS device's version", "keep-local-version")}</div>`
-        : `<p class="settings-note">🟢 Live sync connected. Changes saved here appear on every other device automatically — nothing to type in.</p>`;
+        : `<p class="settings-note"> Live sync connected. Changes saved here appear on every other device automatically — nothing to type in.</p>`;
     modal.innerHTML = `<section class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle"><div class="section-heading"><div><p class="eyebrow">Workspace preferences</p><h2 id="settingsTitle">Settings</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
       ${syncStatusLine}
-      ${lastLoadError ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;">⚠️ ${safeValue(lastLoadError)}</p>` : ""}
+      ${lastLoadError ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> ${safeValue(lastLoadError)}</p>` : ""}
       ${renderAccountSection()}
       <div class="section-heading" style="margin-top: 22px;"><div><p class="eyebrow">Recovery</p><h2 style="font-size: 1.1rem;">Restore a previous version</h2></div></div>
       <p class="settings-note">Every time changes are saved, the state just before that save is kept here on this device — use this if a value was cleared or deleted by accident. Restoring loads that version into the app; you'll still need to save it to sync the rollback to every device.</p>
@@ -3110,9 +3105,9 @@
       for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
         if (c >= totalCols) continue;
         if (c === 0) { learner.name = rawValue; nameColumnTouched = true; }
-        else if (c <= wwLen) learner.ww[c - 1] = sanitizeScoreValue(rawValue);
-        else if (c <= wwLen + ptLen) learner.pt[c - 1 - wwLen] = sanitizeScoreValue(rawValue);
-        else learner.qa[c - 1 - wwLen - ptLen] = sanitizeScoreValue(rawValue);
+        else if (c <= wwLen) window.CSTRRecordTools.setScore(learner, "ww", c - 1, sanitizeScoreValue(rawValue));
+        else if (c <= wwLen + ptLen) window.CSTRRecordTools.setScore(learner, "pt", c - 1 - wwLen, sanitizeScoreValue(rawValue));
+        else window.CSTRRecordTools.setScore(learner, "qa", c - 1 - wwLen - ptLen, sanitizeScoreValue(rawValue));
         cellsFilled += 1;
         rowChanged = true;
       }
@@ -3189,7 +3184,8 @@
     const hasMultiSelection = bounds && (bounds.minRow !== bounds.maxRow || bounds.minCol !== bounds.maxCol);
     if (!hasMultiSelection) return;
 
-    if (event.key === "Escape") { clearSelection(); return; }
+    if (event.key === "Escape") {
+      document.querySelectorAll(".subject-picker[open],.sheet-help[open],.column-options[open]").forEach(node => node.removeAttribute("open")); clearSelection(); return; }
 
     if (event.key === "Delete" || event.key === "Backspace") {
       event.preventDefault();
@@ -3206,9 +3202,9 @@
         for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
           if (c >= totalCols) continue;
           if (c === 0) l.name = "";
-          else if (c <= wwLen) l.ww[c - 1] = "";
-          else if (c <= wwLen + ptLen) l.pt[c - 1 - wwLen] = "";
-          else l.qa[c - 1 - wwLen - ptLen] = "";
+          else if (c <= wwLen) window.CSTRRecordTools.setScore(l, "ww", c - 1, "");
+          else if (c <= wwLen + ptLen) window.CSTRRecordTools.setScore(l, "pt", c - 1 - wwLen, "");
+          else window.CSTRRecordTools.setScore(l, "qa", c - 1 - wwLen - ptLen, "");
         }
       }
       markStateDirty();
@@ -3262,9 +3258,9 @@
       for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
         if (c >= totalCols) continue;
         if (c === 0) { rowVals.push(l.name || ""); l.name = ""; }
-        else if (c <= wwLen) { rowVals.push(l.ww[c - 1] || ""); l.ww[c - 1] = ""; }
-        else if (c <= wwLen + ptLen) { rowVals.push(l.pt[c - 1 - wwLen] || ""); l.pt[c - 1 - wwLen] = ""; }
-        else { rowVals.push(l.qa[c - 1 - wwLen - ptLen] || ""); l.qa[c - 1 - wwLen - ptLen] = ""; }
+        else if (c <= wwLen) { rowVals.push(l.ww[c - 1] || ""); window.CSTRRecordTools.setScore(l, "ww", c - 1, ""); }
+        else if (c <= wwLen + ptLen) { rowVals.push(l.pt[c - 1 - wwLen] || ""); window.CSTRRecordTools.setScore(l, "pt", c - 1 - wwLen, ""); }
+        else { rowVals.push(l.qa[c - 1 - wwLen - ptLen] || ""); window.CSTRRecordTools.setScore(l, "qa", c - 1 - wwLen - ptLen, ""); }
       }
       lines.push(rowVals.join("\t"));
     }
@@ -3292,6 +3288,31 @@
     const target = event.target.closest("[data-action]");
     if (!target) return;
     const action = target.dataset.action;
+    if (action === "toggle-sidebar" || action === "expand-search") {
+      sidebarCollapsed = action === "expand-search" ? false : !sidebarCollapsed;
+      try { localStorage.setItem("cstr-sidebar-collapsed", String(sidebarCollapsed)); } catch (_) {}
+      document.querySelector(".app-layout")?.classList.toggle("sidebar-collapsed", sidebarCollapsed);
+      const toggle = document.querySelector('[data-action="toggle-sidebar"]');
+      toggle?.setAttribute("aria-expanded", String(!sidebarCollapsed));
+      toggle?.setAttribute("aria-label", sidebarCollapsed ? "Expand navigation" : "Retract navigation");
+      if (action === "expand-search") document.querySelector("#studentSearch")?.focus();
+      sizeSheetWorkspace();
+      return;
+    }
+    if (action === "choose-sheet-subject") {
+      const section = currentSection();
+      if (sectionHasLockedPeriod(section)) { showSaveToast("Unlock all periods before changing grading weights.", "error"); return; }
+      const value = target.dataset.subject;
+      if (value === "custom") { renderEditSection(section.id); return; }
+      const preset = SUBJECT_PRESETS.find(p => p.name === value);
+      if (!preset) return;
+      section.subject = preset.name;
+      section.weights = [...preset.weights];
+      document.querySelector(".subject-picker")?.removeAttribute("open");
+      markStateDirty(); render();
+      setStatus("Subject and grading weights updated.");
+      return;
+    }
     
     if (action === "google-login") {
       performGoogleLogin();
@@ -3485,7 +3506,7 @@
       sessionStorage.removeItem("cstr-class-record-user");
       sessionStorage.removeItem("cstr-class-record-email");
       sessionStorage.removeItem("cstr-class-record-name");
-      sessionStorage.removeItem("cstr_reg_auth");
+      window.CSTRRegistration?.clear();
       if (window.CSTRSync && window.CSTRSync.signOut) {
         window.CSTRSync.signOut();
       }
@@ -3558,6 +3579,38 @@
     return null;
   }
 
+  function sizeSheetWorkspace() {
+    requestAnimationFrame(() => {
+      const wrap = document.querySelector(".table-wrap");
+      if (wrap) wrap.style.height = Math.max(300, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - 24) + "px";
+    });
+  }
+  window.addEventListener("resize", sizeSheetWorkspace, { passive: true });
+  function commitHpsField(input) {
+    if (!input?.dataset?.hps || !hpsEdits.has(input)) return;
+    const previous = hpsEdits.get(input);
+    hpsEdits.delete(input);
+    const period = currentPeriod();
+    if (!period || period.locked) return;
+    const result = window.CSTRRecordTools.adjustHps(period, input.dataset.hps, Number(input.dataset.index), previous, input.value);
+    document.querySelectorAll(`input[data-score="${input.dataset.hps}"][data-index="${input.dataset.index}"]`).forEach(cell => {
+      cell.value = period.roster[Number(cell.dataset.row)][input.dataset.hps][Number(input.dataset.index)];
+    });
+    updateAllSummaries();
+    markFieldEditDirty(getFieldKeyForInput(input));
+    if (result.capped || result.restored) showSaveToast(`${result.capped} score(s) capped; ${result.restored} restored. Original scores retained unless explicitly edited.`, "info");
+  }
+  app.addEventListener("focusin", event => {
+    const input = event.target;
+    if (input.dataset?.hps) hpsEdits.set(input, currentPeriod()[input.dataset.hps + "Hps"][Number(input.dataset.index)]);
+  });
+  app.addEventListener("change", event => commitHpsField(event.target));
+  document.addEventListener("click", event => {
+    document.querySelectorAll(".subject-picker[open],.sheet-help[open],.column-options[open]").forEach(node => {
+      if (!node.contains(event.target)) node.removeAttribute("open");
+    });
+  });
+
   // Real-time input handling
   app.addEventListener("input", (event) => {
     const input = event.target;
@@ -3569,6 +3622,7 @@
       stateChanged = true;
       const cat = getLearnerCategory(learner.name);
       if (cat) {
+        learner.hpsOriginals = {};
         learner.ww.fill("");
         learner.pt.fill("");
         learner.qa.fill("");
@@ -3591,10 +3645,11 @@
       const kind = input.dataset.score; const row = Number(input.dataset.row); const index = Number(input.dataset.index);
       const sanitized = sanitizeScoreValue(input.value);
       if (sanitized !== input.value) input.value = sanitized;
-      currentPeriod().roster[row][kind][index] = sanitized; updateLiveSummary(row); stateChanged = true;
+      window.CSTRRecordTools.setScore(currentPeriod().roster[row], kind, index, sanitized); updateLiveSummary(row); stateChanged = true;
     }
     if (input.dataset.hps) {
-      currentPeriod()[`${input.dataset.hps}Hps`][Number(input.dataset.index)] = input.value;
+      if (!hpsEdits.has(input)) hpsEdits.set(input, currentPeriod()[input.dataset.hps + "Hps"][Number(input.dataset.index)]);
+      currentPeriod()[input.dataset.hps + "Hps"][Number(input.dataset.index)] = input.value;
       input.classList.toggle("invalid", input.value !== "" && (!Number.isFinite(Number(input.value)) || Number(input.value) <= 0));
       input.setAttribute("aria-invalid", String(input.classList.contains("invalid")));
       updateAllSummaries(); stateChanged = true;
@@ -3613,7 +3668,8 @@
   // grouping right away, instead of waiting for the idle timeout, and — if
   // a multi-cell selection is waiting on a typed fill value — commits that
   // bulk fill now.
-  app.addEventListener("focusout", () => {
+  app.addEventListener("focusout", (event) => {
+    commitHpsField(event.target);
     commitActiveFieldEdit();
     commitPendingBulkFill();
   });
@@ -3666,15 +3722,16 @@
         if (column >= totalCols) { truncated = true; return; }
         const value = cellValue.trim();
         if (column === 0) { learner.name = value; return; }
-        if (column <= wwLen) { learner.ww[column - 1] = sanitizeScoreValue(value); return; }
-        if (column <= wwLen + ptLen) { learner.pt[column - 1 - wwLen] = sanitizeScoreValue(value); return; }
-        learner.qa[column - 1 - wwLen - ptLen] = sanitizeScoreValue(value);
+        if (column <= wwLen) { window.CSTRRecordTools.setScore(learner, "ww", column - 1, sanitizeScoreValue(value)); return; }
+        if (column <= wwLen + ptLen) { window.CSTRRecordTools.setScore(learner, "pt", column - 1 - wwLen, sanitizeScoreValue(value)); return; }
+        window.CSTRRecordTools.setScore(learner, "qa", column - 1 - wwLen - ptLen, sanitizeScoreValue(value));
       });
       rowsFilled += 1;
     });
 
     period.roster.forEach((l) => {
       if (getLearnerCategory(l.name)) {
+        l.hpsOriginals = {};
         l.ww.fill("");
         l.pt.fill("");
         l.qa.fill("");
@@ -3716,7 +3773,14 @@
     if (window.CSTRSync && window.CSTRSync.onAuthStateChanged) {
       window.CSTRSync.onAuthStateChanged(async (firebaseUser) => {
         if (firebaseUser) {
+          if (isLinkingLegacyInProgress) return;
           try {
+            const approved = await window.CSTRRegistration.isApproved(firebaseUser);
+            if (!approved) {
+              sessionStorage.removeItem("cstr-class-record-login");
+              render();
+              return;
+            }
             const profile = await window.CSTRSync.getUserProfile(firebaseUser.uid);
             if (profile && profile.dataKey) {
               sessionStorage.setItem("cstr-class-record-login", "true");
