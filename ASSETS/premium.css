@@ -1,0 +1,166 @@
+/* Quicksand is bundled locally: regular copy, bold headings. */
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/quicksand-400.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/quicksand-500.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/quicksand-600.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Quicksand';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(fonts/quicksand-700.ttf) format('truetype');
+}
+
+:root { --font-sans: 'Quicksand', sans-serif; --font-serif: 'Quicksand', sans-serif; --font-mono: 'Quicksand', sans-serif; --depth-ease: cubic-bezier(.16,1,.3,1); }
+body, input, textarea, select { font-weight: 400; }
+h1,h2,h3,h4,strong,b,.button,.tab,th,.class-name { font-weight: 700 !important; }
+.project-about p { font-weight: 400; font-size: .94rem; line-height: 1.75; }
+.project-about h2 { font-weight: 700; letter-spacing: -.045em; }
+button,.button,.tab,summary,.sidebar-link,.button-google,.col-btn,.row-delete-btn {
+  position: relative;
+  transition: transform 380ms var(--depth-ease), box-shadow 380ms var(--depth-ease), background-color 260ms ease, border-color 260ms ease, color 260ms ease, filter 240ms ease !important;
+  transform: translate3d(0,0,0);
+  box-shadow: 0 2px 3px #30101909, inset 0 1px 0 #ffffff35 !important;
+}
+.button-primary { background: linear-gradient(145deg,#9b2942,#641026); border-color: #741426; box-shadow: 0 4px 0 #480c1d,0 7px 14px #64102624,inset 0 1px 0 #ffffff38 !important; }
+@media (hover:hover) and (pointer:fine) {
+  button:hover:not(:disabled), .button:hover:not(:disabled), .tab:hover:not(:disabled), summary:hover {
+    transform: perspective(700px) translate3d(0,-3px,8px) rotateX(3deg) !important;
+    box-shadow: 0 6px 0 #391a2412,0 12px 24px #391a2424,inset 0 1px 0 #ffffff70 !important;
+    filter: brightness(1.035);
+  }
+  .button-primary:hover:not(:disabled) { box-shadow: 0 6px 0 #480c1d,0 15px 26px #64102638,inset 0 1px 0 #ffffff55 !important; }
+  .sidebar-link:hover { background: #ffffff20; }
+  .login-card,.metric-card,.section-card-wrap,.level-card,.recent-class-row {
+    transform: perspective(1000px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg)) translate3d(0,var(--lift,0px),0);
+    transition: transform 550ms var(--depth-ease),box-shadow 550ms var(--depth-ease),border-color 350ms ease !important;
+    backface-visibility: hidden;
+  }
+  .login-card:hover,.metric-card:hover,.section-card-wrap:hover,.level-card:hover,.recent-class-row:hover {
+    --lift: -5px;
+    transform: perspective(1000px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg)) translate3d(0,var(--lift),0) !important;
+    box-shadow: 0 22px 45px #30101d28,0 6px 12px #30101d12,inset 0 1px 0 #ffffffa6 !important;
+  }
+  .login-card:hover { box-shadow: 0 35px 80px #16060d66,0 0 0 1px #f1d49988,inset 0 1px 0 white !important; }
+  .login-card:focus-within { transform: none !important; }
+}
+button:active:not(:disabled),.button:active:not(:disabled),.tab:active:not(:disabled),summary:active {
+  transform: perspective(700px) translate3d(0,1px,0) scale(.97) !important;
+  transition-duration: 90ms !important;
+  box-shadow: 0 1px 0 #391a2433,inset 0 2px 4px #391a2422 !important;
+}
+button:disabled { transform: none !important; box-shadow: none !important; }
+button:focus-visible,summary:focus-visible,a:focus-visible { outline: 3px solid #c6a157; outline-offset: 4px; }
+.login-card { isolation: isolate; animation: premium-entry 650ms var(--depth-ease) both; }
+.login-card::after { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:-1; background:radial-gradient(400px circle at var(--light-x,40%) var(--light-y,20%),#fff9d366,transparent 70%); }
+.project-about { animation: premium-entry 800ms var(--depth-ease) both; }
+.dashboard,.record-chooser { animation: premium-entry 480ms var(--depth-ease) both !important; }
+.modal,.regcode-modal { animation: premium-entry 400ms var(--depth-ease) both; box-shadow:0 35px 100px #240a2255; }
+.modal-backdrop,.regcode-modal-backdrop { backdrop-filter: blur(7px); animation: soft-fade 220ms ease both; }
+details[open] > :not(summary) { animation: popover-entry 260ms var(--depth-ease); }
+input:focus,textarea:focus,select:focus { box-shadow:0 0 0 3px #a52a3e1a,0 5px 14px #550b180d !important; }
+.record-table input:focus { background:#fff; box-shadow:inset 0 0 0 2px #9b2942,0 0 0 3px #9b29421a !important; }
+.record-table tbody tr:hover td,.record-table tbody tr:focus-within td { transition:background-color 200ms ease; }
+.motion-ripple { position:fixed; z-index:2147483640; border:2px solid #d5ad69; border-radius:50%; pointer-events:none; width:16px; height:16px; margin:-8px; animation: click-wave 600ms var(--depth-ease) forwards; }
+button[aria-busy='true'] { cursor:progress; padding-right:34px; }
+button[aria-busy='true']::after { content:''; position:absolute; right:12px; top:calc(50% - 6px); width:12px; height:12px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:quiet-spin 700ms linear infinite; }
+@keyframes premium-entry { from { opacity:0; transform:perspective(1000px) translate3d(0,18px,-30px) rotateX(3deg); } to { opacity:1; transform:perspective(1000px) translate3d(0,0,0) rotateX(0); } }
+@keyframes popover-entry { from { opacity:0; transform:translateY(-7px) scale(.98); } to { opacity:1; transform:none; } }
+@keyframes click-wave { from { opacity:.8; transform:scale(.6); } to { opacity:0; transform:scale(3.5); } }
+/* Secondary controls open above the stationary sheet. */
+.period-settings,.roster-options { position:relative; z-index:40; }
+.period-settings > summary,.roster-options > summary { list-style:none; display:flex; align-items:center; gap:6px; cursor:pointer; padding:6px 9px; border:1px solid #d6cdd0; border-radius:8px; background:#ffffffb5; font-size:.75rem; font-weight:700; white-space:nowrap; }
+.period-settings > summary::-webkit-details-marker,.roster-options > summary::-webkit-details-marker { display:none; }
+.period-settings > .period-toolbar { position:absolute; right:0; top:calc(100% + 10px); width:390px; max-width:calc(100vw - 100px); padding:18px !important; display:flex; flex-wrap:wrap; gap:16px !important; background:#fff !important; color:#30303b; border:1px solid #ded5d9 !important; border-radius:14px; box-shadow:0 18px 44px #30101d26; }
+.period-settings .period-name-field { max-width:none; width:100%; flex-basis:100%; }
+.period-settings .period-name-field > span { color:#555; font-size:.72rem; }
+.period-settings .period-name { min-height:36px; font-size:.82rem; border-radius:7px; }
+.period-settings .period-actions { flex-wrap:wrap; margin-left:0; }
+.period-settings .period-actions .button { font-size:.75rem; min-height:34px; }
+.period-settings .period-completion { font-size:.8rem; }
+.period-settings .period-completion small { font-size:.72rem; }
+.roster-options > .roster-slots-tools { position:absolute; left:0; top:calc(100% + 8px); width:340px; max-width:calc(100vw - 100px); padding:16px; margin:0; background:#fff; border:1px solid #ded5d9; border-radius:12px; box-shadow:0 18px 44px #30101d26; }
+@media (min-width:1000px) {
+  body:has(.sheet-layout) { height:100dvh; overflow:hidden; }
+  .sheet-layout { grid-template-columns:56px minmax(0,1fr); height:100dvh; min-height:0; }
+  .sheet-layout .app-sidebar { width:56px; padding:10px 5px; z-index:80; transition:width 350ms var(--depth-ease),box-shadow 350ms ease; }
+  .sheet-layout:not(.sidebar-collapsed) .app-sidebar { width:240px; box-shadow:16px 0 40px #22071430; }
+  .sheet-layout.sidebar-collapsed .sidebar-logo { width:32px; flex-basis:32px; }
+  .sheet-layout .app-main { height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
+  .sheet-layout .app-header,.sheet-layout .app-header.header-shrunk { min-height:38px; flex:0 0 38px; position:relative; }
+  .sheet-layout .app-header-inner,.sheet-layout .app-header.header-shrunk .app-header-inner { min-height:38px; height:38px; padding:3px 10px; }
+  .sheet-layout .page-context .eyebrow { display:none; }
+  .sheet-layout .app-header .app-title { font-size:.9rem; }
+  .sheet-layout .app-header .button { min-height:28px; height:28px; font-size:.74rem; padding:4px 12px; }
+  .sheet-layout .save-feedback { display:flex; align-items:center; gap:12px; max-width:none; }
+  .sheet-layout .save-status { font-size:.69rem; max-width:490px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+  .sheet-layout .save-meta { font-size:.64rem; max-width:220px; }
+  .sheet-layout .app-shell { padding:5px 8px 8px; display:flex; flex:1; min-height:0; }
+  .sheet-layout .record-section { display:flex; flex-direction:column; flex:1; min-height:0; gap:4px; animation:none !important; }
+  .sheet-layout .class-header-card { display:flex; align-items:center; justify-content:space-between; gap:14px; min-height:40px; margin:0; padding:5px 10px; border-radius:10px; flex-shrink:0; }
+  .sheet-layout .class-identity { display:flex; align-items:center; gap:12px; padding:0; min-width:0; }
+  .sheet-layout .class-name { font-size:1.1rem; line-height:1.25; margin:0; text-transform:none; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sheet-layout .subject-picker summary { font-size:.78rem; max-width:210px; }
+  .sheet-layout .subject-picker summary > span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sheet-layout .class-context-line { gap:8px; font-size:.68rem; white-space:nowrap; }
+  .sheet-layout .class-context-line > span:last-child { display:none; }
+  .sheet-layout .class-period-area { display:flex; align-items:center; padding:0; border:0; gap:10px; min-width:0; }
+  .sheet-layout .period-tabs { display:flex; flex-wrap:nowrap; overflow-x:auto; max-width:340px; margin:0; padding:2px; }
+  .sheet-layout .period-tabs .tab { white-space:nowrap; min-height:28px; padding:4px 9px; font-size:.73rem; flex-shrink:0; }
+  .sheet-layout .sheet-utilities { margin:0; min-height:30px; flex:0 0 30px; justify-content:flex-start; gap:12px; }
+  .sheet-layout .sheet-utilities .button { min-height:26px; padding:3px 8px; font-size:.75rem; }
+  .sheet-layout .column-options > summary { font-size:.75rem; padding:4px 6px; }
+  .sheet-layout .roster-options > summary { padding:3px 8px; min-height:26px; }
+  .sheet-layout .sheet-caption { font-size:.62rem; }
+  .sheet-layout .sheet-help > summary { width:24px; height:24px; }
+  .sheet-layout .table-wrap { flex:1 1 0; height:auto !important; min-height:0; max-height:none; width:100%; border-radius:10px; box-shadow:0 4px 14px #3810240a; }
+  .sheet-layout .record-table th,.sheet-layout .record-table td { padding:2px 4px; }
+  .sheet-layout .record-table input { min-height:29px; height:29px; width:68px; font-size:.82rem; font-weight:500; }
+  .sheet-layout .record-table .name-cell input { width:100%; min-height:29px; font-size:.84rem; font-weight:500; }
+  .sheet-layout .compact-record .component-row th { height:28px; font-size:.76rem; }
+  .sheet-layout .compact-record .activity-row th { height:30px; }
+  .sheet-layout .compact-record .hps-row th { height:20px; }
+  .sheet-layout .compact-record .activity-date { min-height:26px; height:26px; font-size:.75rem; }
+  .sheet-layout .locked-period-note,.sheet-layout .integrity-note { margin:0; padding:3px 8px; font-size:.73rem; line-height:1.3; flex-shrink:0; }
+  .sheet-layout #periodIntegrity:empty { display:none; }
+  .sheet-layout .archive-banner { padding:2px 6px; font-size:.72rem; }
+}
+@media (min-width:1000px) and (max-width:1200px) {
+  .sheet-layout .class-context-line > span:nth-child(2) { display:none; }
+  .sheet-layout .class-name { max-width:170px; }
+  .sheet-layout .subject-picker summary { max-width:155px; }
+  .sheet-layout .period-tabs { max-width:240px; }
+  .sheet-layout .save-meta { display:none; }
+}
+@media (max-width:999px) {
+  .class-period-area { display:flex; flex-wrap:wrap; gap:8px; }
+  .sheet-utilities { flex-wrap:wrap; justify-content:flex-start; }
+  .sheet-utilities > .button { font-size:.74rem; padding:4px 7px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  *,*::before,*::after { animation:none !important; transition:none !important; }
+  button:hover,.button:hover,.tab:hover,summary:hover,.login-card:hover,.metric-card:hover,.section-card-wrap:hover,.level-card:hover,.recent-class-row:hover { transform:none !important; }
+}
+/* Specificity matches the interaction rules, including active press states. */
+@media (prefers-reduced-motion:reduce) {
+  html:root body :is(#app, #app *, .modal-backdrop, .modal-backdrop *, .regcode-modal-backdrop, .regcode-modal-backdrop *, .motion-ripple) {
+    animation:none !important; transition:none !important; transform:none !important;
+  }
+}

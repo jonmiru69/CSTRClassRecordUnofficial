@@ -1043,7 +1043,22 @@
     modal.querySelector("#authorizedGoogleContinue").focus();
   }
 
-  async function performGoogleLogin(prefillAccountCode) {
+  async function authFeedback(action, label, operation) {
+    const control = document.querySelector(`[data-action="${action}"]`);
+    if (control?.getAttribute("aria-busy") === "true") return;
+    const original = control?.innerHTML;
+    if (control) { control.setAttribute("aria-busy", "true"); control.disabled = true; control.textContent = label; }
+    try { return await operation(); }
+    finally {
+      if (control) { control.removeAttribute("aria-busy"); control.disabled = false; control.innerHTML = original; }
+    }
+  }
+  function performGoogleLogin(...args) { return authFeedback("google-login", "Connecting…", () => performGoogleLoginRequest(...args)); }
+  function performEmailSignIn(...args) { return authFeedback("email-signin", "Signing in…", () => performEmailSignInRequest(...args)); }
+  function performEmailSignUp(...args) { return authFeedback("email-signup", "Creating account…", () => performEmailSignUpRequest(...args)); }
+  function performLegacyClaim(...args) { return authFeedback("legacy-claim", "Checking account…", () => performLegacyClaimRequest(...args)); }
+
+  async function performGoogleLoginRequest(prefillAccountCode) {
     if (!isRegistrationAuthorized()) {
       showRegistrationCodeModal(() => showGoogleContinuation(prefillAccountCode));
       return;
@@ -1082,7 +1097,7 @@
     }
   }
 
-  async function performEmailSignIn() {
+  async function performEmailSignInRequest() {
     const emailInput = document.querySelector("#signinEmail");
     const passwordInput = document.querySelector("#signinPassword");
     const email = emailInput ? emailInput.value.trim() : "";
@@ -1124,7 +1139,7 @@
     }
   }
 
-  async function performEmailSignUp() {
+  async function performEmailSignUpRequest() {
     if (!isRegistrationAuthorized()) { showRegistrationCodeModal(showSignUpPanel); return; }
     const nameInput = document.querySelector("#signupName");
     const emailInput = document.querySelector("#signupEmail");
@@ -1182,7 +1197,7 @@
     }
   }
 
-  async function performLegacyClaim() {
+  async function performLegacyClaimRequest() {
     if (!isRegistrationAuthorized()) { showRegistrationCodeModal(() => {}); return; }
     const emailInput = document.querySelector("#legacyClaimEmail");
     const codeInput = document.querySelector("#legacyClaimCode");
@@ -1558,7 +1573,6 @@
 
     const shade = sectionNameShade(section.accent || section.theme);
     return `<div class="record-section">
-      <div class="record-back">${button(`${icon("back")}<span>Sections</span>`, "go-records", "button button-ghost")}</div>
       <section class="class-header-card" style="--class-color:${sectionColorHex};--class-surface:${shade.background};--class-ink:${shade.color}">
         ${section.archived ? `<div class="archive-banner"><span>Archived class</span>${button("Restore class", "unarchive-section", "button", `data-section="${section.id}"`)}</div>` : ""}
         <div class="class-identity">
@@ -1569,26 +1583,28 @@
               ${sectionLocked ? '<p>Unlock all periods to change grading weights.</p>' : ""}
             </div>
           </details>
-          <h2 class="class-name">${escapeHtml(section.section || section.level)}</h2>
+          <h2 class="class-name" title="${escapeHtml(section.section || section.level)}">${escapeHtml(section.section || section.level)}</h2>
           <div class="class-context-line"><span id="liveLearnerCount">${totalLearners} learner${totalLearners === 1 ? "" : "s"}</span><span>${escapeHtml(section.level)}</span><span>WW ${section.weights[0]}% · PT ${section.weights[1]}% · QA ${section.weights[2]}%</span></div>
         </div>
         <div class="class-period-area">
           <div class="period-tabs" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-selected="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${window.CSTRRecordTools.completion(entry).complete ? "Finalized" : "In progress"}">${window.CSTRRecordTools.completion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
-          <div class="period-toolbar">
+          <details class="period-settings"><summary>${icon("settings")}<span>Period options</span>${icon("chevron")}</summary><div class="period-toolbar">
             <label class="period-name-field" for="periodName"><span>Period name</span><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name ${period.locked ? "disabled" : ""}></label>
             <div id="periodCompletion" class="period-completion" role="status">${renderCompletionLabel(period, section, activePeriodIndex)}</div>
             <div class="period-actions">
               ${button(`${icon("plus")} Add period`, "add-period", "button button-secondary")}
               ${button(`${icon(period.locked ? "unlock" : "lock")} ${period.locked ? "Unlock" : "Lock"} period`, "toggle-lock-period", "button button-secondary")}
               ${button(`${icon("trash")} Delete period`, "delete-period", "button button-danger", period.locked ? "disabled" : "")}
-              ${button(icon("print"), "export-excel", "button icon-button", 'aria-label="Download print-ready Excel sheet" title="Download print-ready Excel sheet"')}
+              ${button(`${icon("print")} Excel`, "export-excel", "button button-secondary", 'aria-label="Download print-ready Excel sheet" title="Download print-ready Excel sheet"')}
             </div>
-          </div>
+          </div></details>
         </div>
       </section>
       ${period.locked ? '<p class="locked-period-note">This period is locked. Unlock it to edit its scores and activities.</p>' : ""}
       <div id="periodIntegrity">${integrityNote}</div>
       <div class="sheet-utilities">
+        ${button(`${icon("back")}<span>Sections</span>`, "go-records", "button button-ghost")}
+        <details class="roster-options"><summary>${icon("plus")}<span>Learner rows</span>${icon("chevron")}</summary><div class="bulk-column-tools roster-slots-tools"><label for="rosterSlotCount">Add learner rows</label><input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" ${sectionLocked ? "disabled" : ""}>${button("Add rows","add-roster-slots","button button-secondary",sectionLocked ? "disabled" : "")}</div></details>
         <details class="column-options"><summary>Manage columns ${icon("chevron")}</summary><div class="bulk-column-tools" aria-label="Bulk column controls">${renderBulkColumnControl("ww","WW",period.wwDates.length,period.locked)}${renderBulkColumnControl("pt","PT",period.ptDates.length,period.locked)}${renderBulkColumnControl("qa","QA",period.qaDates.length,period.locked)}</div></details>
         <span class="sheet-caption">Assessment entries</span>
         <details class="sheet-help"><summary aria-label="Grade sheet help and legend" title="Grade sheet help and legend">?</summary><div class="sheet-help-panel">
@@ -1601,7 +1617,7 @@
         </div></details>
       </div>
       ${renderRecordTable(section, period)}
-      <div class="bulk-column-tools roster-slots-tools"><label for="rosterSlotCount">Add learner rows</label><input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" ${sectionLocked ? "disabled" : ""}>${button("Add rows","add-roster-slots","button button-secondary",sectionLocked ? "disabled" : "")}</div>
+
     </div>`;
   }
 
@@ -3190,7 +3206,7 @@
     if (!hasMultiSelection) return;
 
     if (event.key === "Escape") {
-      document.querySelectorAll(".subject-picker[open],.sheet-help[open],.column-options[open]").forEach(node => node.removeAttribute("open")); clearSelection(); return; }
+      document.querySelectorAll(".subject-picker[open],.sheet-help[open],.column-options[open],.period-settings[open],.roster-options[open]").forEach(node => node.removeAttribute("open")); clearSelection(); return; }
 
     if (event.key === "Delete" || event.key === "Backspace") {
       event.preventDefault();
@@ -3543,6 +3559,8 @@
   // Keydown shortcuts
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      const openPanels = document.querySelectorAll(".subject-picker[open],.sheet-help[open],.column-options[open],.period-settings[open],.roster-options[open]");
+      openPanels.forEach(panel => { if (panel.contains(document.activeElement)) panel.querySelector("summary")?.focus({ preventScroll: true }); panel.removeAttribute("open"); });
       const registrationModal = document.querySelector(".regcode-modal-backdrop");
       const standardModal = document.querySelector(".modal-backdrop");
       if (registrationModal || standardModal) {
@@ -3586,7 +3604,10 @@
 
   function sizeSheetWorkspace() {
     const wrap = document.querySelector(".table-wrap");
-    if (wrap) wrap.style.height = Math.max(340, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - 18) + "px";
+    if (!wrap) return;
+    // Desktop uses a viewport-height flex workspace; DOM edits cannot collapse it.
+    if (window.innerWidth >= 1000) wrap.style.removeProperty("height");
+    else wrap.style.height = Math.max(340, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - 18) + "px";
   }
   window.addEventListener("resize", sizeSheetWorkspace, { passive: true });
   function commitHpsField(input) {
@@ -3609,7 +3630,7 @@
   });
   app.addEventListener("change", event => commitHpsField(event.target));
   document.addEventListener("click", event => {
-    document.querySelectorAll(".subject-picker[open],.sheet-help[open],.column-options[open]").forEach(node => {
+    document.querySelectorAll(".subject-picker[open],.sheet-help[open],.column-options[open],.period-settings[open],.roster-options[open]").forEach(node => {
       if (!node.contains(event.target)) node.removeAttribute("open");
     });
   });
