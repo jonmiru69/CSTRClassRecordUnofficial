@@ -30,7 +30,7 @@
   let activeGroup = "JHS";
   let activeSectionId = DEFAULT_REGISTRY[0]?.id || "";
   let activePeriodIndex = 0;
-  let sidebarCollapsed = window.innerWidth <= 720;
+  let sidebarCollapsed = true;
   try { const stored = localStorage.getItem("cstr-sidebar-collapsed"); if (stored !== null) sidebarCollapsed = stored === "true"; } catch (_) {}
   const hpsEdits = new WeakMap();
   let lastRenderedRecord = "";
@@ -88,16 +88,14 @@
 
   function rememberTableScroll() {
     const wrap = document.querySelector(".table-wrap");
-    return wrap ? { left: wrap.scrollLeft, top: wrap.scrollTop } : null;
+    return wrap ? { left: wrap.scrollLeft, top: wrap.scrollTop, x: window.scrollX, y: window.scrollY } : null;
   }
 
   function restoreTableScroll(scrollLeft) {
     if (scrollLeft === null) return;
-    requestAnimationFrame(() => {
-      const wrap = document.querySelector(".table-wrap");
-      if (wrap) { wrap.scrollLeft = scrollLeft.left; wrap.scrollTop = scrollLeft.top; }
-      sizeSheetWorkspace();
-    });
+    const wrap = document.querySelector(".table-wrap");
+    if (wrap) { wrap.scrollLeft = scrollLeft.left; wrap.scrollTop = scrollLeft.top; }
+    window.scrollTo({ left: scrollLeft.x, top: scrollLeft.y, behavior: "instant" });
   }
 
   function currentUserKey() {
@@ -664,7 +662,7 @@
     document.querySelectorAll(".name-cell input").forEach((input) => {
       if (input.value.length > maxLen) maxLen = input.value.length;
     });
-    const newWidth = Math.min(380, Math.max(190, Math.ceil(maxLen * 7.2 + 36)));
+    const newWidth = Math.min(380, Math.max(240, Math.ceil(maxLen * 7.2 + 36)));
     document.documentElement.style.setProperty("--name-col-width", `${newWidth}px`);
   }
 
@@ -890,9 +888,9 @@
       updateAllNumberingAndCounts();
       updateHeaderScroll();
     }
-    restoreTableScroll(scrollLeft);
     updateCompletionIndicators();
     sizeSheetWorkspace();
+    restoreTableScroll(scrollLeft);
   }
 
   function renderLogin() {
@@ -915,6 +913,16 @@
         <p id="loginError" class="login-error" role="alert"></p>
         <p id="loginSuccess" class="login-success" role="status" style="display: none;"></p>
       </div>
+      <article class="project-about" aria-labelledby="projectTitle">
+        <p class="project-kicker">About the project and the developer</p>
+        <p class="project-label">Project Title</p>
+        <h2 id="projectTitle">CSTR Class Record System</h2>
+        <p class="project-subtitle"><em>Unofficial Digital Grading Platform of Colegio de Sto. Tomás – Recoletos, Incorporated</em></p>
+        <section><h3>About the Project</h3><p>This platform is the unofficial class record system of Colegio de Sto. Tomás – Recoletos, Incorporated, built to bring accuracy, consistency, and convenience to everyday classroom grade management.</p></section>
+        <section><h3>About the Developer</h3><p>Designed and developed through vibe coding by Sir Ramelito &quot;Johnmil&quot; Jr. C. Sanchez, LPT — a Licensed Professional Teacher, Science and Research educator, and graduate of Science Education — as a personal initiative to give CSTR faculty a faster, more reliable way to handle their records.</p></section>
+        <section><h3>Features &amp; Advantages</h3><p>DepEd-aligned grade computation across Written Work, Performance Tasks, and Quarterly Assessments. Color-coded, easy-to-navigate class and section management. Privacy-preserving grade lookup for students.</p><p>Real-time sync across devices — log in anywhere and pick up right where you left off. Secure, code-verified account registration. One-click export to Excel for official submission.</p></section>
+        <section class="project-standout"><h3>The Standout Feature</h3><p>What sets this system apart is its live, cross-device synchronization — no spreadsheets to email, no files to lose, no retyping data on a new computer. Your class record simply follows you, always accurate and always up to date, on any device you log in from.</p></section>
+      </article>
     </section>`;
   }
 
@@ -939,14 +947,11 @@
             <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.79l7.97-6.2z"/>
             <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
           </svg>
-          <span>Sign in with Google</span>
+          <span>Sign up with Google</span>
         </button>
       </div>
 
-      <div class="login-divider"><span>NEW HERE?</span></div>
-      <p style="text-align: center;">
-        <a href="#" class="legacy-toggle-link" data-action="show-signup"> Create a brand-new account</a>
-      </p>
+      <p class="login-alternative"><a href="#" class="legacy-toggle-link" data-action="show-signup">Prefer email? Register here</a></p>
       <p style="text-align: center; margin-top: 6px;">
         <a href="#" class="legacy-toggle-link" data-action="show-legacy-claim"> Have an account from before this upgrade? Claim it here</a>
       </p>`;
@@ -3580,10 +3585,8 @@
   }
 
   function sizeSheetWorkspace() {
-    requestAnimationFrame(() => {
-      const wrap = document.querySelector(".table-wrap");
-      if (wrap) wrap.style.height = Math.max(300, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - 24) + "px";
-    });
+    const wrap = document.querySelector(".table-wrap");
+    if (wrap) wrap.style.height = Math.max(340, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - 18) + "px";
   }
   window.addEventListener("resize", sizeSheetWorkspace, { passive: true });
   function commitHpsField(input) {
