@@ -1433,6 +1433,7 @@
       </aside>
       <div class="app-main"><header class="app-header"><div class="app-header-inner">
         <div class="page-context"><p class="eyebrow">Teacher workspace</p><h1 class="app-title">${viewTitle}</h1></div>
+        <p class="policy-note">This class record respectfully adheres to the grading system prescribed under DepEd Order No. 15, s. 2026.</p>
         <div class="header-actions-wrap"><div class="save-feedback"><p id="statusMessage" class="save-status" role="status" aria-live="polite"></p><p id="saveMeta" class="save-meta" aria-live="polite"></p></div>
           ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", 'id="saveChanges"')}
         </div>
