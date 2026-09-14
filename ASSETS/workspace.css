@@ -1,19 +1,18 @@
 /* Compact workspace revision. Controls use one flat, square visual treatment. */
-:root { --sidebar-width: 264px; --control-radius: 2px; --topbar-height: 62px; }
+:root { --sidebar-width: 264px; --control-radius: 0px; --topbar-height: 62px; }
 button, .button, .icon-button, .tab, .col-btn, .archive-pill, .kebab-btn,
 .button-google, .sidebar-link, .row-delete-btn {
-  border-radius: var(--control-radius) !important;
+  border-radius: 0px !important;
   box-shadow: none !important;
   transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease !important;
 }
-button:hover, button:active, .tab:hover, .section-card-wrap:hover { transform: none !important; }
 button:active { filter: brightness(.94); }
 button:disabled { filter: none; }
 .button { border-width: 1px; }
 .app-layout { --sidebar-width: 264px; grid-template-columns: var(--sidebar-width) minmax(0,1fr); }
 .app-layout.sidebar-collapsed { --sidebar-width: 72px; }
 .app-main { grid-column: 2; }
-.app-sidebar { width: var(--sidebar-width); padding: 16px 12px; overflow-y: auto; }
+.app-sidebar { width: var(--sidebar-width); padding: 16px 12px; overflow-y: auto; overflow-x: hidden; }
 .sidebar-brand { justify-content: flex-start; padding: 0 6px 16px; }
 .sidebar-brand-copy { display: grid; }
 .sidebar-link { min-height: 42px; padding: 9px 11px; flex-direction: row; justify-content: flex-start; gap: 10px; }
@@ -166,9 +165,9 @@ summary { cursor: pointer; }
 }
 
 /* September 2026: spacious, calm workspace and editorial sign-in page. */
-:root { --control-radius: 9px; --motion-ease: cubic-bezier(.2,.7,.2,1); }
+:root { --control-radius: 0px; --motion-ease: cubic-bezier(.2,.7,.2,1); }
 .login-screen { grid-template-columns: minmax(320px, 440px) minmax(0, 680px); align-items: center; justify-content: center; gap: clamp(40px, 6vw, 100px); padding: 48px clamp(24px, 5vw, 80px); }
-.login-card { width: 100%; padding: 32px; border-radius: 24px; }
+.login-card { width: 100%; padding: 32px; border-radius: 0px; }
 body:has(.login-screen) #siteBg { background: linear-gradient(100deg, rgba(44,6,15,.95), rgba(54,10,21,.91)), url('campus-bg.jpg') center / cover no-repeat; }
 .project-about { color: #f7eef0; max-width: 680px; text-align: left; }
 .project-about .project-kicker { color: #e6c88d; font-size: .67rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; margin: 0 0 24px; }
@@ -185,8 +184,8 @@ button, .button, .icon-button, .tab, .col-btn, .archive-pill, .kebab-btn, .butto
 }
 button:active { filter: brightness(.96); }
 button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #bf9451; outline-offset: 3px; }
-input, select, textarea { transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease; border-radius: 7px; }
-.modal, .regcode-modal, .subject-menu, .sheet-help-panel, .bulk-column-tools { border-radius: 14px; }
+input, select, textarea { transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease; border-radius: 0px; }
+.modal, .regcode-modal, .subject-menu, .sheet-help-panel, .bulk-column-tools { border-radius: 0px; }
 .modal-backdrop, .regcode-modal-backdrop { animation: soft-fade 180ms ease both; }
 .modal, .regcode-modal { animation: soft-enter 230ms var(--motion-ease) both; }
 .login-card, .project-about { animation: soft-enter 400ms var(--motion-ease) both; }
@@ -198,13 +197,13 @@ input, select, textarea { transition: border-color 180ms ease, background-color 
 @keyframes soft-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .sheet-layout .app-shell { padding: 10px 10px 18px; width: 100%; max-width: none; }
 .app-main, .record-section { min-width: 0; }
-.class-header-card { border-radius: 12px; overflow: visible; }
-.table-wrap { border-radius: 10px; min-height: 340px; overflow-anchor: none; scroll-behavior: auto; scrollbar-width: auto; scrollbar-color: #a9979c #f1edef; }
+.class-header-card { border-radius: 0px; overflow: visible; }
+.table-wrap { border-radius: 0px; min-height: 340px; overflow-anchor: none; scroll-behavior: auto; scrollbar-width: auto; scrollbar-color: #a9979c #f1edef; }
 .table-wrap::-webkit-scrollbar { width: 13px; height: 13px; }
-.table-wrap::-webkit-scrollbar-thumb { background: #a9979c; border: 3px solid #f1edef; border-radius: 9px; }
+.table-wrap::-webkit-scrollbar-thumb { background: #a9979c; border: 3px solid #f1edef; border-radius: 0px; }
 .table-wrap::-webkit-scrollbar-track { background: #f1edef; }
 .record-table th, .record-table td { padding: 5px 6px; transition: background-color 140ms ease; }
-.record-table input { width: 68px; min-height: 36px; font-size: .8rem; border-radius: 5px; }
+.record-table input { width: 68px; min-height: 36px; font-size: .8rem; border-radius: 0px; }
 .compact-record .activity-date-cell { min-width: 80px; }
 .compact-record .activity-date { width: 68px; min-height: 32px; }
 .record-table .name-cell input { width: 100%; min-height: 36px; font-size: .82rem; }
