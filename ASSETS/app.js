@@ -2950,7 +2950,7 @@
         : `<p class="settings-note"> Live sync connected. Changes saved here appear on every other device automatically — nothing to type in.</p>`;
     modal.innerHTML = `<section class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle"><div class="section-heading"><div><p class="eyebrow">Workspace preferences</p><h2 id="settingsTitle">Settings</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
       ${syncStatusLine}
-      ${lastLoadError ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 0; padding: 10px 12px;"> ${safeValue(lastLoadError)}</p>` : ""}`
+      ${lastLoadError ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 0; padding: 10px 12px;"> ${safeValue(lastLoadError)}</p>` : ""}
       ${renderAccountSection()}
       <div class="section-heading" style="margin-top: 22px;"><div><p class="eyebrow">Recovery</p><h2 style="font-size: 1.1rem;">Restore a previous version</h2></div></div>
       <p class="settings-note">Every time changes are saved, the state just before that save is kept here on this device — use this if a value was cleared or deleted by accident. Restoring loads that version into the app; you'll still need to save it to sync the rollback to every device.</p>
