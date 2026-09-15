@@ -252,8 +252,17 @@
       } catch (error) {
         // A protected existing binding should not disclose another teacher's
         // name or email. Give the claimant a usable, privacy-preserving error.
+        // Two different situations both surface as PERMISSION_DENIED here, and
+        // the rules deliberately don't tell us which (so we can't leak another
+        // teacher's ownership). Name both, and show the exact key we looked
+        // under so a capitalization/spacing mismatch is obvious.
         if (error && error.code === "PERMISSION_DENIED") {
-          throw new Error("This legacy account cannot be claimed. Verify the account code or sign in with the account that already owns it.");
+          throw new Error(
+            `Could not claim "${legacyKey}". Most often this means no class records exist under that exact code — ` +
+            `it is case-sensitive, so "Abc123" and "abc123" are different accounts (we looked under "${sanitized}"). ` +
+            `Less often, the code is already claimed by a different account. ` +
+            `Your sign-in has NOT been changed.`
+          );
         }
         throw error;
       }
