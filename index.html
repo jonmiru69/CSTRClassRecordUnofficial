@@ -603,39 +603,55 @@
       .app-header,
       .sheet-layout .app-header,
       .sheet-layout .app-header.header-shrunk {
-        min-height: 56px !important;
-        flex: 0 0 56px !important;
+        min-height: 68px !important;
+        flex: 0 0 68px !important;
       }
 
       .app-header-inner,
       .sheet-layout .app-header-inner,
       .sheet-layout .app-header.header-shrunk .app-header-inner {
-        min-height: 56px !important;
-        height: 56px !important;
-        padding: 5px 10px !important;
+        min-height: 68px !important;
+        height: 68px !important;
+        padding: 7px 14px 6px !important;
         grid-template-columns: minmax(0, 1fr) max-content !important;
-        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) !important;
+        grid-template-rows: 37px minmax(18px, 1fr) !important;
         column-gap: 14px !important;
         row-gap: 0 !important;
       }
 
-      .page-context { grid-column: 1; grid-row: 1; }
+      .page-context {
+        grid-column: 1;
+        grid-row: 1;
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
       .app-header .page-context .eyebrow {
         position: relative;
-        top: 3px;
-        margin-bottom: 3px !important;
+        top: auto;
+        margin: 0 0 2px !important;
+        font-size: .58rem !important;
+        line-height: 1 !important;
       }
+      .app-header .app-title { font-size: 1rem !important; line-height: 1.1 !important; }
       .policy-note {
         grid-column: 1;
         grid-row: 2;
+        align-self: end;
+        min-height: 18px;
         justify-content: flex-start !important;
-        padding: 0 !important;
-        font-size: .61rem !important;
+        padding: 4px 0 0 !important;
+        border-top: 1px solid rgba(120, 0, 0, .18);
+        color: rgba(79, 0, 0, .78) !important;
+        font-size: .58rem !important;
         text-align: left !important;
         white-space: nowrap;
       }
 
-      .policy-note::before { width: 5px; height: 5px; flex-basis: 5px; }
+      .policy-note::before { content: none !important; }
+      .policy-note strong { color: #780000 !important; }
+      .policy-note strong::after { content: " · "; color: rgba(79, 0, 0, .54); font-weight: 400; }
       .header-actions-wrap { grid-column: 2; grid-row: 1 / span 2; }
 
       /* Center each HPS value in its cell, including the compact grade sheet. */
@@ -747,7 +763,7 @@
               note.className = "policy-note";
               note.setAttribute("role", "note");
               note.setAttribute("aria-label", "Grading system compliance");
-              note.innerHTML = '<strong>DepEd Grading System Compliance</strong><span>DepEd Order No. 15, s. 2026</span>';
+              note.innerHTML = '<strong>DepEd grading compliance</strong><span>Order No. 15, s. 2026</span>';
             }
             const context = header.querySelector(".page-context");
             if (context && context.nextElementSibling !== note) context.after(note);
