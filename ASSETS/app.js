@@ -1380,25 +1380,33 @@
     // code as a real password credential too — the missing piece that used
     // to leave people unable to sign in later with email + password — before
     // binding the class-record data itself.
+    // Bind the class records FIRST. Only once that has actually succeeded do
+    // we attach the account code as a password. Doing it the other way round
+    // meant every failed attempt linked a password and then unlinked it again
+    // during rollback, leaving the account Google-only — which is why a failed
+    // claim was always followed by "incorrect password" on the sign-in screen.
     const alreadyHadPassword = window.CSTRSync.hasPasswordProvider(user);
-    let justLinkedPassword = false;
     try {
-      if (!alreadyHadPassword) {
-        await window.CSTRSync.setInitialPassword(legacyKey);
-        justLinkedPassword = true;
-      }
       const profile = await window.CSTRSync.bindLegacyAccount(legacyKey, user);
-      document.querySelector(".modal-backdrop")?.remove();
 
-      completeSignInSession(profile, user);
-      alert(`SECURITY UPGRADE COMPLETE:\n\nYour account has been linked to ${user.email}.\nFrom now on you can also sign in with:\nEmail: ${user.email}\nPassword: your account code\n\nYou can change this password anytime from Settings.\n\nLoading your existing class records...`);
-    } catch (err) {
-      // If we just attached a password but the bind step failed right after
-      // (wrong code, no data found, etc.), undo the password so a bad
-      // attempt doesn't leave a stray/incorrect credential on the account.
-      if (justLinkedPassword) {
-        try { await window.CSTRSync.unlinkPasswordProvider(); } catch (cleanupErr) { console.warn("Cleanup of linked password failed", cleanupErr); }
+      let passwordReady = true;
+      if (!alreadyHadPassword) {
+        try {
+          await window.CSTRSync.setInitialPassword(legacyKey);
+        } catch (pwErr) {
+          // The records are bound and safe at this point; only the optional
+          // email+password convenience failed. Never fail the whole claim here.
+          passwordReady = false;
+          console.warn("Password setup after successful bind failed", pwErr);
+        }
       }
+
+      document.querySelector(".modal-backdrop")?.remove();
+      completeSignInSession(profile, user);
+      alert(passwordReady
+        ? `SECURITY UPGRADE COMPLETE:\n\nYour account has been linked to ${user.email}.\nFrom now on you can also sign in with:\nEmail: ${user.email}\nPassword: your account code\n\nYou can change this password anytime from Settings.\n\nLoading your existing class records...`
+        : `YOUR RECORDS ARE LINKED to ${user.email}.\n\nWe could not set up email + password sign-in this time, so please keep using "Continue with Google" to sign in. You can set a password anytime from Settings.\n\nLoading your existing class records...`);
+    } catch (err) {
       if (error) {
         if (err.code === "auth/credential-already-in-use" || err.code === "auth/email-already-in-use") {
           error.textContent = "That code is already used as a password by another account. Please double-check your exact account code.";
@@ -1433,7 +1441,6 @@
       </aside>
       <div class="app-main"><header class="app-header"><div class="app-header-inner">
         <div class="page-context"><p class="eyebrow">Teacher workspace</p><h1 class="app-title">${viewTitle}</h1></div>
-        <p class="policy-note">This class record respectfully adheres to the grading system prescribed under DepEd Order No. 15, s. 2026.</p>
         <div class="header-actions-wrap"><div class="save-feedback"><p id="statusMessage" class="save-status" role="status" aria-live="polite"></p><p id="saveMeta" class="save-meta" aria-live="polite"></p></div>
           ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", 'id="saveChanges"')}
         </div>
@@ -2944,14 +2951,14 @@
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
     const syncStatusLine = !isSyncConfigured()
-      ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 0; padding: 10px 12px;"> Live sync isn't set up yet. See FIREBASE_SETUP.md in the repo, fill in ASSETS/firebase-sync.js, and redeploy.</p>`
+      ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> Live sync isn't set up yet. See FIREBASE_SETUP.md in the repo, fill in ASSETS/firebase-sync.js, and redeploy.</p>`
       : isStale
-        ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 0; padding: 10px 12px;"> Another device saved changes here${pendingRemoteAt ? ` at ${safeValue(new Date(pendingRemoteAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}` : ""} while you had unsaved edits. Choose which version to keep:</p>
+        ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> Another device saved changes here${pendingRemoteAt ? ` at ${safeValue(new Date(pendingRemoteAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}` : ""} while you had unsaved edits. Choose which version to keep:</p>
            <div class="stack-actions">${button("Keep the OTHER device's version", "take-remote-version", "button button-primary")} ${button("Keep THIS device's version", "keep-local-version")}</div>`
         : `<p class="settings-note"> Live sync connected. Changes saved here appear on every other device automatically — nothing to type in.</p>`;
     modal.innerHTML = `<section class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle"><div class="section-heading"><div><p class="eyebrow">Workspace preferences</p><h2 id="settingsTitle">Settings</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
       ${syncStatusLine}
-      ${lastLoadError ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 0; padding: 10px 12px;"> ${safeValue(lastLoadError)}</p>` : ""}
+      ${lastLoadError ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> ${safeValue(lastLoadError)}</p>` : ""}
       ${renderAccountSection()}
       <div class="section-heading" style="margin-top: 22px;"><div><p class="eyebrow">Recovery</p><h2 style="font-size: 1.1rem;">Restore a previous version</h2></div></div>
       <p class="settings-note">Every time changes are saved, the state just before that save is kept here on this device — use this if a value was cleared or deleted by accident. Restoring loads that version into the app; you'll still need to save it to sync the rollback to every device.</p>
