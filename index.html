@@ -514,6 +514,146 @@
       .record-table .descriptor-cell,
       .record-table .descriptor-cell * { font-family: var(--font-body) !important; }
 
+      /* Focused visual corrections from the revised interface review. */
+      @media (min-width: 761px) {
+        /* The visible "Learner lookup" label was competing with the input in
+           a compact, fixed-height search block. The search itself is already
+           clearly labelled for assistive technology. */
+        .sidebar-search-block > .sidebar-label { display: none !important; }
+      }
+
+      /* Each grading period reads as a finished control; the old shared
+         tray behind it has been removed. */
+      .class-period-area .period-tabs,
+      .sheet-layout .class-period-area .period-tabs {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+
+      .class-period-area .period-tabs .tab,
+      .sheet-layout .class-period-area .period-tabs .tab {
+        min-height: 30px !important;
+        padding: 5px 10px !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        color: #780000 !important;
+        background: #fff8f1 !important;
+        box-shadow: 0 1px 3px rgba(120, 0, 0, .09) !important;
+      }
+
+      .class-period-area .period-tabs .tab[aria-selected="true"] {
+        color: #780000 !important;
+        background: #fff1e6 !important;
+        box-shadow: inset 0 -2px 0 #c1121f, 0 1px 3px rgba(120, 0, 0, .09) !important;
+      }
+
+      .period-completion-dot {
+        width: 6px;
+        height: 6px;
+        overflow: hidden;
+        display: inline-block;
+        flex: 0 0 6px;
+        border-radius: 50%;
+        color: transparent !important;
+        background: #c1121f;
+      }
+
+      .period-tabs .tab:has(.period-completion-dot[aria-label="Finalized"]) .period-completion-dot { background: #4c8a59; }
+
+      /* Section metadata is now plain, aligned text instead of a row of
+         button-like chips. */
+      .class-context-line > span {
+        min-height: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+      }
+
+      .class-context-line > span + span::before {
+        content: "•";
+        margin-right: 7px;
+        color: #c1121f;
+      }
+
+      /* The subject remains interactive, but presents as a clean underlined
+         label rather than as a bordered control. */
+      .subject-picker summary,
+      .sheet-layout .subject-picker summary {
+        min-height: 0 !important;
+        padding: 0 0 3px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        color: #780000 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        text-decoration: underline;
+        text-decoration-color: #c1121f;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 4px;
+      }
+
+      .subject-picker summary:hover { color: #c1121f !important; }
+
+      /* Keep the policy line immediately below the current page title. */
+      .app-header,
+      .sheet-layout .app-header,
+      .sheet-layout .app-header.header-shrunk {
+        min-height: 56px !important;
+        flex: 0 0 56px !important;
+      }
+
+      .app-header-inner,
+      .sheet-layout .app-header-inner,
+      .sheet-layout .app-header.header-shrunk .app-header-inner {
+        min-height: 56px !important;
+        height: 56px !important;
+        padding: 5px 10px !important;
+        grid-template-columns: minmax(0, 1fr) max-content !important;
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) !important;
+        column-gap: 14px !important;
+        row-gap: 0 !important;
+      }
+
+      .page-context { grid-column: 1; grid-row: 1; }
+      .policy-note {
+        grid-column: 1;
+        grid-row: 2;
+        justify-content: flex-start !important;
+        padding: 0 !important;
+        font-size: .61rem !important;
+        text-align: left !important;
+        white-space: nowrap;
+      }
+
+      .policy-note::before { width: 5px; height: 5px; flex-basis: 5px; }
+      .header-actions-wrap { grid-column: 2; grid-row: 1 / span 2; }
+
+      /* Center each HPS value in its cell, including the compact grade sheet. */
+      .compact-record .hps-input-row td {
+        text-align: center !important;
+        vertical-align: middle !important;
+      }
+
+      .compact-record .hps-input-row input,
+      .compact-record .hps-input-row input[data-hps] {
+        display: block !important;
+        margin: 0 auto !important;
+        text-align: center !important;
+      }
+
+      /* Softer, premium corners for the teacher portrait and its frame. */
+      .photo-frame,
+      .photo-frame .profile-photo,
+      .profile-editor .photo-frame,
+      .profile-editor .profile-photo {
+        border-radius: 14px !important;
+      }
+
       @media (max-width: 1180px) {
         .policy-note { justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; }
         .policy-note strong { display: none; }
