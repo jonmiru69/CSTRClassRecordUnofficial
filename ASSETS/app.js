@@ -1604,6 +1604,7 @@
               ${button(`${icon(period.locked ? "unlock" : "lock")} ${period.locked ? "Unlock" : "Lock"} period`, "toggle-lock-period", "button button-secondary")}
               ${button(`${icon("trash")} Delete period`, "delete-period", "button button-danger", period.locked ? "disabled" : "")}
               ${button(`${icon("print")} Excel`, "export-excel", "button button-secondary", 'aria-label="Download print-ready Excel sheet" title="Download print-ready Excel sheet"')}
+              ${button(`${icon("print")} Export to Official E-Gradesheet`, "export-official", "button button-primary", 'aria-label="Export this class as the official e-gradesheet in PDF or Word" title="Export this class as the official e-gradesheet in PDF or Word"')}
             </div>
           </div></details>
         </div>
@@ -2139,6 +2140,143 @@
     const safeName = `${section.level}-${section.subject}-${section.section || "Section"}-${period.name}`.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
     XLSX.writeFile(workbook, `${safeName || "class-record"}.xlsx`, { cellStyles: true });
     setStatus("Print-ready Excel file created with live formulas, Transmuted Grades, and Descriptors.");
+  }
+
+  function currentSchoolYear() {
+    const now = new Date();
+    const calendarYear = now.getFullYear();
+    const startYear = now.getMonth() >= 5 ? calendarYear : calendarYear - 1;
+    return `${startYear}-${startYear + 1}`;
+  }
+
+  function renderOfficialExportModal() {
+    const section = currentSection();
+    if (!section) {
+      setStatus("Open a class grade sheet before exporting the official e-gradesheet.", "error");
+      return;
+    }
+    if (!window.CSTROfficialGradesheet || !window.PDFLib || !window.docx) {
+      setStatus("The official e-gradesheet exporter did not load. Refresh the page and try again.", "error");
+      return;
+    }
+    document.querySelector(".modal-backdrop")?.remove();
+    const modal = document.createElement("div");
+    modal.className = "modal-backdrop official-export-backdrop";
+    modal.innerHTML = `<section class="modal official-export-modal" role="dialog" aria-modal="true" aria-labelledby="officialExportTitle">
+      <div class="section-heading">
+        <div><p class="eyebrow">Official school format</p><h2 id="officialExportTitle">Export to Official E-Gradesheet</h2></div>
+        ${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}
+      </div>
+      <p class="official-export-intro">This export uses the attached CST-R Form 1 layout and the live data from <strong>${escapeHtml(section.subject)}</strong>${section.section ? ` for <strong>${escapeHtml(section.section)}</strong>` : ""}. It includes the first four grading periods and the computed final grade.</p>
+      <div class="settings-grid official-export-grid">
+        <label>School year
+          <input id="officialSchoolYear" value="${safeValue(currentSchoolYear())}" inputmode="numeric" placeholder="2026-2027" aria-describedby="officialExportAccuracy">
+        </label>
+        <label>School principal
+          <input id="officialPrincipalName" value="MARINELL T. OCAMPO, PhD, LPT" placeholder="Principal's full name and credentials" aria-describedby="officialExportAccuracy">
+        </label>
+        <label>Subject teacher
+          <input id="officialTeacherName" value="${safeValue(state.teacher.name || currentUserName() || "")}" placeholder="Teacher's full name" aria-describedby="officialExportAccuracy">
+        </label>
+      </div>
+      <p id="officialExportAccuracy" class="official-export-accuracy">Check these official details before downloading. Blank or incomplete grades stay blank in the export; the exporter never invents missing scores.</p>
+      <div class="official-export-format-note"><strong>Output:</strong> US Letter portrait, CST-R Form 1 headings, official 1-4 and F rows, principal and teacher signature area, and the selected class's current computed grades.</div>
+      <div class="stack-actions official-export-actions">
+        <button type="button" class="button button-secondary" data-action="export-official-word">Download Word (.docx)</button>
+        <button type="button" class="button button-primary" data-action="export-official-pdf">Download PDF (.pdf)</button>
+      </div>
+    </section>`;
+    document.body.append(modal);
+    modal.querySelector("#officialSchoolYear")?.focus();
+  }
+
+  function officialExportPayload() {
+    const section = currentSection();
+    const periods = (state.sections[section.id] && state.sections[section.id].periods) || [];
+    const rosterLength = periods.reduce((maximum, period) => Math.max(maximum, Array.isArray(period.roster) ? period.roster.length : 0), 0);
+    const students = [];
+    const rosterConflicts = [];
+
+    for (let rowIndex = 0; rowIndex < rosterLength; rowIndex += 1) {
+      const rowNames = periods
+        .map((period) => period.roster && period.roster[rowIndex] && period.roster[rowIndex].name)
+        .map((name) => String(name || "").trim())
+        .filter((name) => name && !getLearnerCategory(name));
+      const distinctNames = [...new Map(rowNames.map((name) => [normalizedName(name), name])).values()];
+      if (distinctNames.length > 1) rosterConflicts.push({ row: rowIndex + 1, names: distinctNames });
+      const sourceName = rowNames[0];
+      const name = String(sourceName || "").trim();
+      if (!name || getLearnerCategory(name)) continue;
+      const gradePeriods = Array.from({ length: 4 }, (_, periodIndex) => {
+        const period = periods[periodIndex];
+        const learner = period && period.roster && period.roster[rowIndex];
+        if (!period || !learner || normalizedName(learner.name) !== normalizedName(name)) return {};
+        const result = learnerResult(learner, period, section.weights);
+        return {
+          ww: result.ww.weighted,
+          pt: result.pt.weighted,
+          qa: result.qa.weighted,
+          initial: result.initial.rounded,
+          periodical: result.initial.transmuted
+        };
+      });
+      const periodicalGrades = gradePeriods.map((entry) => entry.periodical).filter(Number.isFinite);
+      students.push({
+        name,
+        periods: gradePeriods,
+        finalGrade: periodicalGrades.length === 4
+          ? Math.round(periodicalGrades.reduce((sum, value) => sum + value, 0) / 4)
+          : null
+      });
+    }
+
+    return {
+      schoolYear: document.querySelector("#officialSchoolYear")?.value.trim() || "",
+      principalName: document.querySelector("#officialPrincipalName")?.value.trim() || "",
+      teacherName: document.querySelector("#officialTeacherName")?.value.trim() || "",
+      level: section.level,
+      section: section.section,
+      subject: section.subject,
+      weights: section.weights,
+      students,
+      rosterConflicts
+    };
+  }
+
+  async function exportOfficialGradeSheet(formatName, trigger) {
+    const payload = officialExportPayload();
+    const schoolYearMatch = payload.schoolYear.match(/^(\d{4})-(\d{4})$/);
+    if (!schoolYearMatch || Number(schoolYearMatch[2]) !== Number(schoolYearMatch[1]) + 1) {
+      showSaveToast("Enter the school year as YYYY-YYYY before exporting.", "error");
+      document.querySelector("#officialSchoolYear")?.focus();
+      return;
+    }
+    if (!payload.principalName || !payload.teacherName) {
+      showSaveToast("Enter both the principal and subject teacher names before exporting.", "error");
+      return;
+    }
+    if (payload.rosterConflicts.length) {
+      const rows = payload.rosterConflicts.slice(0, 5).map((entry) => entry.row).join(", ");
+      const extra = payload.rosterConflicts.length > 5 ? ` and ${payload.rosterConflicts.length - 5} more` : "";
+      showSaveToast(`Learner names differ across grading periods on roster row${payload.rosterConflicts.length === 1 ? "" : "s"} ${rows}${extra}. Make the names and row order match before exporting.`, "error");
+      return;
+    }
+    const originalLabel = trigger.textContent;
+    trigger.disabled = true;
+    trigger.textContent = formatName === "pdf" ? "Creating PDF..." : "Creating Word file...";
+    try {
+      if (formatName === "pdf") await window.CSTROfficialGradesheet.exportPdf(payload);
+      else await window.CSTROfficialGradesheet.exportWord(payload);
+      document.querySelector(".official-export-backdrop")?.remove();
+      const formatLabel = formatName === "pdf" ? "PDF" : "Word";
+      setStatus(`Official e-gradesheet ${formatLabel} created from the current class record.`);
+      showSaveToast(`Official e-gradesheet ${formatLabel} downloaded.`);
+    } catch (error) {
+      console.error("Official e-gradesheet export failed", error);
+      trigger.disabled = false;
+      trigger.textContent = originalLabel;
+      showSaveToast(error && error.message ? error.message : "The official e-gradesheet could not be created.", "error");
+    }
   }
 
   function normalizedName(value) {
@@ -3431,6 +3569,9 @@
     }
 
     if (action === "export-excel") exportCurrentSheet();
+    if (action === "export-official") { renderOfficialExportModal(); return; }
+    if (action === "export-official-pdf") { exportOfficialGradeSheet("pdf", target); return; }
+    if (action === "export-official-word") { exportOfficialGradeSheet("word", target); return; }
 
     if (action === "set-archive-filter") {
       archiveFilter = target.dataset.filter;

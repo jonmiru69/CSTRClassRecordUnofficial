@@ -202,3 +202,56 @@
   .sidebar-brand-copy, .sidebar-link > span:not(.sidebar-logo),
   .sidebar-label, .sidebar-search, .sidebar-owner { transition: none !important; }
 }
+/* Official e-gradesheet export dialog */
+.official-export-modal {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.official-export-intro {
+  margin: 10px 0 18px;
+  color: var(--muted, #52606d);
+  line-height: 1.55;
+}
+
+.official-export-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.official-export-grid label:last-child {
+  grid-column: 1 / -1;
+}
+
+.official-export-accuracy,
+.official-export-format-note {
+  margin: 14px 0 0;
+  color: var(--muted, #52606d);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.official-export-format-note {
+  padding: 12px 14px;
+  border: 1px solid rgba(109, 31, 50, 0.18);
+  border-radius: 12px;
+  background: rgba(217, 167, 46, 0.08);
+  color: #3f2c31;
+}
+
+.official-export-actions {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+@media (max-width: 640px) {
+  .official-export-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .official-export-grid label:last-child {
+    grid-column: auto;
+  }
+
+  .official-export-actions .button {
+    width: 100%;
+  }
+}
