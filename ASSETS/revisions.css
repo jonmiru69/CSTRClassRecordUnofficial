@@ -229,6 +229,41 @@
   line-height: 1.5;
 }
 
+.official-export-message {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.official-export-message.success {
+  border-color: #86c99a;
+  background: #edf9f0;
+  color: #225c33;
+}
+
+.official-export-message.warning {
+  border-color: #dfba62;
+  background: #fff8e5;
+  color: #6b4d08;
+}
+
+.official-export-message.error {
+  border-color: #d99797;
+  background: #fff1f1;
+  color: #842929;
+}
+
+.official-export-message.working {
+  border-color: #94b9d8;
+  background: #eef7ff;
+  color: #23577d;
+}
+
 .official-export-format-note {
   padding: 12px 14px;
   border: 1px solid rgba(109, 31, 50, 0.18);

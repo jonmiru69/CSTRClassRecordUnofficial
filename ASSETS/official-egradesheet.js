@@ -484,9 +484,10 @@
     anchor.click();
     anchor.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1500);
+    return { filename, delivery: "browser-download-requested" };
   }
 
-  async function exportPdf(rawPayload) {
+  async function createPdf(rawPayload) {
     if (!root.PDFLib || !root.PDFLib.PDFDocument) throw new Error("The PDF export library is unavailable.");
     const payload = normalizePayload(rawPayload || {});
     const pngs = await pagePngs(payload);
@@ -501,11 +502,12 @@
       page.drawImage(image, { x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT });
     }
     const bytes = await pdf.save({ useObjectStreams: false });
-    downloadBlob(new Blob([bytes], { type: "application/pdf" }), officialFilename(payload, "pdf"));
-    return { filename: officialFilename(payload, "pdf"), pages: pngs.length, bytes };
+    const filename = officialFilename(payload, "pdf");
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    return { filename, pages: pngs.length, bytes, blob };
   }
 
-  async function exportWord(rawPayload) {
+  async function createWord(rawPayload) {
     if (!root.docx || !root.docx.Document || !root.docx.Packer) throw new Error("The Word export library is unavailable.");
     const payload = normalizePayload(rawPayload || {});
     const pngs = await pagePngs(payload);
@@ -534,16 +536,30 @@
       sections
     });
     const blob = await docxApi.Packer.toBlob(documentFile);
-    downloadBlob(blob, officialFilename(payload, "docx"));
     return { filename: officialFilename(payload, "docx"), pages: pngs.length, blob };
+  }
+
+  async function exportPdf(rawPayload) {
+    const artifact = await createPdf(rawPayload);
+    downloadBlob(artifact.blob, artifact.filename);
+    return { ...artifact, delivery: "browser-download-requested" };
+  }
+
+  async function exportWord(rawPayload) {
+    const artifact = await createWord(rawPayload);
+    downloadBlob(artifact.blob, artifact.filename);
+    return { ...artifact, delivery: "browser-download-requested" };
   }
 
   return {
     normalizePayload,
     buildRows: (payload) => flattenRows(normalizePayload(payload || {})),
     renderPages,
+    createPdf,
+    createWord,
     exportPdf,
     exportWord,
+    downloadBlob,
     officialFilename
   };
 });

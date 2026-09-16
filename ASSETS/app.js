@@ -2180,13 +2180,16 @@
         </label>
       </div>
       <p id="officialExportAccuracy" class="official-export-accuracy">Check these official details before downloading. Blank or incomplete grades stay blank in the export; the exporter never invents missing scores.</p>
+      <p id="officialExportMessage" class="official-export-message" role="status" aria-live="polite"></p>
       <div class="official-export-format-note"><strong>Output:</strong> US Letter portrait, CST-R Form 1 headings, official 1-4 and F rows, principal and teacher signature area, and the selected class's current computed grades.</div>
       <div class="stack-actions official-export-actions">
-        <button type="button" class="button button-secondary" data-action="export-official-word">Download Word (.docx)</button>
-        <button type="button" class="button button-primary" data-action="export-official-pdf">Download PDF (.pdf)</button>
+        <button type="button" class="button button-secondary" data-action="export-official-word">Save Word (.docx)</button>
+        <button type="button" class="button button-primary" data-action="export-official-pdf">Save PDF (.pdf)</button>
       </div>
     </section>`;
     document.body.append(modal);
+    const readiness = officialExportReadiness(officialExportPayload());
+    setOfficialExportMessage(readiness.message, readiness.type);
     modal.querySelector("#officialSchoolYear")?.focus();
   }
 
@@ -2239,7 +2242,52 @@
       subject: section.subject,
       weights: section.weights,
       students,
-      rosterConflicts
+      rosterConflicts,
+      sourcePeriodCount: Math.min(periods.length, 4)
+    };
+  }
+
+  function officialExportReadiness(payload) {
+    const learnerCount = payload.students.length;
+    if (!learnerCount) {
+      return {
+        type: "info",
+        message: "No named learners are currently in this class. Export is allowed and will create a blank official form."
+      };
+    }
+    const expectedGrades = learnerCount * 4;
+    const completedGrades = payload.students.reduce((count, student) => count + student.periods.filter((period) => Number.isFinite(period.periodical)).length, 0);
+    const finalGrades = payload.students.filter((student) => Number.isFinite(student.finalGrade)).length;
+    if (completedGrades === expectedGrades && finalGrades === learnerCount) {
+      return {
+        type: "success",
+        message: `Ready to export: all four period grades and final grades are calculated for ${learnerCount} learner${learnerCount === 1 ? "" : "s"}.`
+      };
+    }
+    const missingGrades = expectedGrades - completedGrades;
+    return {
+      type: "warning",
+      message: `This class record is incomplete, but it is still exportable. ${missingGrades} of ${expectedGrades} period grade field${expectedGrades === 1 ? " is" : "s are"} not yet calculated. Missing component, initial, period, and final grades will remain blank; no grade will be invented.`
+    };
+  }
+
+  function setOfficialExportMessage(message, type = "info") {
+    const messageBox = document.querySelector("#officialExportMessage");
+    if (!messageBox) return;
+    messageBox.textContent = message;
+    messageBox.className = `official-export-message ${type}`;
+  }
+
+  function officialSavePickerOptions(formatName, suggestedName) {
+    const pdf = formatName === "pdf";
+    return {
+      suggestedName,
+      types: [{
+        description: pdf ? "PDF document" : "Microsoft Word document",
+        accept: pdf
+          ? { "application/pdf": [".pdf"] }
+          : { "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"] }
+      }]
     };
   }
 
@@ -2247,35 +2295,90 @@
     const payload = officialExportPayload();
     const schoolYearMatch = payload.schoolYear.match(/^(\d{4})-(\d{4})$/);
     if (!schoolYearMatch || Number(schoolYearMatch[2]) !== Number(schoolYearMatch[1]) + 1) {
-      showSaveToast("Enter the school year as YYYY-YYYY before exporting.", "error");
+      const message = "Enter the school year as YYYY-YYYY before exporting. No file was created.";
+      setOfficialExportMessage(message, "error");
+      showSaveToast(message, "error");
       document.querySelector("#officialSchoolYear")?.focus();
       return;
     }
     if (!payload.principalName || !payload.teacherName) {
-      showSaveToast("Enter both the principal and subject teacher names before exporting.", "error");
+      const message = "Enter both the principal and subject teacher names before exporting. No file was created.";
+      setOfficialExportMessage(message, "error");
+      showSaveToast(message, "error");
       return;
     }
     if (payload.rosterConflicts.length) {
       const rows = payload.rosterConflicts.slice(0, 5).map((entry) => entry.row).join(", ");
       const extra = payload.rosterConflicts.length > 5 ? ` and ${payload.rosterConflicts.length - 5} more` : "";
-      showSaveToast(`Learner names differ across grading periods on roster row${payload.rosterConflicts.length === 1 ? "" : "s"} ${rows}${extra}. Make the names and row order match before exporting.`, "error");
+      const message = `Learner names differ across grading periods on roster row${payload.rosterConflicts.length === 1 ? "" : "s"} ${rows}${extra}. Make the names and row order match before exporting. No file was created.`;
+      setOfficialExportMessage(message, "error");
+      showSaveToast(message, "error");
       return;
     }
+    const formatLabel = formatName === "pdf" ? "PDF" : "Word";
+    const extension = formatName === "pdf" ? "pdf" : "docx";
+    const exporter = window.CSTROfficialGradesheet;
+    const suggestedName = exporter.officialFilename(payload, extension);
     const originalLabel = trigger.textContent;
-    trigger.disabled = true;
-    trigger.textContent = formatName === "pdf" ? "Creating PDF..." : "Creating Word file...";
+    const exportButtons = [...document.querySelectorAll('[data-action="export-official-pdf"], [data-action="export-official-word"]')];
+    exportButtons.forEach((buttonElement) => { buttonElement.disabled = true; });
+    let fileHandle = null;
+    let writable = null;
+    let writeStarted = false;
+    const useSavePicker = typeof window.showSaveFilePicker === "function";
     try {
-      if (formatName === "pdf") await window.CSTROfficialGradesheet.exportPdf(payload);
-      else await window.CSTROfficialGradesheet.exportWord(payload);
+      if (useSavePicker) {
+        trigger.textContent = "Choose save location...";
+        setOfficialExportMessage(`Choose where to save the official ${formatLabel} file. Nothing has been saved yet.`, "working");
+        fileHandle = await window.showSaveFilePicker(officialSavePickerOptions(formatName, suggestedName));
+      }
+      trigger.textContent = formatName === "pdf" ? "Preparing PDF..." : "Preparing Word file...";
+      setOfficialExportMessage(`Preparing the official ${formatLabel} from the current class record. Please keep this page open.`, "working");
+      const artifact = formatName === "pdf"
+        ? await exporter.createPdf(payload)
+        : await exporter.createWord(payload);
+      if (fileHandle) {
+        trigger.textContent = `Saving ${formatLabel}...`;
+        setOfficialExportMessage(`The ${formatLabel} is ready and is now being written to the selected location.`, "working");
+        writable = await fileHandle.createWritable();
+        writeStarted = true;
+        await writable.write(artifact.blob);
+        await writable.close();
+        writable = null;
+      } else {
+        exporter.downloadBlob(artifact.blob, artifact.filename);
+      }
       document.querySelector(".official-export-backdrop")?.remove();
-      const formatLabel = formatName === "pdf" ? "PDF" : "Word";
-      setStatus(`Official e-gradesheet ${formatLabel} created from the current class record.`);
-      showSaveToast(`Official e-gradesheet ${formatLabel} downloaded.`);
+      if (fileHandle) {
+        setStatus(`Official e-gradesheet ${formatLabel} saved successfully as ${fileHandle.name || artifact.filename}.`);
+        showSaveToast(`Official e-gradesheet ${formatLabel} saved successfully.`);
+      } else {
+        const message = `Official e-gradesheet ${formatLabel} was prepared and sent to the browser's Downloads. If no download appears, allow downloads for this page and try again.`;
+        setStatus(message);
+        showSaveToast(message, "info");
+      }
     } catch (error) {
-      console.error("Official e-gradesheet export failed", error);
-      trigger.disabled = false;
+      if (writable && typeof writable.abort === "function") {
+        try { await writable.abort(); } catch (_) {}
+      }
+      exportButtons.forEach((buttonElement) => { buttonElement.disabled = false; });
       trigger.textContent = originalLabel;
-      showSaveToast(error && error.message ? error.message : "The official e-gradesheet could not be created.", "error");
+      if (error && error.name === "AbortError") {
+        const message = "Export canceled. No file was saved.";
+        setOfficialExportMessage(message, "info");
+        showSaveToast(message, "info");
+        return;
+      }
+      console.error("Official e-gradesheet export failed", error);
+      const detail = error && error.message ? ` ${error.message}` : "";
+      const message = writeStarted
+        ? `The ${formatLabel} could not be saved completely.${detail} Check the selected location and try again.`
+        : fileHandle
+          ? `The official ${formatLabel} could not be created.${detail} Nothing was written to the selected file.`
+          : `The official ${formatLabel} could not be created.${detail} No file was saved.`;
+      setOfficialExportMessage(message, "error");
+      setStatus(message, "error");
+      showSaveToast(message, "error");
     }
   }
 
