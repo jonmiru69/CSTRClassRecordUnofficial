@@ -87,3 +87,13 @@ Not yet verified: live Firebase deployment, actual OAuth popup end-to-end,
 production database-rule behavior, real cross-device saves, and opening the
 export in Microsoft Excel. Complete the secure-registration guide's live checks
 before release. The files have not been pushed to GitHub or deployed by this task.
+
+## Per-period rosters (learner rows)
+
+Each grading period/quarter now has its own learner list. Editing a name,
+adding rows, or deleting a row in one period does not touch the other periods
+on the same sheet. A learner who stopped attending after the 1st grading keeps
+their 1st grading row and grades; delete their row only in the 2nd grading.
+Existing saved data loads exactly as before. The official PDF/Word export
+matches learners by name across periods (no more "names differ" block), leaving
+blank grades for periods a learner was not listed in.

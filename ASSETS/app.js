@@ -457,7 +457,7 @@
           wwHps: fitArray(period.wwHps, wwLen),
           ptHps: fitArray(period.ptHps, ptLen),
           qaHps: fitArray(period.qaHps, qaLen),
-          roster: Array.from({ length: section.rosterSize || 50 }, (_, index) => {
+          roster: Array.from({ length: Array.isArray(period.roster) && period.roster.length ? period.roster.length : (section.rosterSize || 50) }, (_, index) => {
             const learner = Array.isArray(period.roster) ? period.roster[index] : null;
             return {
               name: learner && typeof learner.name === "string" ? learner.name : "",
@@ -491,11 +491,10 @@
     return bucket && Array.isArray(bucket.periods) ? bucket.periods[activePeriodIndex] : undefined;
   }
 
-  // Every grading period in a section shares one roster array length
-  // (addRosterSlots keeps them all in sync). That means adding or removing
-  // roster rows edits every period's data at once, including a locked one —
-  // so those roster-wide actions must stay blocked while ANY period in the
-  // section is locked, not just the one currently on screen.
+  // Rosters belong to each grading period individually, so adding/removing
+  // learner rows only needs the CURRENT period unlocked. Grading weights and
+  // subject are still section-wide, so those stay blocked while ANY period in
+  // the section is locked.
   function sectionHasLockedPeriod(section) {
     const bucket = section && state.sections[section.id];
     return !!(bucket && Array.isArray(bucket.periods) && bucket.periods.some((p) => p.locked));
@@ -561,7 +560,7 @@
       const periods = state.sections[section.id] && Array.isArray(state.sections[section.id].periods) ? state.sections[section.id].periods : [];
       totalPeriods += periods.length;
       lockedPeriods += periods.filter((period) => window.CSTRRecordTools.completion(period).complete).length;
-      if (periods[0] && Array.isArray(periods[0].roster)) learners += computeLearnerNumbering(periods[0].roster).totalLearners;
+      learners += computeLearnerNumbering(currentRosterOf(periods)).totalLearners;
     });
     const completion = totalPeriods ? Math.round((lockedPeriods / totalPeriods) * 100) : 0;
     return { activeSections, archivedSections, learners, totalPeriods, lockedPeriods, completion };
@@ -637,6 +636,17 @@
       return count;
     });
     return { numbering, totalLearners: count };
+  }
+
+  // Rosters are per grading period, so a class's current headcount comes from
+  // the latest period that actually lists learners (someone who left earlier no
+  // longer counts). Falls back to the first period for a brand-new class.
+  function currentRosterOf(periods) {
+    for (let i = periods.length - 1; i >= 0; i -= 1) {
+      const roster = periods[i] && periods[i].roster;
+      if (Array.isArray(roster) && computeLearnerNumbering(roster).totalLearners > 0) return roster;
+    }
+    return periods[0] && Array.isArray(periods[0].roster) ? periods[0].roster : [];
   }
 
   function updateAllNumberingAndCounts() {
@@ -1453,7 +1463,7 @@
     const portrait = state.photo ? `<img class="profile-photo" src="${state.photo}" alt="Teacher portrait">` : `<span class="silhouette" aria-hidden="true"></span><span class="photo-caption">Upload photo</span>`;
     const recentClasses = metrics.activeSections.slice(0, 4).map((section) => {
       const periods = state.sections[section.id] && state.sections[section.id].periods ? state.sections[section.id].periods : [];
-      const learnerCount = periods[0] ? computeLearnerNumbering(periods[0].roster).totalLearners : 0;
+      const learnerCount = computeLearnerNumbering(currentRosterOf(periods)).totalLearners;
       const locked = periods.filter((period) => window.CSTRRecordTools.completion(period).complete).length;
       return `<button type="button" class="recent-class-row" data-action="select-section" data-section="${section.id}">
         <span class="recent-class-accent accent-${section.accent || section.theme}" aria-hidden="true"></span>
@@ -1613,7 +1623,7 @@
       <div id="periodIntegrity">${integrityNote}</div>
       <div class="sheet-utilities">
         ${button(`${icon("back")}<span>Sections</span>`, "go-records", "button button-ghost")}
-        <details class="roster-options"><summary>${icon("plus")}<span>Learner rows</span>${icon("chevron")}</summary><div class="bulk-column-tools roster-slots-tools"><label for="rosterSlotCount">Add learner rows</label><input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" ${sectionLocked ? "disabled" : ""}>${button("Add rows","add-roster-slots","button button-secondary",sectionLocked ? "disabled" : "")}</div></details>
+        <details class="roster-options"><summary>${icon("plus")}<span>Learner rows</span>${icon("chevron")}</summary><div class="bulk-column-tools roster-slots-tools"><label for="rosterSlotCount">Add learner rows (this period only)</label><input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" ${period.locked ? "disabled" : ""}>${button("Add rows","add-roster-slots","button button-secondary",period.locked ? "disabled" : "")}</div></details>
         <details class="column-options"><summary>Manage columns ${icon("chevron")}</summary><div class="bulk-column-tools" aria-label="Bulk column controls">${renderBulkColumnControl("ww","WW",period.wwDates.length,period.locked)}${renderBulkColumnControl("pt","PT",period.ptDates.length,period.locked)}${renderBulkColumnControl("qa","QA",period.qaDates.length,period.locked)}</div></details>
         <span class="sheet-caption">Assessment entries</span>
         <details class="sheet-help"><summary aria-label="Grade sheet help and legend" title="Grade sheet help and legend">?</summary><div class="sheet-help-panel">
@@ -1676,7 +1686,7 @@
     const qaLabels = qaLen === 3 ? ["ST 1 (30%)", "ST 2 (30%)", "Term Exam (40%)"] : [];
 
     const sectionLocked = sectionHasLockedPeriod(section);
-    const rows = period.roster.map((learner, rowIndex) => renderLearnerRow(learner, rowIndex, period, section, numbering[rowIndex], sectionLocked)).join("");
+    const rows = period.roster.map((learner, rowIndex) => renderLearnerRow(learner, rowIndex, period, section, numbering[rowIndex], period.locked)).join("");
     
     return `<div class="table-wrap"><table class="record-table compact-record"><thead>
       <tr class="component-row">
@@ -1720,7 +1730,7 @@
       </thead><tbody>${rows}</tbody></table></div>`;
   }
 
-  function renderLearnerRow(learner, rowIndex, period, section, numDisplay, sectionLocked) {
+  function renderLearnerRow(learner, rowIndex, period, section, numDisplay, periodLocked) {
     const cat = getLearnerCategory(learner.name);
     const catClass = cat ? `row-category row-category-${cat}` : "";
     const nameShade = sectionNameShade(section.accent || section.theme);
@@ -1737,7 +1747,7 @@
       return `<td class="${tdBorderClass}"><input class="${inputClasses}" type="text" inputmode="text" maxlength="6" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cellsDisabled ? 'disabled tabindex="-1"' : ''} title="${invalidMessage || "Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)"}" aria-invalid="${invalidScore || aboveHps}" aria-label="Learner ${rowIndex + 1} ${kind.toUpperCase()} ${index + 1}"></td>`;
     }).join("");
     const result = learnerResult(learner, period, section.weights);
-    const deleteRowBtn = `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${sectionLocked ? "Unlock every grading period to delete rows" : "Delete this row from the roster (every quarter)"}" aria-label="Delete learner ${rowIndex + 1} row" ${sectionLocked ? "disabled" : ""}>${icon("trash")}</button>`;
+    const deleteRowBtn = `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${periodLocked ? "Unlock this grading period to delete rows" : "Remove this learner row from this grading period only"}" aria-label="Delete learner ${rowIndex + 1} row" ${periodLocked ? "disabled" : ""}>${icon("trash")}</button>`;
     return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell" style="--section-name-bg:${nameShade.background};--section-name-color:${nameShade.color};"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td><td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td><td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
   }
 
@@ -1868,72 +1878,65 @@
     showSaveToast("Grading period deleted. Autosave is queued.", "info");
   }
 
-  // Adds more empty name slots to every grading period in the current
-  // section (keeping every period's roster the same length, same as
-  // normalizeState already enforces on load) — for classes that grow past
-  // the default 50-learner capacity. New rows use each period's own current
-  // WW/PT/QA column counts, so the same scoring math (HPS, weights,
-  // percentages) applies to them exactly like every other row.
+  // Adds more empty name slots to the CURRENT grading period only. Every period
+  // keeps its own roster, so a learner who joins or leaves partway through the
+  // year never changes the lists of the other periods. New rows use this
+  // period's own WW/PT/QA column counts, so the same scoring math (HPS,
+  // weights, percentages) applies to them exactly like every other row.
   function addRosterSlots(amount) {
     if (!Number.isInteger(amount) || amount <= 0) return;
     const section = currentSection();
-    if (sectionHasLockedPeriod(section)) {
-      setStatus("Roster changes apply to every grading period — unlock all of them first.", "error");
+    const period = currentPeriod();
+    if (!period) return;
+    if (period.locked) {
+      setStatus("This grading period is locked. Unlock it to add learner rows.", "error");
       return;
     }
-    const periods = state.sections[section.id].periods;
-    periods.forEach((period) => {
-      const wwLen = period.wwDates.length;
-      const ptLen = period.ptDates.length;
-      const qaLen = period.qaDates.length;
-      for (let i = 0; i < amount; i += 1) {
-        period.roster.push({ name: "", ww: Array(wwLen).fill(""), pt: Array(ptLen).fill(""), qa: Array(qaLen).fill("") });
-      }
-    });
-    section.rosterSize = (section.rosterSize || periods[0].roster.length - amount) + amount;
+    const wwLen = period.wwDates.length;
+    const ptLen = period.ptDates.length;
+    const qaLen = period.qaDates.length;
+    for (let i = 0; i < amount; i += 1) {
+      period.roster.push({ name: "", ww: Array(wwLen).fill(""), pt: Array(ptLen).fill(""), qa: Array(qaLen).fill("") });
+    }
+    // rosterSize is only the starting row count for brand-new periods; keep it at
+    // the largest roster so a period added later has room for the whole class.
+    section.rosterSize = Math.max(section.rosterSize || 0, period.roster.length);
     markStateDirty();
     render();
-    setStatus(`Added ${amount} more name slot${amount === 1 ? "" : "s"}. Roster capacity is now ${section.rosterSize}.`);
+    setStatus(`Added ${amount} more name slot${amount === 1 ? "" : "s"} to ${period.name}. Other grading periods are unchanged.`);
   }
 
-  // Removes one name slot at rowIndex from every grading period's roster
-  // (mirroring addRosterSlots, which adds to every period at once) so all
-  // periods keep the same roster length. Asks for confirmation since this
-  // deletes real data — the learner's name and every score entered for them
-  // across every quarter in this class.
+  // Removes one name slot from the CURRENT grading period only (e.g. a learner
+  // who stopped attending in the 2nd grading is removed from the 2nd grading
+  // list while her 1st grading row and grades stay untouched). Asks for
+  // confirmation when the row holds a name or scores.
   function deleteRosterRow(rowIndex) {
-    const section = currentSection();
-    const periods = state.sections[section.id].periods;
-    if (!periods.length || !periods[0].roster.length) return;
-    if (rowIndex < 0 || rowIndex >= periods[0].roster.length) return;
-    if (periods[0].roster.length <= 1) {
+    const period = currentPeriod();
+    if (!period || !period.roster.length) return;
+    if (rowIndex < 0 || rowIndex >= period.roster.length) return;
+    if (period.roster.length <= 1) {
       setStatus("Keep at least one name slot in the roster.", "error");
       return;
     }
-    if (sectionHasLockedPeriod(section)) {
-      setStatus("Roster changes apply to every grading period — unlock all of them first.", "error");
+    if (period.locked) {
+      setStatus("This grading period is locked. Unlock it to delete learner rows.", "error");
       return;
     }
 
-    const rowHasData = periods.some((p) => {
-      const learner = p.roster[rowIndex];
-      if (!learner) return false;
-      if ((learner.name || "").trim()) return true;
-      return [...learner.ww, ...learner.pt, ...learner.qa].some((value) => String(value).trim() !== "");
-    });
-    const learnerName = (currentPeriod().roster[rowIndex].name || "").trim();
+    const learner = period.roster[rowIndex];
+    const learnerName = (learner.name || "").trim();
+    const rowHasData = learnerName || [...learner.ww, ...learner.pt, ...learner.qa].some((value) => String(value).trim() !== "");
     if (rowHasData) {
       const confirmMsg = learnerName
-        ? `Remove "${learnerName}" from the roster? This deletes their row — name and scores — from every grading period in this class. This cannot be undone.`
-        : "This row has data entered in another grading period. Remove it from the roster in every grading period? This cannot be undone.";
+        ? `Remove "${learnerName}" from ${period.name}? Only this grading period is affected — the same learner in your other grading periods stays as it is. This cannot be undone.`
+        : `This row has scores entered in ${period.name}. Remove it from this grading period only? This cannot be undone.`;
       if (!confirm(confirmMsg)) return;
     }
 
-    periods.forEach((p) => { p.roster.splice(rowIndex, 1); });
-    section.rosterSize = Math.max(1, (section.rosterSize || periods[0].roster.length + 1) - 1);
+    period.roster.splice(rowIndex, 1);
     markStateDirty();
     render();
-    setStatus(`Removed 1 name slot. Roster capacity is now ${section.rosterSize}.`);
+    setStatus(`Removed 1 name slot from ${period.name}. Other grading periods are unchanged.`);
   }
 
   function changeColumnCount(kind, amount) {
@@ -2196,25 +2199,43 @@
   function officialExportPayload() {
     const section = currentSection();
     const periods = (state.sections[section.id] && state.sections[section.id].periods) || [];
-    const rosterLength = periods.reduce((maximum, period) => Math.max(maximum, Array.isArray(period.roster) ? period.roster.length : 0), 0);
-    const students = [];
-    const rosterConflicts = [];
 
-    for (let rowIndex = 0; rowIndex < rosterLength; rowIndex += 1) {
-      const rowNames = periods
-        .map((period) => period.roster && period.roster[rowIndex] && period.roster[rowIndex].name)
-        .map((name) => String(name || "").trim())
-        .filter((name) => name && !getLearnerCategory(name));
-      const distinctNames = [...new Map(rowNames.map((name) => [normalizedName(name), name])).values()];
-      if (distinctNames.length > 1) rosterConflicts.push({ row: rowIndex + 1, names: distinctNames });
-      const sourceName = rowNames[0];
-      const name = String(sourceName || "").trim();
-      if (!name || getLearnerCategory(name)) continue;
+    // Each grading period has its own roster, so learners are matched by name,
+    // not by row number. Someone who left after the 1st grading (or joined in
+    // the 3rd) appears once, with blank grades for the periods they weren't in.
+    // Repeated identical names inside one period stay separate learners.
+    const listed = periods.map((period) => {
+      const seen = new Map();
+      const entries = [];
+      (period.roster || []).forEach((learner) => {
+        const name = String((learner && learner.name) || "").trim();
+        if (!name || getLearnerCategory(name)) return;
+        const base = normalizedName(name);
+        const occurrence = seen.get(base) || 0;
+        seen.set(base, occurrence + 1);
+        entries.push({ key: `${base}#${occurrence}`, name, learner });
+      });
+      return entries;
+    });
+    // Ordered union: keep each period's own order; a learner missing from the
+    // earlier lists slots in right after the learner who precedes them.
+    const order = [];
+    listed.forEach((entries) => {
+      let insertAt = 0;
+      entries.forEach((entry) => {
+        const found = order.findIndex((item) => item.key === entry.key);
+        if (found >= 0) { insertAt = found + 1; return; }
+        order.splice(insertAt, 0, { key: entry.key, name: entry.name });
+        insertAt += 1;
+      });
+    });
+
+    const students = order.map(({ key, name }) => {
       const gradePeriods = Array.from({ length: 4 }, (_, periodIndex) => {
         const period = periods[periodIndex];
-        const learner = period && period.roster && period.roster[rowIndex];
-        if (!period || !learner || normalizedName(learner.name) !== normalizedName(name)) return {};
-        const result = learnerResult(learner, period, section.weights);
+        const entry = period && (listed[periodIndex] || []).find((item) => item.key === key);
+        if (!entry) return {};
+        const result = learnerResult(entry.learner, period, section.weights);
         return {
           ww: result.ww.weighted,
           pt: result.pt.weighted,
@@ -2224,14 +2245,14 @@
         };
       });
       const periodicalGrades = gradePeriods.map((entry) => entry.periodical).filter(Number.isFinite);
-      students.push({
+      return {
         name,
         periods: gradePeriods,
         finalGrade: periodicalGrades.length === 4
           ? Math.round(periodicalGrades.reduce((sum, value) => sum + value, 0) / 4)
           : null
-      });
-    }
+      };
+    });
 
     return {
       schoolYear: document.querySelector("#officialSchoolYear")?.value.trim() || "",
@@ -2242,7 +2263,6 @@
       subject: section.subject,
       weights: section.weights,
       students,
-      rosterConflicts,
       sourcePeriodCount: Math.min(periods.length, 4)
     };
   }
@@ -2303,14 +2323,6 @@
     }
     if (!payload.principalName || !payload.teacherName) {
       const message = "Enter both the principal and subject teacher names before exporting. No file was created.";
-      setOfficialExportMessage(message, "error");
-      showSaveToast(message, "error");
-      return;
-    }
-    if (payload.rosterConflicts.length) {
-      const rows = payload.rosterConflicts.slice(0, 5).map((entry) => entry.row).join(", ");
-      const extra = payload.rosterConflicts.length > 5 ? ` and ${payload.rosterConflicts.length - 5} more` : "";
-      const message = `Learner names differ across grading periods on roster row${payload.rosterConflicts.length === 1 ? "" : "s"} ${rows}${extra}. Make the names and row order match before exporting. No file was created.`;
       setOfficialExportMessage(message, "error");
       showSaveToast(message, "error");
       return;
@@ -3990,7 +4002,7 @@
 
     lines.forEach((line, lineOffset) => {
       const rowIndex = startRow + lineOffset;
-      if (rowIndex >= section.rosterSize) { truncated = true; return; }
+      if (rowIndex >= period.roster.length) { truncated = true; return; }
       const learner = period.roster[rowIndex];
       const cells = line.split("\t");
       cells.forEach((cellValue, cellOffset) => {
