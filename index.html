@@ -9,11 +9,697 @@
     <link rel="icon" type="image/png" href="ASSETS/cstr-logo.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="ASSETS/styles.css?v=30">
-    <link rel="stylesheet" href="ASSETS/workspace.css?v=30">
-    <link rel="stylesheet" href="ASSETS/premium.css?v=30">
-    <link rel="stylesheet" href="ASSETS/revisions.css?v=30">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="ASSETS/styles.css?v=25">
+    <link rel="stylesheet" href="ASSETS/workspace.css?v=25">
+    <link rel="stylesheet" href="ASSETS/premium.css?v=25">
+    <link rel="stylesheet" href="ASSETS/revisions.css?v=28">
+    <style>
+      /* 15 September 2026 visual polish layer. Kept here so the packaged
+         application logic and existing asset files remain untouched. */
+      :root {
+        --crimson-950: #4f0000;
+        --crimson-900: #780000;
+        --crimson-800: #780000;
+        --crimson-700: #c1121f;
+        --crimson-600: #d52a35;
+        --gold-700: #9b6412;
+        --gold-600: #d9952b;
+        --gold-500: #f6bd60;
+        --gold-300: #f9d89f;
+        --gold-100: #fff1e6;
+        --surface-subtle: #fff8f1;
+        --canvas: #fff1e6;
+        --border: #ead4c5;
+        --border-light: #f2e2d6;
+        --font-heading: "DM Sans", Arial, sans-serif;
+        --font-serif: "DM Sans", Arial, sans-serif;
+        --font-sans: "Google Sans", "Google Sans Text", "Product Sans", Arial, sans-serif;
+        --font-body: "Google Sans", "Google Sans Text", "Product Sans", Arial, sans-serif;
+        --font-mono: "Courier New", Courier, monospace;
+        --radius-sm: 7px;
+        --radius-md: 10px;
+        --radius-lg: 14px;
+        --radius-xl: 16px;
+        --radius-pill: 12px;
+        --nav-ease: cubic-bezier(.22, 1, .36, 1);
+        --control-ease: cubic-bezier(.2, .8, .2, 1);
+      }
+
+      html,
+      body,
+      input,
+      textarea,
+      select,
+      button,
+      .button,
+      .tab,
+      .sidebar-link,
+      p,
+      span,
+      td,
+      th,
+      label,
+      small {
+        font-family: var(--font-body) !important;
+      }
+
+      :is(h1, h2, h3, h4, h5, h6, .app-title, .class-name,
+        .sidebar-brand-copy strong, .section-card strong, .section-title-wrap h2,
+        .recent-class-main strong, .metric-card strong, .student-perf-name) {
+        font-family: var(--font-heading) !important;
+        font-weight: 700 !important;
+      }
+
+      #siteBg,
+      #siteBg.bg-sheets {
+        background-color: #fff1e6 !important;
+        background-image:
+          radial-gradient(circle at 92% 3%, rgba(246, 189, 96, .25), transparent 30rem),
+          radial-gradient(circle at 8% 100%, rgba(247, 160, 114, .18), transparent 34rem),
+          linear-gradient(180deg, #fff8f1 0%, #fff1e6 100%) !important;
+      }
+
+      #siteBg.bg-login {
+        background:
+          linear-gradient(90deg, rgba(120, 0, 0, .95) 0%, rgba(120, 0, 0, .84) 42%, rgba(193, 18, 31, .38) 100%),
+          url("ASSETS/campus-bg.jpg") center / cover no-repeat !important;
+      }
+
+      .dashboard-hero {
+        background:
+          radial-gradient(circle at 88% 12%, rgba(246, 189, 96, .30), transparent 19rem),
+          linear-gradient(125deg, #780000, #c1121f) !important;
+        border-color: rgba(246, 189, 96, .42) !important;
+      }
+
+      .dashboard-hero .eyebrow,
+      .sidebar-brand-copy small,
+      .sidebar-link[aria-current="page"] .ui-icon { color: #f6bd60 !important; }
+
+      .progress-track span { background: linear-gradient(90deg, #c1121f, #f6bd60) !important; }
+      .metric-icon,
+      .empty-state .empty-icon { color: #c1121f !important; background: #fff1e6 !important; }
+
+      /* A single interpolated rail width prevents competing animations from
+         forcing repeated layout and paint work on every frame. */
+      @media (min-width: 761px) {
+        .app-layout,
+        .app-layout.sheet-layout {
+          --sidebar-width: 248px;
+          grid-template-columns: var(--sidebar-width) minmax(0, 1fr) !important;
+          transition: --sidebar-width 380ms var(--nav-ease),
+            grid-template-columns 380ms var(--nav-ease) !important;
+        }
+
+        .app-layout.sidebar-collapsed,
+        .app-layout.sheet-layout.sidebar-collapsed { --sidebar-width: 68px; }
+
+        .app-sidebar,
+        .sheet-layout .app-sidebar {
+          width: var(--sidebar-width) !important;
+          padding: 16px 12px 14px !important;
+          overflow-x: clip !important;
+          overflow-y: auto !important;
+          contain: none !important;
+          will-change: auto !important;
+          transform: translateZ(0);
+          transition: box-shadow 260ms ease !important;
+          background:
+            radial-gradient(circle at 18% 0, rgba(246, 189, 96, .17), transparent 18rem),
+            linear-gradient(180deg, #780000, #650000 72%, #4f0000) !important;
+          border-right-color: rgba(246, 189, 96, .24) !important;
+        }
+
+        .app-layout:not(.sidebar-collapsed) .app-sidebar {
+          box-shadow: 12px 0 34px rgba(79, 0, 0, .16) !important;
+        }
+
+        .sidebar-brand {
+          min-height: 62px;
+          padding: 4px 8px 12px !important;
+          gap: 12px !important;
+          border-bottom-color: rgba(255, 241, 230, .18) !important;
+        }
+
+        .sidebar-logo,
+        .sidebar-collapsed .sidebar-logo,
+        .sheet-layout.sidebar-collapsed .sidebar-logo {
+          width: 40px !important;
+          height: 40px !important;
+          flex: 0 0 40px !important;
+        }
+
+        .sidebar-brand-copy,
+        .sidebar-link > span:not(.sidebar-logo),
+        .sidebar-label,
+        .sidebar-owner {
+          display: grid !important;
+          max-width: 176px !important;
+          max-height: 64px !important;
+          overflow: hidden;
+          opacity: 1;
+          visibility: visible;
+          transform: translateX(0);
+          transition: opacity 135ms ease 105ms,
+            transform 300ms var(--nav-ease), visibility 0s linear 0s !important;
+          white-space: nowrap;
+        }
+
+        .sidebar-collapsed :is(.sidebar-brand-copy, .sidebar-link > span:not(.sidebar-logo),
+          .sidebar-label, .sidebar-owner) {
+          display: grid !important;
+          max-width: 176px !important;
+          max-height: 64px !important;
+          margin: revert !important;
+          padding: revert !important;
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+          transform: translateX(-5px);
+          transition-delay: 0s, 0s, 135ms !important;
+        }
+
+        .sidebar-search-block {
+          position: relative;
+          height: 44px;
+          flex: 0 0 44px;
+          margin: 12px 0 4px !important;
+          padding: 0 !important;
+          border: 0 !important;
+        }
+
+        .sidebar-search {
+          position: absolute !important;
+          inset: 0;
+          width: 100% !important;
+          height: 44px;
+          max-height: 44px !important;
+          padding: 0 !important;
+          display: grid !important;
+          grid-template-columns: minmax(0, 1fr) 40px;
+          align-items: center;
+          gap: 6px !important;
+          opacity: 1;
+          visibility: visible;
+          transform: none;
+          transition: opacity 120ms ease 100ms, visibility 0s linear 0s !important;
+        }
+
+        .sidebar-search label {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
+        }
+
+        .header-search.sidebar-search input {
+          width: 100%;
+          min-height: 40px;
+          padding: 8px 10px !important;
+          border: 1px solid rgba(255, 241, 230, .34) !important;
+          border-radius: 10px !important;
+          color: #fff1e6 !important;
+          background: rgba(255, 241, 230, .10) !important;
+          box-shadow: none !important;
+        }
+
+        .header-search.sidebar-search input::placeholder { color: rgba(255, 241, 230, .62) !important; }
+        .header-search.sidebar-search input:focus {
+          border-color: #f6bd60 !important;
+          box-shadow: 0 0 0 3px rgba(246, 189, 96, .18) !important;
+        }
+
+        .sidebar-search .button {
+          width: 40px;
+          min-height: 40px;
+          padding: 8px !important;
+          color: #780000 !important;
+          border: 0 !important;
+          background: #f6bd60 !important;
+          box-shadow: none !important;
+        }
+
+        .sidebar-search .button span { display: none !important; }
+        .search-expand { display: none !important; }
+
+        .sidebar-collapsed .sidebar-search {
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+          transition-delay: 0s, 120ms !important;
+        }
+
+        .sidebar-collapsed .search-expand {
+          position: absolute;
+          inset: 0 auto auto 0;
+          display: flex !important;
+          width: 44px;
+          min-height: 42px;
+          max-height: 42px !important;
+          padding: 9px 10px !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+          pointer-events: auto !important;
+          transition: background-color 180ms ease, color 180ms ease !important;
+        }
+
+        .sidebar-toggle {
+          width: 44px !important;
+          min-height: 42px !important;
+          margin: 4px 0 2px !important;
+          padding: 9px 10px !important;
+          justify-content: center !important;
+          color: rgba(255, 241, 230, .82) !important;
+        }
+
+        .sidebar-toggle .ui-icon { transition: none !important; }
+        .sidebar-nav { margin-top: 6px !important; gap: 6px !important; }
+        .sidebar-account-tools { margin-top: auto !important; padding-top: 14px !important; }
+        .sidebar-link {
+          min-height: 42px !important;
+          padding: 9px 10px !important;
+          justify-content: flex-start !important;
+          gap: 12px !important;
+        }
+
+        .sidebar-link[aria-current="page"]::before {
+          left: -12px !important;
+          top: 9px !important;
+          bottom: 9px !important;
+          width: 3px !important;
+          background: #f6bd60 !important;
+          box-shadow: none !important;
+        }
+      }
+
+      /* Full-width gold utility bar: no offset, clipping, or left crop. */
+      .app-main { min-width: 0 !important; width: auto !important; margin-left: 0 !important; }
+      .app-header,
+      .sheet-layout .app-header,
+      .sheet-layout .app-header.header-shrunk {
+        inset-inline: 0 !important;
+        width: 100% !important;
+        overflow: visible !important;
+        color: #4f0000 !important;
+        background: #f6bd60 !important;
+        border: 0 !important;
+        border-bottom: 1px solid rgba(120, 0, 0, .16) !important;
+        box-shadow: 0 4px 16px rgba(120, 0, 0, .10) !important;
+        backdrop-filter: none !important;
+      }
+
+      .app-header-inner,
+      .sheet-layout .app-header-inner,
+      .sheet-layout .app-header.header-shrunk .app-header-inner {
+        width: 100% !important;
+        margin: 0 !important;
+        display: grid !important;
+        grid-template-columns: max-content minmax(220px, 1fr) max-content;
+        align-items: center !important;
+        gap: clamp(14px, 2vw, 28px) !important;
+      }
+
+      .app-header .app-title { color: #4f0000 !important; }
+      .page-context .eyebrow { color: rgba(79, 0, 0, .66) !important; }
+      .policy-note {
+        min-width: 0;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 6px 14px !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        color: #640000 !important;
+        font-size: .7rem !important;
+        font-style: normal !important;
+        font-weight: 600 !important;
+        line-height: 1.25 !important;
+        text-align: center;
+        white-space: nowrap;
+      }
+
+      .policy-note::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        flex: 0 0 7px;
+        border-radius: 50%;
+        background: #c1121f;
+        box-shadow: 0 0 0 4px rgba(193, 18, 31, .11);
+      }
+
+      .policy-note strong { font-family: var(--font-heading) !important; }
+      .save-status,
+      .save-meta { color: rgba(79, 0, 0, .67) !important; }
+      .save-meta.has-unsaved { color: #780000 !important; }
+      .app-header #saveChanges {
+        --control-border: #780000;
+        color: #fff1e6 !important;
+        border-color: #780000 !important;
+        background: #780000 !important;
+        box-shadow: 0 5px 13px rgba(120, 0, 0, .20) !important;
+      }
+
+      /* Calm geometry and hover behavior: a restrained lift with no ring,
+         border flare, ripple, or uneven pseudo-outline. */
+      :is(.button, .icon-button, .tab, .col-btn, .archive-pill, .kebab-btn,
+        .button-google, .sidebar-link, .row-delete-btn, summary) {
+        border-radius: 10px !important;
+        filter: none !important;
+        transition: transform 180ms var(--control-ease), box-shadow 180ms var(--control-ease),
+          background-color 180ms ease, color 180ms ease, opacity 180ms ease !important;
+      }
+
+      :is(input, textarea, select, .field-label input, .text-input, .period-name,
+        .bulk-column-control input) { border-radius: 9px !important; }
+
+      :is(.login-card, .metric-card, .dashboard-panel, .section-card,
+        .section-card-wrap, .level-card, .recent-class-row, .class-header-card,
+        .period-toolbar, .bulk-column-tools, .modal, .regcode-modal,
+        .student-grade-result, .student-perf-block, .settings-account-card) {
+        border-radius: 14px !important;
+      }
+
+      :is(.app-header #saveChanges, .button-primary) {
+        --control-border: #c1121f;
+        color: #fff1e6 !important;
+        border-color: #c1121f !important;
+        background: #c1121f !important;
+      }
+
+      .app-header #saveChanges {
+        --control-border: #780000;
+        border-color: #780000 !important;
+        background: #780000 !important;
+      }
+
+      .button-secondary { --control-border: #e3bda8; background: #fff8f1 !important; }
+      .button-outline { --control-border: #d59b83; color: #780000 !important; background: #fff8f1 !important; }
+      .button-danger { --control-border: #c1121f; color: #c1121f !important; background: #fff1e6 !important; }
+      .button-ghost { --control-border: transparent; }
+
+      @media (hover: hover) and (pointer: fine) {
+        :is(button, .button, .tab, summary, .button-google):hover:not(:disabled) {
+          transform: translate3d(0, -2px, 0) !important;
+          outline: 0 !important;
+          border-color: transparent !important;
+          filter: none !important;
+          box-shadow: 0 8px 18px rgba(120, 0, 0, .14) !important;
+        }
+
+        .button-primary:hover:not(:disabled),
+        .app-header #saveChanges:hover:not(:disabled) {
+          color: #fff1e6 !important;
+          background: #9d0d17 !important;
+          box-shadow: 0 9px 20px rgba(120, 0, 0, .24) !important;
+        }
+
+        .button-danger:hover:not(:disabled) { color: #fff !important; background: #c1121f !important; }
+        .sidebar-link:hover:not(:disabled) {
+          transform: translate3d(0, -1px, 0) !important;
+          border-color: transparent !important;
+          color: #fff1e6 !important;
+          background: rgba(255, 241, 230, .10) !important;
+          box-shadow: none !important;
+        }
+      }
+
+      :is(button, .button, .tab, summary, a):focus-visible {
+        outline: 3px solid #f6bd60 !important;
+        outline-offset: 3px !important;
+      }
+
+      .motion-ripple { display: none !important; }
+
+      /* Corrected class identity alignment. */
+      .class-identity {
+        min-width: 0;
+        flex: 1 1 auto;
+        display: grid !important;
+        grid-template-columns: minmax(150px, auto) minmax(130px, 1fr);
+        grid-template-areas:
+          "subject section"
+          "subject context";
+        align-items: center !important;
+        column-gap: 14px !important;
+        row-gap: 3px !important;
+        padding: 0 !important;
+      }
+
+      .class-identity .subject-picker { grid-area: subject; align-self: center; }
+      .class-identity .class-name {
+        grid-area: section;
+        max-width: none !important;
+        margin: 0 !important;
+        color: #780000 !important;
+        line-height: 1.15 !important;
+        text-align: left;
+      }
+
+      .class-context-line {
+        grid-area: context;
+        min-width: 0;
+        margin: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        flex-wrap: wrap;
+        gap: 5px !important;
+        color: #6f4d42 !important;
+        line-height: 1.2 !important;
+      }
+
+      .class-context-line > span {
+        min-height: 22px;
+        padding: 3px 8px;
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid #efd7c8;
+        border-radius: 7px;
+        background: #fff8f1;
+        white-space: nowrap;
+      }
+
+      /* Warm, legible sheet hierarchy using the supplied palette. */
+      .period-tabs { background: #f5dfcf !important; border-color: #e9c9b5 !important; }
+      .period-tabs .tab[aria-selected="true"] { color: #780000 !important; background: #fff8f1 !important; }
+      .compact-record .component-ww { background: #fff1e6 !important; }
+      .compact-record .component-pt { background: #fbd9c5 !important; }
+      .compact-record .component-qa { background: #f7b0a0 !important; }
+      .compact-record .initial-header { color: #5c3300 !important; background: #f6bd60 !important; }
+      .compact-record .initial-cell { color: #5c3300 !important; background: #fff4d9 !important; }
+      .compact-record .transmuted-header { color: #fff1e6 !important; background: #c1121f !important; border-left-color: #780000 !important; }
+      .compact-record .transmuted-cell { color: #780000 !important; background: #fff1e6 !important; border-left-color: #efb5a5 !important; }
+      .compact-record .descriptor-header { color: #fff1e6 !important; background: #780000 !important; }
+      .compact-record .descriptor-cell { background: #fff8f1 !important; }
+      .record-table tbody tr:hover:not(.row-category) td,
+      .record-table tbody tr:hover:not(.row-category) .name-cell { background: #fff1e6 !important; }
+
+      .record-table :is(.number-cell, input[data-score], input[data-hps],
+        .summary-cell:not(.descriptor-cell), .component-summary),
+      .weight-pill,
+      .bulk-column-control input {
+        font-family: "Courier New", Courier, monospace !important;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .record-table .name-cell input,
+      .record-table .descriptor-cell,
+      .record-table .descriptor-cell * { font-family: var(--font-body) !important; }
+
+      /* Focused visual corrections from the revised interface review. */
+      @media (min-width: 761px) {
+        /* The visible "Learner lookup" label was competing with the input in
+           a compact, fixed-height search block. The search itself is already
+           clearly labelled for assistive technology. */
+        .sidebar-search-block > .sidebar-label { display: none !important; }
+      }
+
+      /* Each grading period reads as a finished control; the old shared
+         tray behind it has been removed. */
+      .class-period-area .period-tabs,
+      .sheet-layout .class-period-area .period-tabs {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+
+      .class-period-area .period-tabs .tab,
+      .sheet-layout .class-period-area .period-tabs .tab {
+        min-height: 30px !important;
+        padding: 5px 10px !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        color: #780000 !important;
+        background: #fff8f1 !important;
+        box-shadow: 0 1px 3px rgba(120, 0, 0, .09) !important;
+      }
+
+      .class-period-area .period-tabs .tab[aria-selected="true"] {
+        color: #780000 !important;
+        background: #fff1e6 !important;
+        box-shadow: inset 0 -2px 0 #c1121f, 0 1px 3px rgba(120, 0, 0, .09) !important;
+      }
+
+      .period-completion-dot {
+        width: 6px;
+        height: 6px;
+        overflow: hidden;
+        display: inline-block;
+        flex: 0 0 6px;
+        border-radius: 50%;
+        color: transparent !important;
+        background: #c1121f;
+      }
+
+      .period-tabs .tab:has(.period-completion-dot[aria-label="Finalized"]) .period-completion-dot { background: #4c8a59; }
+
+      /* Section metadata is now plain, aligned text instead of a row of
+         button-like chips. */
+      .class-context-line > span {
+        min-height: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+      }
+
+      .class-context-line > span + span::before {
+        content: "•";
+        margin-right: 7px;
+        color: #c1121f;
+      }
+
+      /* The subject remains interactive, but presents as a clean underlined
+         label rather than as a bordered control. */
+      .subject-picker summary,
+      .sheet-layout .subject-picker summary {
+        min-height: 0 !important;
+        padding: 0 0 3px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        color: #780000 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        text-decoration: underline;
+        text-decoration-color: #c1121f;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 4px;
+      }
+
+      .subject-picker summary:hover { color: #c1121f !important; }
+
+      /* Keep the policy line immediately below the current page title. */
+      .app-header,
+      .sheet-layout .app-header,
+      .sheet-layout .app-header.header-shrunk {
+        min-height: 68px !important;
+        flex: 0 0 68px !important;
+      }
+
+      .app-header-inner,
+      .sheet-layout .app-header-inner,
+      .sheet-layout .app-header.header-shrunk .app-header-inner {
+        min-height: 68px !important;
+        height: 68px !important;
+        padding: 7px 14px 6px !important;
+        grid-template-columns: minmax(0, 1fr) max-content !important;
+        grid-template-rows: 37px minmax(18px, 1fr) !important;
+        column-gap: 14px !important;
+        row-gap: 0 !important;
+      }
+
+      .page-context {
+        grid-column: 1;
+        grid-row: 1;
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .app-header .page-context .eyebrow {
+        position: relative;
+        top: auto;
+        margin: 0 0 2px !important;
+        font-size: .58rem !important;
+        line-height: 1 !important;
+      }
+      .app-header .app-title { font-size: 1rem !important; line-height: 1.1 !important; }
+      .policy-note {
+        grid-column: 1;
+        grid-row: 2;
+        align-self: end;
+        min-height: 18px;
+        justify-content: flex-start !important;
+        padding: 4px 0 0 !important;
+        border-top: 1px solid rgba(120, 0, 0, .18);
+        color: rgba(79, 0, 0, .78) !important;
+        font-size: .58rem !important;
+        text-align: left !important;
+        white-space: nowrap;
+      }
+
+      .policy-note::before { content: none !important; }
+      .policy-note strong { color: #780000 !important; }
+      .policy-note strong::after { content: " · "; color: rgba(79, 0, 0, .54); font-weight: 400; }
+      .header-actions-wrap { grid-column: 2; grid-row: 1 / span 2; }
+
+      /* Center each HPS value in its cell, including the compact grade sheet. */
+      .compact-record .hps-input-row td {
+        text-align: center !important;
+        vertical-align: middle !important;
+      }
+
+      .compact-record .hps-input-row input,
+      .compact-record .hps-input-row input[data-hps] {
+        display: block !important;
+        margin: 0 auto !important;
+        text-align: center !important;
+      }
+
+      /* Softer, premium corners for the teacher portrait and its frame. */
+      .photo-frame,
+      .photo-frame .profile-photo,
+      .profile-editor .photo-frame,
+      .profile-editor .profile-photo {
+        border-radius: 14px !important;
+      }
+
+      @media (max-width: 1180px) {
+        .policy-note { justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; }
+        .policy-note strong { display: none; }
+      }
+
+      @media (max-width: 760px) {
+        .app-header-inner,
+        .sheet-layout .app-header-inner {
+          grid-template-columns: minmax(0, 1fr) max-content !important;
+          gap: 10px !important;
+        }
+        .policy-note { grid-column: 1 / -1; grid-row: 2; padding: 3px 0 !important; justify-content: flex-start; }
+        .class-identity {
+          grid-template-columns: 1fr;
+          grid-template-areas: "subject" "section" "context";
+          row-gap: 7px !important;
+        }
+        .class-context-line > span { white-space: normal; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .app-layout,
+        .app-layout.sheet-layout { transition: none !important; }
+      }
+    </style>
   </head>
   <body>
     <div id="siteBg" aria-hidden="true"></div>
