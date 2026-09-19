@@ -25,6 +25,14 @@
   // this with sample sections — doing so previously caused new accounts to
   // appear to inherit another teacher's class list.
   const DEFAULT_REGISTRY = [];
+  // Verify these labels and the SHS period plan against the school's report card.
+  const TRIMESTER_TERM_NAMES = ["Term 1", "Term 2", "Term 3"];
+  const TRIMESTER_APPLIES_TO_SHS_SEPARATELY = false;
+  const TRIMESTER_SHS_TERM_NAMES = ["Term 1", "Term 2", "Term 3"];
+  // Verify whether zero-based grading is tied to the trimester calendar.
+  const TRIMESTER_USES_ZERO_BASED_GRADING = true;
+  // Verify whether the final grade is an equal average of the three term grades.
+  const TRIMESTER_FINAL_GRADE_WEIGHTS = [1, 1, 1];
 
   let currentView = "home";
   let activeGroup = "JHS";
@@ -166,7 +174,8 @@
       const input = document.activeElement;
       if (input?.dataset?.hps && hpsEdits.has(input)) {
         recoveryState = cloneState(state);
-        const period = recoveryState.sections[activeSectionId]?.periods[activePeriodIndex];
+        const recoverySections = recoveryState.calendarMode === "trimester" ? recoveryState.sectionsTri : recoveryState.sections;
+        const period = recoverySections[activeSectionId]?.periods[activePeriodIndex];
         if (period) window.CSTRRecordTools.adjustHps(period, input.dataset.hps, Number(input.dataset.index), hpsEdits.get(input), input.value);
       }
       localStorage.setItem(localDraftKey(), JSON.stringify({ savedAt: new Date().toISOString(), state: recoveryState }));
@@ -371,9 +380,10 @@
     return Array.from({ length: size }, () => ({ name: "", ww: Array(wwLen).fill(""), pt: Array(ptLen).fill(""), qa: Array(qaLen).fill("") }));
   }
 
-  function initialPeriod(section) {
+  function initialPeriod(section, calendarMode = "legacy") {
     return {
-      name: section.group === "JHS" ? "1st Grading" : "1st Quarter, 1st Semester",
+      name: calendarMode === "trimester" ? trimesterTermNames(section)[0] : section.group === "JHS" ? "1st Grading" : "1st Quarter, 1st Semester",
+      ...(calendarMode === "trimester" ? { term: 1, quarter: 0, semester: 0 } : {}),
       wwDates: Array(10).fill(""),
       ptDates: Array(8).fill(""),
       qaDates: Array(3).fill(""),
@@ -387,7 +397,7 @@
 
   function createInitialState() {
     return {
-      version: 2,
+      version: 3,
       photo: "",
       teacher: {
         name: "Juan Dela Cruz",
@@ -397,7 +407,11 @@
         bio: "Full-time faculty member and research adviser."
       },
       registry: JSON.parse(JSON.stringify(DEFAULT_REGISTRY)),
-      sections: Object.fromEntries(DEFAULT_REGISTRY.map((section) => [section.id, { periods: [initialPeriod(section)] }]))
+      sections: Object.fromEntries(DEFAULT_REGISTRY.map((section) => [section.id, { periods: [initialPeriod(section)] }])),
+      calendarMode: "legacy",
+      trimesterModeSeen: false,
+      registryTri: [],
+      sectionsTri: {}
     };
   }
 
@@ -421,36 +435,28 @@
     return entry;
   }
 
-  function normalizeState(saved) {
-    const base = createInitialState();
-    if (!saved || typeof saved !== "object") return base;
-    base.photo = typeof saved.photo === "string" ? saved.photo : "";
-    base.teacher = saved.teacher && typeof saved.teacher === "object" ? saved.teacher : base.teacher;
-    
-    if (Array.isArray(saved.registry) && saved.registry.length > 0) {
-      base.registry = JSON.parse(JSON.stringify(saved.registry));
-    }
-    base.registry.forEach(ensureSectionField);
-
-    base.registry.forEach((section) => {
-      const loaded = saved.sections && saved.sections[section.id];
-      if (!base.sections[section.id]) base.sections[section.id] = { periods: [] };
-
+  function normalizeRegistryAndSections(savedRegistry, savedSections, calendarMode) {
+    const registry = Array.isArray(savedRegistry) && savedRegistry.length > 0
+      ? JSON.parse(JSON.stringify(savedRegistry)) : [];
+    const sections = {};
+    registry.forEach(ensureSectionField);
+    registry.forEach((section) => {
+      const loaded = savedSections && savedSections[section.id];
       if (!loaded || !Array.isArray(loaded.periods) || !loaded.periods.length) {
-        base.sections[section.id].periods = [initialPeriod(section)];
+        sections[section.id] = { periods: [initialPeriod(section, calendarMode)] };
         return;
       }
-
-      base.sections[section.id].periods = loaded.periods.map((period, periodIndex) => {
+      sections[section.id] = { periods: loaded.periods.map((period, periodIndex) => {
         const wwLen = Array.isArray(period.wwDates) ? period.wwDates.length : 10;
         const ptLen = Array.isArray(period.ptDates) ? period.ptDates.length : 8;
         const qaLen = Array.isArray(period.qaDates) ? period.qaDates.length : 3;
 
         return {
-          name: typeof period.name === "string" && period.name.trim() ? period.name : initialPeriod(section).name,
+          name: typeof period.name === "string" && period.name.trim() ? period.name : initialPeriod(section, calendarMode).name,
           locked: period.locked === true,
-          quarter: period.quarter || (section.group === "SHS" ? periodIndex % 2 + 1 : periodIndex + 1),
-          semester: period.semester || (section.group === "SHS" ? Math.floor(periodIndex / 2) + 1 : 0),
+          quarter: calendarMode === "trimester" ? (period.quarter || 0) : (period.quarter || (section.group === "SHS" ? periodIndex % 2 + 1 : periodIndex + 1)),
+          semester: calendarMode === "trimester" ? (period.semester || 0) : (period.semester || (section.group === "SHS" ? Math.floor(periodIndex / 2) + 1 : 0)),
+          ...(calendarMode === "trimester" ? { term: period.term || periodIndex + 1 } : {}),
           wwDates: fitArray(period.wwDates, wwLen),
           ptDates: fitArray(period.ptDates, ptLen),
           qaDates: fitArray(period.qaDates, qaLen),
@@ -468,8 +474,24 @@
             };
           })
         };
-      });
+      }) };
     });
+    return { registry, sections };
+  }
+
+  function normalizeState(saved) {
+    const base = createInitialState();
+    if (!saved || typeof saved !== "object") return base;
+    base.photo = typeof saved.photo === "string" ? saved.photo : "";
+    base.teacher = saved.teacher && typeof saved.teacher === "object" ? saved.teacher : base.teacher;
+    base.calendarMode = saved.calendarMode === "trimester" ? "trimester" : "legacy";
+    base.trimesterModeSeen = saved.trimesterModeSeen === true || saved.calendarMode === "trimester" || (Array.isArray(saved.registryTri) && saved.registryTri.length > 0);
+    const legacy = normalizeRegistryAndSections(saved.registry, saved.sections, "legacy");
+    base.registry = legacy.registry;
+    base.sections = legacy.sections;
+    const trimester = normalizeRegistryAndSections(saved.registryTri, saved.sectionsTri, "trimester");
+    base.registryTri = trimester.registry;
+    base.sectionsTri = trimester.sections;
     return base;
   }
 
@@ -477,17 +499,23 @@
     return Array.from({ length }, (_, index) => Array.isArray(values) && values[index] !== undefined ? values[index] : "");
   }
 
-  function currentSection() { return state.registry.find((section) => section.id === activeSectionId) || state.registry[0]; }
+  function activeRegistry() { return state.calendarMode === "trimester" ? state.registryTri : state.registry; }
+  function activeSections() { return state.calendarMode === "trimester" ? state.sectionsTri : state.sections; }
+  function trimesterTermNames(section) {
+    return section.group === "SHS" && TRIMESTER_APPLIES_TO_SHS_SEPARATELY ? TRIMESTER_SHS_TERM_NAMES : TRIMESTER_TERM_NAMES;
+  }
+
+  function currentSection() { return activeRegistry().find((section) => section.id === activeSectionId) || activeRegistry()[0]; }
 
   // Resolves through currentSection()'s own fallback rather than indexing
-  // state.sections[activeSectionId] directly, and never throws. Whenever the
+  // activeSections()[activeSectionId] directly, and never throws. Whenever the
   // whole `state` object gets swapped out (loading from GitHub, restoring a
   // version, restoring a local draft) activeSectionId can briefly point at a
   // section that no longer exists in the new data — this must degrade to
   // "no current period" instead of crashing every render() in between.
   function currentPeriod() {
     const section = currentSection();
-    const bucket = section && state.sections[section.id];
+    const bucket = section && activeSections()[section.id];
     return bucket && Array.isArray(bucket.periods) ? bucket.periods[activePeriodIndex] : undefined;
   }
 
@@ -496,7 +524,7 @@
   // subject are still section-wide, so those stay blocked while ANY period in
   // the section is locked.
   function sectionHasLockedPeriod(section) {
-    const bucket = section && state.sections[section.id];
+    const bucket = section && activeSections()[section.id];
     return !!(bucket && Array.isArray(bucket.periods) && bucket.periods.some((p) => p.locked));
   }
 
@@ -506,13 +534,13 @@
   // if there are none) and back out of the "record" view for that vanished
   // section instead of leaving the app pointed at data that doesn't exist.
   function ensureActiveSelectionValid() {
-    const stillExists = state.registry.some((section) => section.id === activeSectionId);
+    const stillExists = activeRegistry().some((section) => section.id === activeSectionId);
     if (stillExists) return;
-    const fallback = state.registry[0];
+    const fallback = activeRegistry()[0];
     activeSectionId = fallback ? fallback.id : "";
     activeGroup = fallback ? fallback.group : activeGroup;
     activePeriodIndex = 0;
-    if (currentView === "record") currentView = state.registry.length ? "chooser" : "home";
+    if (currentView === "record") currentView = activeRegistry().length ? "chooser" : "home";
   }
   function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]); }
   function safeValue(value) { return escapeHtml(value === undefined || value === null ? "" : value); }
@@ -551,13 +579,13 @@
   function button(label, action, className = "button", extra = "") { return `<button type="button" class="${className}" data-action="${action}" ${extra}>${label}</button>`; }
 
   function dashboardMetrics() {
-    const activeSections = state.registry.filter((section) => !section.archived);
-    const archivedSections = state.registry.filter((section) => section.archived);
+    const activeSections = activeRegistry().filter((section) => !section.archived);
+    const archivedSections = activeRegistry().filter((section) => section.archived);
     let learners = 0;
     let totalPeriods = 0;
     let lockedPeriods = 0;
     activeSections.forEach((section) => {
-      const periods = state.sections[section.id] && Array.isArray(state.sections[section.id].periods) ? state.sections[section.id].periods : [];
+      const periods = activeSections()[section.id] && Array.isArray(activeSections()[section.id].periods) ? activeSections()[section.id].periods : [];
       totalPeriods += periods.length;
       lockedPeriods += periods.filter((period) => window.CSTRRecordTools.completion(period).complete).length;
       learners += computeLearnerNumbering(currentRosterOf(periods)).totalLearners;
@@ -1431,7 +1459,7 @@
   function renderApp() {
     const content = currentView === "home" ? renderHome() : currentView === "chooser" ? renderClassRecord() : renderSectionRecord();
     const viewTitle = currentView === "home" ? "Overview" : currentView === "chooser" ? "Class records" : "Grade sheet";
-    return `<div class="aura-bg"><div class="aura-content app-layout ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${currentView === "record" ? "sheet-layout" : ""}">
+    return `<div class="aura-bg"><div class="aura-content app-layout ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${currentView === "record" ? "sheet-layout" : ""}" data-calendar-mode="${state.calendarMode}">
       <aside class="app-sidebar" aria-label="Application navigation" id="workspaceSidebar">
         <div class="sidebar-brand"><span class="sidebar-logo"><img src="ASSETS/cstr-logo.png" alt="CST-R crest"></span><span class="sidebar-brand-copy"><strong>CST-R</strong><small>Digital Class Record</small></span></div>
         <button type="button" class="sidebar-toggle sidebar-link" data-action="toggle-sidebar" aria-controls="workspaceSidebar" aria-expanded="${!sidebarCollapsed}" aria-label="${sidebarCollapsed ? "Expand navigation" : "Retract navigation"}" title="Expand or retract navigation">${icon("panel")}<span>Retract navigation</span></button>
@@ -1451,6 +1479,7 @@
       </aside>
       <div class="app-main"><header class="app-header"><div class="app-header-inner">
         <div class="page-context"><p class="eyebrow">Teacher workspace</p><h1 class="app-title">${viewTitle}</h1></div>
+        <div class="calendar-mode-control" role="group" aria-label="Grading system"><span>Grading system:</span><button type="button" class="calendar-mode-option" data-action="select-calendar-mode" data-mode="legacy" aria-pressed="${state.calendarMode === "legacy"}">Quarterly / Semestral</button><button type="button" class="calendar-mode-option" data-action="select-calendar-mode" data-mode="trimester" aria-pressed="${state.calendarMode === "trimester"}">Trimester (Zero-Based)</button></div>
         <div class="header-actions-wrap"><div class="save-feedback"><p id="statusMessage" class="save-status" role="status" aria-live="polite"></p><p id="saveMeta" class="save-meta" aria-live="polite"></p></div>
           ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", 'id="saveChanges"')}
         </div>
@@ -1462,7 +1491,7 @@
     const metrics = dashboardMetrics();
     const portrait = state.photo ? `<img class="profile-photo" src="${state.photo}" alt="Teacher portrait">` : `<span class="silhouette" aria-hidden="true"></span><span class="photo-caption">Upload photo</span>`;
     const recentClasses = metrics.activeSections.slice(0, 4).map((section) => {
-      const periods = state.sections[section.id] && state.sections[section.id].periods ? state.sections[section.id].periods : [];
+      const periods = activeSections()[section.id] && activeSections()[section.id].periods ? activeSections()[section.id].periods : [];
       const learnerCount = computeLearnerNumbering(currentRosterOf(periods)).totalLearners;
       const locked = periods.filter((period) => window.CSTRRecordTools.completion(period).complete).length;
       return `<button type="button" class="recent-class-row" data-action="select-section" data-section="${section.id}">
@@ -1526,7 +1555,7 @@
     const edge = (group) => group === "JHS" ? `<span class="level-edge edge-green"></span><span class="level-edge edge-yellow"></span><span class="level-edge edge-red"></span><span class="level-edge edge-blue"></span>` : `<span class="level-edge edge-charcoal"></span><span class="level-edge edge-baby-blue"></span><span class="level-edge edge-deep-red"></span>`;
     const groupCards = ["JHS", "SHS"].map((group) => `<button type="button" class="level-card level-card-${group.toLowerCase()} ${activeGroup === group ? "is-active" : ""}" data-action="select-group" data-group="${group}">${edge(group)}<span class="level-card-kicker">${group}</span><strong>${group === "JHS" ? "Junior High School" : "Senior High School"}</strong><small>Choose a level to view its sections</small></button>`).join("");
     
-    const groupSections = state.registry.filter((section) => section.group === activeGroup);
+    const groupSections = activeRegistry().filter((section) => section.group === activeGroup);
     const activeCount = groupSections.filter((section) => !section.archived).length;
     const archivedCount = groupSections.filter((section) => Boolean(section.archived)).length;
     
@@ -1577,7 +1606,7 @@
 
   function renderSectionRecord() {
     const section = currentSection();
-    const periods = state.sections[section.id].periods;
+    const periods = activeSections()[section.id].periods;
     if (activePeriodIndex >= periods.length) activePeriodIndex = 0;
     const period = currentPeriod();
     const { totalLearners } = computeLearnerNumbering(period.roster);
@@ -1605,12 +1634,12 @@
           <div class="class-context-line"><span id="liveLearnerCount">${totalLearners} learner${totalLearners === 1 ? "" : "s"}</span><span>${escapeHtml(section.level)}</span><span>WW ${section.weights[0]}% · PT ${section.weights[1]}% · QA ${section.weights[2]}%</span></div>
         </div>
         <div class="class-period-area">
-          <div class="period-tabs" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-selected="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${window.CSTRRecordTools.completion(entry).complete ? "Finalized" : "In progress"}">${window.CSTRRecordTools.completion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
+          <div class="period-tabs" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-selected="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index, state.calendarMode))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${window.CSTRRecordTools.completion(entry).complete ? "Finalized" : "In progress"}">${window.CSTRRecordTools.completion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
           <details class="period-settings"><summary>${icon("settings")}<span>Period options</span>${icon("chevron")}</summary><div class="period-toolbar">
             <label class="period-name-field" for="periodName"><span>Period name</span><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name ${period.locked ? "disabled" : ""}></label>
             <div id="periodCompletion" class="period-completion" role="status">${renderCompletionLabel(period, section, activePeriodIndex)}</div>
             <div class="period-actions">
-              ${button(`${icon("plus")} Add period`, "add-period", "button button-secondary")}
+              ${button(`${icon("plus")} Add period`, "add-period", "button button-secondary", state.calendarMode === "trimester" && periods.length >= trimesterTermNames(section).length ? 'disabled title="Three terms is the maximum"' : "")}
               ${button(`${icon(period.locked ? "unlock" : "lock")} ${period.locked ? "Unlock" : "Lock"} period`, "toggle-lock-period", "button button-secondary")}
               ${button(`${icon("trash")} Delete period`, "delete-period", "button button-danger", period.locked ? "disabled" : "")}
               ${button(`${icon("print")} Excel`, "export-excel", "button button-secondary", 'aria-label="Download print-ready Excel sheet" title="Download print-ready Excel sheet"')}
@@ -1642,7 +1671,7 @@
 
   function renderCompletionLabel(period, section, index) {
     const result = window.CSTRRecordTools.completion(period);
-    const label = escapeHtml(window.CSTRRecordTools.periodLabel(period, section.group, index));
+    const label = escapeHtml(window.CSTRRecordTools.periodLabel(period, section.group, index, state.calendarMode));
     return `<span class="${result.complete ? "is-complete" : "is-incomplete"}">${result.complete ? "Finalized" : "In progress"} · ${label}</span><small>${result.filled} / ${result.expected} score entries</small>`;
   }
 
@@ -1654,9 +1683,9 @@
     const complete = window.CSTRRecordTools.completion(period).complete;
     const previous = completionSeen.get(period);
     completionSeen.set(period, complete);
-    if (previous === false && complete) showSaveToast(`Finalized: ${window.CSTRRecordTools.periodLabel(period, section.group, activePeriodIndex)}`);
+    if (previous === false && complete) showSaveToast(`Finalized: ${window.CSTRRecordTools.periodLabel(period, section.group, activePeriodIndex, state.calendarMode)}`);
     document.querySelectorAll("[data-period-dot]").forEach(dot => {
-      const value = window.CSTRRecordTools.completion(state.sections[section.id].periods[Number(dot.dataset.periodDot)]).complete;
+      const value = window.CSTRRecordTools.completion(activeSections()[section.id].periods[Number(dot.dataset.periodDot)]).complete;
       dot.textContent = value ? "✓" : "·";
       dot.setAttribute("aria-label", value ? "Finalized" : "In progress");
     });
@@ -1707,8 +1736,8 @@
           <button type="button" class="col-btn" data-action="add-col" data-kind="qa" title="Add Column" ${period.locked ? "disabled" : ""}>+</button>
           <button type="button" class="col-btn" data-action="remove-col" data-kind="qa" title="Remove Column" ${period.locked ? "disabled" : ""}>-</button>
         </th>
-        <th class="initial-header" scope="col" rowspan="3">Initial<br>Grade</th>
-        <th class="transmuted-header" scope="col" rowspan="3">Final Transmuted<br>Grade</th>
+        <th class="initial-header" scope="col" rowspan="3">${state.calendarMode === "trimester" ? "Term<br>Grade" : "Initial<br>Grade"}</th>
+        ${state.calendarMode === "trimester" ? "" : '<th class="transmuted-header" scope="col" rowspan="3">Final Transmuted<br>Grade</th>'}
         <th class="descriptor-header" scope="col" rowspan="3">Qualitative<br>Descriptor</th>
       </tr>
       <tr class="activity-row">
@@ -1725,7 +1754,7 @@
         <th colspan="2" scope="row">Enter HPS</th>
         ${hpsInputs("ww", period.wwHps)}<td colspan="3">&nbsp;</td>
         ${hpsInputs("pt", period.ptHps)}<td colspan="3">&nbsp;</td>
-        ${hpsInputs("qa", period.qaHps)}<td colspan="3">&nbsp;</td><td colspan="3">&nbsp;</td>
+        ${hpsInputs("qa", period.qaHps)}<td colspan="3">&nbsp;</td><td colspan="${state.calendarMode === "trimester" ? 2 : 3}">&nbsp;</td>
       </tr>
       </thead><tbody>${rows}</tbody></table></div>`;
   }
@@ -1748,14 +1777,15 @@
     }).join("");
     const result = learnerResult(learner, period, section.weights);
     const deleteRowBtn = `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${periodLocked ? "Unlock this grading period to delete rows" : "Remove this learner row from this grading period only"}" aria-label="Delete learner ${rowIndex + 1} row" ${periodLocked ? "disabled" : ""}>${icon("trash")}</button>`;
-    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell" style="--section-name-bg:${nameShade.background};--section-name-color:${nameShade.color};"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td><td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td><td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
+    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell" style="--section-name-bg:${nameShade.background};--section-name-color:${nameShade.color};"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td>${state.calendarMode === "trimester" ? "" : `<td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td>`}<td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
   }
 
   function learnerResult(learner, period, weights) {
     const ww = calculateComponent(learner.ww, period.wwHps, weights[0]);
     const pt = calculateComponent(learner.pt, period.ptHps, weights[1]);
     const qa = calculateQuarterlyAssessment(learner.qa, period.qaHps, weights[2]);
-    return { ww, pt, qa, initial: calculateInitialGrade(ww, pt, qa) };
+    const transmute = state.calendarMode !== "trimester" || !TRIMESTER_USES_ZERO_BASED_GRADING;
+    return { ww, pt, qa, initial: calculateInitialGrade(ww, pt, qa, { transmute }) };
   }
 
   function formatScore(value) {
@@ -1773,6 +1803,7 @@
   }
 
   function nextPeriodName(section, count) {
+    if (state.calendarMode === "trimester") return trimesterTermNames(section)[count] || `Term ${count + 1}`;
     const jhs = ["1st Grading", "2nd Grading", "3rd Grading", "4th Grading"];
     const shs = ["1st Quarter, 1st Semester", "2nd Quarter, 1st Semester", "1st Quarter, 2nd Semester", "2nd Quarter, 2nd Semester"];
     const choices = section.group === "JHS" ? jhs : shs;
@@ -1781,8 +1812,21 @@
 
   function addPeriod() {
     const section = currentSection();
-    const periods = state.sections[section.id].periods;
-    const period = initialPeriod(section);
+    const periods = activeSections()[section.id].periods;
+    if (state.calendarMode === "trimester" && periods.length >= trimesterTermNames(section).length) return;
+    const period = initialPeriod(section, state.calendarMode);
+    if (state.calendarMode === "trimester") {
+      const usedTerms = new Set(periods.map((entry, index) => entry.term || index + 1));
+      const term = trimesterTermNames(section).findIndex((_, index) => !usedTerms.has(index + 1)) + 1;
+      period.term = term;
+      period.name = nextPeriodName(section, term - 1);
+      periods.push(period);
+      periods.sort((left, right) => left.term - right.term);
+      activePeriodIndex = periods.indexOf(period);
+      markStateDirty();
+      render();
+      return;
+    }
     const ordinal = Math.max(...periods.map((p, i) => section.group === "SHS"
       ? ((p.semester || Math.floor(i / 2) + 1) - 1) * 2 + (p.quarter || i % 2 + 1)
       : (p.quarter || i + 1)));
@@ -1829,7 +1873,7 @@
       setStatus("This grading period is locked — unlock it first before deleting.", "error");
       return;
     }
-    const periods = state.sections[currentSection().id].periods;
+    const periods = activeSections()[currentSection().id].periods;
     if (periods.length <= 1) {
       setStatus("Keep at least one grading period.", "error");
       return;
@@ -1851,7 +1895,7 @@
 
   function deletePeriod() {
     const section = currentSection();
-    const periods = state.sections[section.id].periods;
+    const periods = activeSections()[section.id].periods;
     const period = currentPeriod();
     if (!period) return;
     if (period.locked) {
@@ -2022,6 +2066,7 @@
     }
     const section = currentSection();
     const period = currentPeriod();
+    const trimester = state.calendarMode === "trimester";
     const wwLen = period.wwDates.length;
     const ptLen = period.ptDates.length;
     const qaLen = period.qaDates.length;
@@ -2029,8 +2074,8 @@
     const ptStart = wwStart + wwLen + 3;
     const qaStart = ptStart + ptLen + 3;
     const gradeCol = qaStart + qaLen + 3;
-    const transmutedCol = gradeCol + 1;
-    const descriptorCol = gradeCol + 2;
+    const transmutedCol = trimester ? null : gradeCol + 1;
+    const descriptorCol = trimester ? gradeCol + 1 : gradeCol + 2;
     const lastCol = descriptorCol;
     const headerRow = 5;
     const datesRow = 6;
@@ -2057,8 +2102,8 @@
     writeComponentHeader(wwStart, wwLen, "WW", section.weights[0]);
     writeComponentHeader(ptStart, ptLen, "PT", section.weights[1]);
     writeComponentHeader(qaStart, qaLen, "QA", section.weights[2]);
-    matrix[headerRow - 1][gradeCol] = "Initial Grade";
-    matrix[headerRow - 1][transmutedCol] = "Final Transmuted Grade";
+    matrix[headerRow - 1][gradeCol] = trimester ? "Term Grade" : "Initial Grade";
+    if (!trimester) matrix[headerRow - 1][transmutedCol] = "Final Transmuted Grade";
     matrix[headerRow - 1][descriptorCol] = "Qualitative Descriptor";
 
     [[wwStart, period.wwDates, period.wwHps], [ptStart, period.ptDates, period.ptHps], [qaStart, period.qaDates, period.qaHps]].forEach(([start, dates, hps]) => {
@@ -2092,12 +2137,12 @@
         if (cell && cell.t === "n") cell.z = "0.000";
       });
       
-      // Transmuted Grade and Descriptor
+      // Final grade and descriptor share the existing calculation result.
       if (Number.isFinite(result.initial.transmuted)) {
-        worksheet[`${excelColumn(transmutedCol)}${excelRow}`] = { t: "n", v: result.initial.transmuted };
+        if (!trimester) worksheet[`${excelColumn(transmutedCol)}${excelRow}`] = { t: "n", v: result.initial.transmuted };
         worksheet[`${excelColumn(descriptorCol)}${excelRow}`] = { t: "s", v: result.initial.descriptor };
       } else {
-        worksheet[`${excelColumn(transmutedCol)}${excelRow}`] = { t: "s", v: "" };
+        if (!trimester) worksheet[`${excelColumn(transmutedCol)}${excelRow}`] = { t: "s", v: "" };
         worksheet[`${excelColumn(descriptorCol)}${excelRow}`] = { t: "s", v: "" };
       }
     });
@@ -2119,7 +2164,7 @@
       worksheet[address].s = { font: { name: "Arial", sz: row === 0 ? 14 : 10, bold: true, color: { rgb: row < 2 ? "FFFFFF" : palette.navy } }, fill: { fgColor: { rgb: row < 2 ? palette.maroon : "FFFFFF" }, patternType: "solid" }, alignment: { vertical: "center", horizontal: "left" } };
     }
     worksheet[`${excelColumn(gradeCol)}${headerRow}`].s = { ...baseStyle, font: { ...baseStyle.font, bold: true }, fill: { fgColor: { rgb: palette.gold }, patternType: "solid" } };
-    worksheet[`${excelColumn(transmutedCol)}${headerRow}`].s = { ...baseStyle, font: { ...baseStyle.font, bold: true }, fill: { fgColor: { rgb: "F5B041" }, patternType: "solid" } };
+    if (!trimester) worksheet[`${excelColumn(transmutedCol)}${headerRow}`].s = { ...baseStyle, font: { ...baseStyle.font, bold: true }, fill: { fgColor: { rgb: "F5B041" }, patternType: "solid" } };
     worksheet[`${excelColumn(descriptorCol)}${headerRow}`].s = { ...baseStyle, font: { ...baseStyle.font, bold: true }, fill: { fgColor: { rgb: "E2E8F0" }, patternType: "solid" } };
 
     worksheet["!merges"] = [
@@ -2142,7 +2187,7 @@
     workbook.Workbook = { CalcPr: { calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true } };
     const safeName = `${section.level}-${section.subject}-${section.section || "Section"}-${period.name}`.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
     XLSX.writeFile(workbook, `${safeName || "class-record"}.xlsx`, { cellStyles: true });
-    setStatus("Print-ready Excel file created with live formulas, Transmuted Grades, and Descriptors.");
+    setStatus(trimester ? "Print-ready Excel file created with live formulas, Term Grades, and Descriptors." : "Print-ready Excel file created with live formulas, Transmuted Grades, and Descriptors.");
   }
 
   function currentSchoolYear() {
@@ -2154,6 +2199,7 @@
 
   function renderOfficialExportModal() {
     const section = currentSection();
+    const periodCount = state.calendarMode === "trimester" ? 3 : 4;
     if (!section) {
       setStatus("Open a class grade sheet before exporting the official e-gradesheet.", "error");
       return;
@@ -2170,7 +2216,7 @@
         <div><p class="eyebrow">Official school format</p><h2 id="officialExportTitle">Export to Official E-Gradesheet</h2></div>
         ${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}
       </div>
-      <p class="official-export-intro">This export uses the attached CST-R Form 1 layout and the live data from <strong>${escapeHtml(section.subject)}</strong>${section.section ? ` for <strong>${escapeHtml(section.section)}</strong>` : ""}. It includes the first four grading periods and the computed final grade.</p>
+      <p class="official-export-intro">This export uses the attached CST-R Form 1 layout and the live data from <strong>${escapeHtml(section.subject)}</strong>${section.section ? ` for <strong>${escapeHtml(section.section)}</strong>` : ""}. It includes the first ${periodCount === 4 ? "four grading periods" : "three terms"} and the computed final grade.</p>
       <div class="settings-grid official-export-grid">
         <label>School year
           <input id="officialSchoolYear" value="${safeValue(currentSchoolYear())}" inputmode="numeric" placeholder="2026-2027" aria-describedby="officialExportAccuracy">
@@ -2184,7 +2230,7 @@
       </div>
       <p id="officialExportAccuracy" class="official-export-accuracy">Check these official details before downloading. Blank or incomplete grades stay blank in the export; the exporter never invents missing scores.</p>
       <p id="officialExportMessage" class="official-export-message" role="status" aria-live="polite"></p>
-      <div class="official-export-format-note"><strong>Output:</strong> US Letter portrait, CST-R Form 1 headings, official 1-4 and F rows, principal and teacher signature area, and the selected class's current computed grades.</div>
+      <div class="official-export-format-note"><strong>Output:</strong> US Letter portrait, CST-R Form 1 headings, official 1-${periodCount} and F rows, principal and teacher signature area, and the selected class's current computed grades.</div>
       <div class="stack-actions official-export-actions">
         <button type="button" class="button button-secondary" data-action="export-official-word">Save Word (.docx)</button>
         <button type="button" class="button button-primary" data-action="export-official-pdf">Save PDF (.pdf)</button>
@@ -2198,7 +2244,8 @@
 
   function officialExportPayload() {
     const section = currentSection();
-    const periods = (state.sections[section.id] && state.sections[section.id].periods) || [];
+    const periodCount = state.calendarMode === "trimester" ? 3 : 4;
+    const periods = (activeSections()[section.id] && activeSections()[section.id].periods) || [];
 
     // Each grading period has its own roster, so learners are matched by name,
     // not by row number. Someone who left after the 1st grading (or joined in
@@ -2231,7 +2278,7 @@
     });
 
     const students = order.map(({ key, name }) => {
-      const gradePeriods = Array.from({ length: 4 }, (_, periodIndex) => {
+      const gradePeriods = Array.from({ length: periodCount }, (_, periodIndex) => {
         const period = periods[periodIndex];
         const entry = period && (listed[periodIndex] || []).find((item) => item.key === key);
         if (!entry) return {};
@@ -2248,8 +2295,10 @@
       return {
         name,
         periods: gradePeriods,
-        finalGrade: periodicalGrades.length === 4
-          ? Math.round(periodicalGrades.reduce((sum, value) => sum + value, 0) / 4)
+        finalGrade: periodicalGrades.length === periodCount
+          ? state.calendarMode === "trimester"
+            ? Math.round(periodicalGrades.reduce((sum, value, index) => sum + value * TRIMESTER_FINAL_GRADE_WEIGHTS[index], 0) / TRIMESTER_FINAL_GRADE_WEIGHTS.reduce((sum, value) => sum + value, 0))
+            : Math.round(periodicalGrades.reduce((sum, value) => sum + value, 0) / 4)
           : null
       };
     });
@@ -2263,7 +2312,9 @@
       subject: section.subject,
       weights: section.weights,
       students,
-      sourcePeriodCount: Math.min(periods.length, 4)
+      periodCount,
+      calendarMode: state.calendarMode,
+      sourcePeriodCount: Math.min(periods.length, periodCount)
     };
   }
 
@@ -2275,13 +2326,13 @@
         message: "No named learners are currently in this class. Export is allowed and will create a blank official form."
       };
     }
-    const expectedGrades = learnerCount * 4;
+    const expectedGrades = learnerCount * payload.periodCount;
     const completedGrades = payload.students.reduce((count, student) => count + student.periods.filter((period) => Number.isFinite(period.periodical)).length, 0);
     const finalGrades = payload.students.filter((student) => Number.isFinite(student.finalGrade)).length;
     if (completedGrades === expectedGrades && finalGrades === learnerCount) {
       return {
         type: "success",
-        message: `Ready to export: all four period grades and final grades are calculated for ${learnerCount} learner${learnerCount === 1 ? "" : "s"}.`
+        message: `Ready to export: all ${payload.periodCount === 4 ? "four period" : "three term"} grades and final grades are calculated for ${learnerCount} learner${learnerCount === 1 ? "" : "s"}.`
       };
     }
     const missingGrades = expectedGrades - completedGrades;
@@ -2426,8 +2477,8 @@
     // several grading periods in the same class shares ONE performance chart built
     // from all of them, instead of one flat, disconnected card per period.
     const bySection = new Map();
-    state.registry.forEach((section) => {
-      state.sections[section.id].periods.forEach((period) => {
+    activeRegistry().forEach((section) => {
+      activeSections()[section.id].periods.forEach((period) => {
         period.roster.forEach((learner) => {
           if (!normalizedName(learner.name).includes(query) || getLearnerCategory(learner.name)) return;
           const result = learnerResult(learner, period, section.weights);
@@ -2441,7 +2492,7 @@
     if (!bySection.size) { showSearchModal("No student matching '" + escapeHtml(query) + "' was found. Please verify the name and try again."); return; }
 
     const blocks = [...bySection.values()].map(({ section, entries }) => {
-      // entries[].period follows state.sections[section.id].periods order (real grading-period order)
+      // entries[].period follows activeSections()[section.id].periods order (real grading-period order)
       const learnerName = entries[0].learner.name;
       const scoreSeries = entries.map(({ period, result }) => ({
         periodName: period.name,
@@ -2696,7 +2747,7 @@
   }
 
   function renderEditSection(sectionId) {
-    const section = state.registry.find(s => s.id === sectionId);
+    const section = activeRegistry().find(s => s.id === sectionId);
     if (!section) return;
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
@@ -2748,7 +2799,7 @@
   }
 
   function renderDeleteSectionConfirmation(sectionId) {
-    const section = state.registry.find((entry) => entry.id === sectionId);
+    const section = activeRegistry().find((entry) => entry.id === sectionId);
     if (!section || !section.archived) return;
     document.querySelector(".modal-backdrop")?.remove();
     const className = `${section.level} — ${section.subject}${section.section ? ` — ${section.section}` : ""}`;
@@ -2766,9 +2817,39 @@
     modal.querySelector("#deleteClassConfirmation")?.focus();
   }
 
+  function applyCalendarMode(mode) {
+    if (mode !== "legacy" && mode !== "trimester") return;
+    state.calendarMode = mode;
+    if (mode === "trimester") state.trimesterModeSeen = true;
+    const first = activeRegistry().find((section) => !section.archived) || activeRegistry()[0];
+    activeSectionId = first ? first.id : "";
+    activeGroup = first ? first.group : "JHS";
+    activePeriodIndex = 0;
+    archiveFilter = "active";
+    currentView = "chooser";
+    document.querySelector(".modal-backdrop")?.remove();
+    markStateDirty();
+    render();
+  }
+
+  function renderTrimesterConfirmation() {
+    document.querySelector(".modal-backdrop")?.remove();
+    const modal = document.createElement("div");
+    modal.className = "modal-backdrop";
+    modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="trimesterSwitchTitle">
+      <div class="section-heading"><div><p class="eyebrow">Grading system</p><h2 id="trimesterSwitchTitle">Start trimester classes?</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
+      <p>This starts a new, empty set of classes for the three-term, zero-based system.</p>
+      <p>Your quarterly and semestral classes are untouched. Switch back to them anytime from the same control.</p>
+      <p>Nothing is invented or converted from your existing records.</p>
+      <div class="stack-actions">${button("Cancel", "close-modal", "button button-secondary")} ${button("Start empty trimester classes", "confirm-calendar-mode", "button button-primary")}</div>
+    </section>`;
+    document.body.append(modal);
+    modal.querySelector('[data-action="confirm-calendar-mode"]')?.focus();
+  }
+
   function permanentlyDeleteArchivedSection(sectionId) {
-    const sectionIndex = state.registry.findIndex((entry) => entry.id === sectionId);
-    const section = state.registry[sectionIndex];
+    const sectionIndex = activeRegistry().findIndex((entry) => entry.id === sectionId);
+    const section = activeRegistry()[sectionIndex];
     const confirmation = document.querySelector("#deleteClassConfirmation")?.value.trim().toUpperCase();
     if (!section || !section.archived) {
       setStatus("Only archived classes can be deleted permanently.", "error");
@@ -2780,9 +2861,9 @@
     }
 
     const deletedName = `${section.level} ${section.subject}${section.section ? ` — ${section.section}` : ""}`;
-    state.registry.splice(sectionIndex, 1);
-    delete state.sections[sectionId];
-    const nextSection = state.registry.find((entry) => !entry.archived) || state.registry[0];
+    activeRegistry().splice(sectionIndex, 1);
+    delete activeSections()[sectionId];
+    const nextSection = activeRegistry().find((entry) => !entry.archived) || activeRegistry()[0];
     activeSectionId = nextSection ? nextSection.id : "";
     activeGroup = nextSection ? nextSection.group : "JHS";
     activePeriodIndex = 0;
@@ -3695,7 +3776,7 @@
 
     if (action === "archive-section") {
       const secId = target.dataset.section;
-      const section = state.registry.find(s => s.id === secId);
+      const section = activeRegistry().find(s => s.id === secId);
       if (section) {
         section.archived = true;
         document.querySelector(".modal-backdrop")?.remove();
@@ -3707,7 +3788,7 @@
 
     if (action === "unarchive-section") {
       const secId = target.dataset.section;
-      const section = state.registry.find(s => s.id === secId);
+      const section = activeRegistry().find(s => s.id === secId);
       if (section) {
         section.archived = false;
         document.querySelector(".modal-backdrop")?.remove();
@@ -3744,8 +3825,8 @@
       const newId = "class-" + Date.now();
       const newClass = { id: newId, group, level, subject, section: sectionName, weights, theme, accent: theme, rosterSize: 50, archived: false };
       
-      state.registry.push(newClass);
-      state.sections[newId] = { periods: [initialPeriod(newClass)] };
+      activeRegistry().push(newClass);
+      activeSections()[newId] = { periods: [initialPeriod(newClass, state.calendarMode)] };
       activeGroup = group;
       activeSectionId = newId;
       archiveFilter = "active";
@@ -3758,7 +3839,7 @@
     if (action === "open-edit-section") renderEditSection(target.dataset.section);
     if (action === "close-modal") document.querySelector(".modal-backdrop")?.remove();
     if (action === "save-section-edit") {
-      const section = state.registry.find(s => s.id === target.dataset.section);
+      const section = activeRegistry().find(s => s.id === target.dataset.section);
       if (section) {
         section.level = document.querySelector("#editSectionLevel").value.trim();
         const presetSelect = document.querySelector("#editSectionSubjectPreset");
@@ -3800,9 +3881,17 @@
     }
     if (action === "go-home") { currentView = "home"; render(); }
     if (action === "go-records") { currentView = "chooser"; render(); }
+    if (action === "select-calendar-mode") {
+      const mode = target.dataset.mode;
+      if (mode === state.calendarMode || (mode !== "legacy" && mode !== "trimester")) return;
+      if (mode === "trimester" && !state.trimesterModeSeen && !state.registryTri.length) renderTrimesterConfirmation();
+      else applyCalendarMode(mode);
+      return;
+    }
+    if (action === "confirm-calendar-mode") { applyCalendarMode("trimester"); return; }
     if (action === "select-group") { 
       activeGroup = target.dataset.group; 
-      const firstInGroup = state.registry.find((section) => section.group === activeGroup && !section.archived) || state.registry.find((section) => section.group === activeGroup) || state.registry[0];
+      const firstInGroup = activeRegistry().find((section) => section.group === activeGroup && !section.archived) || activeRegistry().find((section) => section.group === activeGroup) || activeRegistry()[0];
       activeSectionId = firstInGroup ? firstInGroup.id : ""; 
       activePeriodIndex = 0; 
       currentView = "chooser"; 

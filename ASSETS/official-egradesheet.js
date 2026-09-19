@@ -189,7 +189,7 @@
     pieces.push(svgLine(COLUMN_X[1], 216.5, dataRight, 216.5, { width: 0.6 }));
 
     pieces.push(svgText(left + 2, 211.3, "NAMES", { size: 7.5 }));
-    pieces.push(svgText((COLUMN_X[1] + COLUMN_X[2]) / 2, 203.5, "PERIOD", { size: 7.5, weight: 700, anchor: "middle" }));
+    pieces.push(svgText((COLUMN_X[1] + COLUMN_X[2]) / 2, 203.5, payload.periodCount === 3 ? "TERM" : "PERIOD", { size: 7.5, weight: 700, anchor: "middle" }));
     pieces.push(multiLineText((COLUMN_X[2] + COLUMN_X[3]) / 2, 202.5, ["Written", `Works (${payload.weights[0]}%)`], {
       size: 8.5,
       lineHeight: 10,
@@ -204,7 +204,7 @@
       weight: 700,
       anchor: "middle"
     }));
-    pieces.push(multiLineText((COLUMN_X[4] + COLUMN_X[5]) / 2, 202.5, ["Quarterly Asses.", `(${payload.weights[2]}%)`], {
+    pieces.push(multiLineText((COLUMN_X[4] + COLUMN_X[5]) / 2, 202.5, [payload.periodCount === 3 ? "Term Asses." : "Quarterly Asses.", `(${payload.weights[2]}%)`], {
       size: 8.5,
       lineHeight: 10,
       family: "Times New Roman, Times, serif",
@@ -218,7 +218,7 @@
       weight: 700,
       anchor: "middle"
     }));
-    pieces.push(multiLineText((COLUMN_X[6] + COLUMN_X[7]) / 2, 202.5, ["Periodical", "Grade"], {
+    pieces.push(multiLineText((COLUMN_X[6] + COLUMN_X[7]) / 2, 202.5, [payload.periodCount === 3 ? "Term" : "Periodical", "Grade"], {
       size: 8.5,
       lineHeight: 10,
       family: "Times New Roman, Times, serif",
@@ -229,9 +229,9 @@
     return pieces.join("");
   }
 
-  function normalizeStudent(student) {
+  function normalizeStudent(student, periodCount) {
     const sourcePeriods = Array.isArray(student && student.periods) ? student.periods : [];
-    const periods = Array.from({ length: 4 }, (_, index) => {
+    const periods = Array.from({ length: periodCount }, (_, index) => {
       const period = sourcePeriods[index] || {};
       return {
         ww: finiteNumber(period.ww),
@@ -249,18 +249,20 @@
   }
 
   function flattenRows(payload) {
-    const students = (Array.isArray(payload.students) ? payload.students : []).map(normalizeStudent);
+    const periodCount = payload.periodCount;
+    const students = (Array.isArray(payload.students) ? payload.students : []).map((student) => normalizeStudent(student, periodCount));
     const targetCount = Math.max(MINIMUM_OFFICIAL_ROWS, students.length);
-    while (students.length < targetCount) students.push(normalizeStudent({}));
+    while (students.length < targetCount) students.push(normalizeStudent({}, periodCount));
     const rows = [];
     students.forEach((student, studentIndex) => {
-      for (let rowInStudent = 0; rowInStudent < 5; rowInStudent += 1) {
-        const period = rowInStudent < 4 ? student.periods[rowInStudent] : null;
+      for (let rowInStudent = 0; rowInStudent < periodCount + 1; rowInStudent += 1) {
+        const period = rowInStudent < periodCount ? student.periods[rowInStudent] : null;
         rows.push({
           student,
           studentIndex,
           rowInStudent,
-          periodLabel: rowInStudent < 4 ? String(rowInStudent + 1) : "F",
+          finalRow: rowInStudent === periodCount,
+          periodLabel: rowInStudent < periodCount ? String(rowInStudent + 1) : "F",
           ww: period ? fixedOrBlank(period.ww, 2) : "",
           pt: period ? fixedOrBlank(period.pt, 2) : "",
           qa: period ? fixedOrBlank(period.qa, 2) : "",
@@ -333,7 +335,7 @@
     rowSlice.forEach((row, index) => {
       const rowTop = yTop + index * ROW_HEIGHT;
       const rowBottom = rowTop + ROW_HEIGHT;
-      const fullBoundary = row.rowInStudent === 4 || index === rowSlice.length - 1;
+      const fullBoundary = row.finalRow || index === rowSlice.length - 1;
       pieces.push(svgLine(fullBoundary ? COLUMN_X[0] : COLUMN_X[1], rowBottom, COLUMN_X[7], rowBottom, { width: 0.6 }));
 
       const baseline = rowTop + 9.6;
@@ -348,7 +350,7 @@
         if (!value) return;
         pieces.push(svgText((COLUMN_X[valueIndex + 2] + COLUMN_X[valueIndex + 3]) / 2, baseline, value, {
           size: 8.7,
-          weight: row.rowInStudent === 4 && valueIndex === 4 ? 700 : 400,
+          weight: row.finalRow && valueIndex === 4 ? 700 : 400,
           anchor: "middle"
         }));
       });
@@ -380,6 +382,14 @@
       anchor: "middle"
     }));
 
+    if (payload.periodCount === 3) {
+      [left + 2, middle + 2].forEach((columnLeft) => {
+        pieces.push(svgText(columnLeft, top + 79, "1st __________________", { size: 7.5 }));
+        pieces.push(svgText(columnLeft, top + 94, "2nd __________________", { size: 7.5 }));
+        pieces.push(svgText(columnLeft, top + 109, "3rd __________________", { size: 7.5 }));
+      });
+      return pieces.join("");
+    }
     const leftFirst = "1st __________________";
     const leftSecond = "2nd __________________";
     const rightFirst = "1st __________________";
@@ -398,6 +408,7 @@
   function normalizePayload(payload) {
     const weights = Array.isArray(payload && payload.weights) ? payload.weights.map(Number) : [20, 50, 30];
     return {
+      periodCount: payload && payload.periodCount === 3 ? 3 : 4,
       schoolYear: cleanText(payload && payload.schoolYear),
       level: cleanText(payload && payload.level),
       section: cleanText(payload && payload.section),

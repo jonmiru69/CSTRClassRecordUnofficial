@@ -1,5 +1,14 @@
 # CSTR Class Record — Live
 
+## September 19 three-term workspace revision
+
+The header now switches between the existing Quarterly / Semestral records and
+an independent, initially empty Trimester (Zero-Based) workspace. The latter
+has three terms per class and uses the weighted percentage without the legacy
+transmutation table. Existing classes and saved grades stay in the legacy
+workspace; no scores are converted. See [REVISION_GUIDE.md](REVISION_GUIDE.md)
+for the implemented defaults and checks still needed before production use.
+
 ## September 13 workspace and registration revision
 
 This package includes the revised collapsible workspace, compact sheet controls,
@@ -27,6 +36,11 @@ device. See [`FIREBASE_SETUP.md`](FIREBASE_SETUP.md) for the one-time setup
 this requires.
 
 ## What is included
+
+- Two separately saved class workspaces, with a first-use confirmation before
+  entering the empty trimester workspace.
+- Three-term class sheets and mode-aware Excel, PDF, and Word exports; the
+  quarterly/semestral export layout remains on its original path.
 
 - Secure authentication via **Google Sign-In with 2FA support** (Google Authenticator, prompt, or Gmail verification codes at zero cost).
 - Zero plaintext passwords in code or repository files.

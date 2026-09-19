@@ -90,7 +90,8 @@
     return { complete: configured && learners.length > 0 && expected > 0 && filled === expected && !orphanScores, filled, expected, learners: learners.length };
   }
 
-  function periodLabel(period, group, index) {
+  function periodLabel(period, group, index, calendarMode = 'legacy') {
+    if (calendarMode === 'trimester') return period.name || `Term ${period.term || index + 1}`;
     if (group !== 'SHS') return period.name || `Quarter ${index + 1}`;
     if (/semester/i.test(period.name || '')) return period.name;
     const semester = period.semester || Math.floor(index / 2) + 1;

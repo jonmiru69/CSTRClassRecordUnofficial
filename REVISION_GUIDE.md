@@ -1,5 +1,44 @@
 # Workspace revision — September 13, 2026
 
+## Three-term workspace — September 19, 2026
+
+The top bar now offers **Quarterly / Semestral** and **Trimester (Zero-Based)**.
+Old saved records default silently to the former. Each mode has its own class
+registry and period records; the same teacher profile is shared. First entry
+to the empty trimester workspace explains that no old scores are converted.
+After that, switching either way is immediate. A trimester class begins with
+Term 1 and can have at most Term 1, Term 2, and Term 3. JHS and SHS both use
+these three labels by default. The trimester weighted percentage bypasses
+transmutation, and its whole-number grade is rounded half up. The live sheet
+and Excel export show one Term Grade column plus the descriptor. The official
+export has three term rows and one final row per learner, with a three-line
+certification block; the annual grade uses an equal average of three term
+grades. No legacy registry, section, score, or period is migrated.
+
+The supplied DepEd Order No. 009, s. 2026 confirms the three-term calendar and
+the labels Term 1 through Term 3. Its assessment section says the grading
+system will be addressed in a separate issuance. The zero-based coupling,
+whole-number rounding, equal-term averaging, SHS report-card structure, and
+official form columns therefore remain implementation defaults for school
+verification, not claims made by this calendar order.
+
+**Verified in the supplied snapshot:** old JSON without new fields normalizes
+to the same legacy registry and section data; legacy Excel workbook cells and
+official SVG pages matched the original files for a sample record; the grade
+engine's worked example passes in both transmuted and zero-based modes;
+browser checks covered first-use confirmation, JHS/SHS creation, the
+three-term cap, per-period rosters, HPS score restoration, bulk paste, score
+entry, live Term Grade and descriptor, switching between workspaces, and
+PDF/Word downloads. The generated trimester PDF's first and final pages were
+visually reviewed, including the signature lines.
+
+**Not yet verified:** a live Firebase save and reload, an existing teacher's
+real records and side-by-side legacy PDF/Word output, downloading the Excel
+file in a browser (the existing external XLSX script was unavailable in this
+test environment), opening it in Microsoft Excel, and the school's approved
+three-term grading and report-card instructions. Do not publish this change for official grade
+submission until those checks are complete.
+
 ## Included changes
 
 1. Retractable navigation with learner search, Settings, and worded Log out.

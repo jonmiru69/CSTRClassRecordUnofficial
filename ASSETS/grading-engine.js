@@ -16,6 +16,8 @@
   // Keep calculations at full precision. This only controls the displayed
   // Initial Grade, which is rounded half-up to three decimal places.
   const FINAL_GRADE_DECIMALS = 3;
+  // Verify whole-number half-up rounding against the zero-based grading rule.
+  const ZERO_BASED_GRADE_DECIMALS = 0;
   const QA_INTRA_WEIGHTS = [0.30, 0.30, 0.40];
   // A = Absent, E = Excused, L = Late, M = Missing (present, no excuse)
   const ATTENDANCE_CODES = ["A", "E", "L", "M"];
@@ -229,12 +231,13 @@
     return calculateComponent(rawScores, hpsScores, componentWeight);
   }
 
-  function calculateInitialGrade(writtenWork, performanceTask, quarterlyAssessment) {
+  function calculateInitialGrade(writtenWork, performanceTask, quarterlyAssessment, options) {
+    const { transmute = true } = options || {};
     const parts = [writtenWork.weighted, performanceTask.weighted, quarterlyAssessment.weighted];
     if (parts.some((value) => !Number.isFinite(value))) return { precise: null, rounded: null, transmuted: null, descriptor: "—" };
     const precise = parts.reduce((sum, value) => sum + value, 0);
     const rounded = roundHalfUp(precise, FINAL_GRADE_DECIMALS);
-    const transmuted = transmuteGrade(precise);
+    const transmuted = transmute ? transmuteGrade(precise) : roundHalfUp(precise, ZERO_BASED_GRADE_DECIMALS);
     const descriptor = getGradeDescriptor(transmuted);
     return { precise, rounded, transmuted, descriptor };
   }
