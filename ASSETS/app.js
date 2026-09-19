@@ -564,6 +564,8 @@
       trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/>',
       edit: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
       chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+      calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M14 14h3M8 18h3"/>',
+      terms: '<path d="M4 5h16M4 12h16M4 19h16M8 3v4M16 10v4M8 17v4"/>',
       check: '<path d="m5 12 4 4L19 6"/>',
       alert: '<path d="M12 3 2 21h20Z"/><path d="M12 9v4M12 17h.01"/>',
       close: '<path d="m6 6 12 12M18 6 6 18"/>',
@@ -579,19 +581,20 @@
   function button(label, action, className = "button", extra = "") { return `<button type="button" class="${className}" data-action="${action}" ${extra}>${label}</button>`; }
 
   function dashboardMetrics() {
-    const activeSections = activeRegistry().filter((section) => !section.archived);
+    const activeClasses = activeRegistry().filter((section) => !section.archived);
     const archivedSections = activeRegistry().filter((section) => section.archived);
+    const sectionRecords = activeSections();
     let learners = 0;
     let totalPeriods = 0;
     let lockedPeriods = 0;
-    activeSections.forEach((section) => {
-      const periods = activeSections()[section.id] && Array.isArray(activeSections()[section.id].periods) ? activeSections()[section.id].periods : [];
+    activeClasses.forEach((section) => {
+      const periods = sectionRecords[section.id] && Array.isArray(sectionRecords[section.id].periods) ? sectionRecords[section.id].periods : [];
       totalPeriods += periods.length;
       lockedPeriods += periods.filter((period) => window.CSTRRecordTools.completion(period).complete).length;
       learners += computeLearnerNumbering(currentRosterOf(periods)).totalLearners;
     });
     const completion = totalPeriods ? Math.round((lockedPeriods / totalPeriods) * 100) : 0;
-    return { activeSections, archivedSections, learners, totalPeriods, lockedPeriods, completion };
+    return { activeSections: activeClasses, archivedSections, learners, totalPeriods, lockedPeriods, completion };
   }
 
   function themeColorHex(name) {
@@ -1466,6 +1469,11 @@
         <nav class="sidebar-nav" aria-label="Workspace"><p class="sidebar-label">Workspace</p>
           <button class="sidebar-link" type="button" data-action="go-home" aria-current="${currentView === "home" ? "page" : "false"}" title="Overview">${icon("home")}<span>Overview</span></button>
           <button class="sidebar-link" type="button" data-action="go-records" aria-current="${currentView !== "home" ? "page" : "false"}" title="Class records">${icon("records")}<span>Class records</span></button>
+          <div class="sidebar-mode-switch" role="group" aria-label="Grading system">
+            <p class="sidebar-label">Grading system</p>
+            <button class="sidebar-link sidebar-mode-option" type="button" data-action="select-calendar-mode" data-mode="legacy" aria-label="Quarterly / Semestral mode" aria-pressed="${state.calendarMode === "legacy"}" title="Quarterly / Semestral mode">${icon("calendar")}<span>Quarterly / Semestral</span></button>
+            <button class="sidebar-link sidebar-mode-option" type="button" data-action="select-calendar-mode" data-mode="trimester" aria-label="Trimester (Zero-Based) mode" aria-pressed="${state.calendarMode === "trimester"}" title="Trimester (Zero-Based) mode">${icon("terms")}<span>Trimester (Zero-Based)</span></button>
+          </div>
         </nav>
         <section class="sidebar-search-block" aria-label="Find a learner"><p class="sidebar-label">Learner lookup</p>
           <button type="button" class="sidebar-link search-expand" data-action="expand-search" aria-label="Expand learner search" title="Find a learner">${icon("search")}<span>Find a learner</span></button>
@@ -1479,7 +1487,6 @@
       </aside>
       <div class="app-main"><header class="app-header"><div class="app-header-inner">
         <div class="page-context"><p class="eyebrow">Teacher workspace</p><h1 class="app-title">${viewTitle}</h1></div>
-        <div class="calendar-mode-control" role="group" aria-label="Grading system"><span>Grading system:</span><button type="button" class="calendar-mode-option" data-action="select-calendar-mode" data-mode="legacy" aria-pressed="${state.calendarMode === "legacy"}">Quarterly / Semestral</button><button type="button" class="calendar-mode-option" data-action="select-calendar-mode" data-mode="trimester" aria-pressed="${state.calendarMode === "trimester"}">Trimester (Zero-Based)</button></div>
         <div class="header-actions-wrap"><div class="save-feedback"><p id="statusMessage" class="save-status" role="status" aria-live="polite"></p><p id="saveMeta" class="save-meta" aria-live="polite"></p></div>
           ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", 'id="saveChanges"')}
         </div>
@@ -1489,6 +1496,7 @@
 
   function renderHome() {
     const metrics = dashboardMetrics();
+    const isTrimester = state.calendarMode === "trimester";
     const portrait = state.photo ? `<img class="profile-photo" src="${state.photo}" alt="Teacher portrait">` : `<span class="silhouette" aria-hidden="true"></span><span class="photo-caption">Upload photo</span>`;
     const recentClasses = metrics.activeSections.slice(0, 4).map((section) => {
       const periods = activeSections()[section.id] && activeSections()[section.id].periods ? activeSections()[section.id].periods : [];
@@ -1506,9 +1514,9 @@
     return `<section class="dashboard">
       <div class="dashboard-hero">
         <div>
-          <p class="eyebrow">Academic command center</p>
+          <p class="eyebrow">${isTrimester ? "Trimester (Zero-Based)" : "Quarterly / Semestral"} overview</p>
           <h2>Welcome back, ${escapeHtml((state.teacher.name || "Teacher").split(/\s+/)[0])}.</h2>
-          <p>Manage classes, enter assessment scores, and finalize quarterly records from one focused workspace.</p>
+          <p>Manage classes, enter assessment scores, and finalize ${isTrimester ? "term" : "quarterly"} records from one focused workspace.</p>
         </div>
         <div class="dashboard-hero-actions">
           ${button(`${icon("records")}<span>Open class records</span>`, "go-records", "button button-primary")}

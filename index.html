@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="ASSETS/styles.css?v=25">
     <link rel="stylesheet" href="ASSETS/workspace.css?v=25">
     <link rel="stylesheet" href="ASSETS/premium.css?v=25">
-    <link rel="stylesheet" href="ASSETS/revisions.css?v=29">
+    <link rel="stylesheet" href="ASSETS/revisions.css?v=30">
     <style>
       /* 15 September 2026 visual polish layer. Kept here so the packaged
          application logic and existing asset files remain untouched. */
@@ -699,37 +699,37 @@
         .app-layout,
         .app-layout.sheet-layout { transition: none !important; }
       }
-      .app-header-inner,
-      .sheet-layout .app-header-inner,
-      .sheet-layout .app-header.header-shrunk .app-header-inner {
-        grid-template-columns: minmax(100px, 1fr) max-content max-content !important;
-      }
-      .calendar-mode-control { grid-column: 2; grid-row: 1; align-self: center; }
-      .header-actions-wrap { grid-column: 3; grid-row: 1 / span 2; }
-      .policy-note { grid-column: 1 / span 2; grid-row: 2; }
-      @media (max-width: 1120px) {
+      @media (max-width: 720px) {
+        .app-layout .sidebar-brand-copy,
+        .app-layout .sidebar-link > span:not(.sidebar-logo),
+        .app-layout .sidebar-label,
+        .app-layout .sidebar-owner,
+        .app-layout .sidebar-search {
+          max-width: 0 !important;
+          max-height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          opacity: 0 !important;
+          visibility: hidden !important;
+          pointer-events: none !important;
+        }
+        .app-layout .sidebar-link { justify-content: flex-start !important; padding-inline: 11px !important; }
+        .app-layout .search-expand { display: flex !important; min-height: 42px !important; max-height: 42px !important; opacity: 1 !important; visibility: visible !important; }
         .app-header, .app-header.header-shrunk,
-        .sheet-layout .app-header, .sheet-layout .app-header.header-shrunk { min-height: 106px !important; flex: 0 0 auto !important; }
+        .sheet-layout .app-header, .sheet-layout .app-header.header-shrunk {
+          min-height: 104px !important;
+          flex: 0 0 auto !important;
+        }
         .app-header-inner, .sheet-layout .app-header-inner,
         .sheet-layout .app-header.header-shrunk .app-header-inner {
-          min-height: 106px !important; height: auto !important;
+          min-height: 104px !important;
+          height: auto !important;
           grid-template-columns: minmax(0, 1fr) max-content !important;
-          grid-template-rows: 37px 38px minmax(18px, 1fr) !important;
+          grid-template-rows: 37px 30px minmax(24px, 1fr) !important;
         }
-        .calendar-mode-control { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
         .header-actions-wrap { grid-column: 2; grid-row: 1; }
-        .policy-note { grid-column: 1 / -1; grid-row: 3; }
-      }
-      @media (max-width: 520px) {
-        .app-header, .app-header.header-shrunk,
-        .sheet-layout .app-header, .sheet-layout .app-header.header-shrunk { min-height: 166px !important; }
-        .app-header-inner, .sheet-layout .app-header-inner,
-        .sheet-layout .app-header.header-shrunk .app-header-inner { min-height: 166px !important; grid-template-rows: 37px 49px 33px minmax(32px, 1fr) !important; }
-        .calendar-mode-control { flex-wrap: wrap; white-space: normal; }
-        .calendar-mode-control > span { flex-basis: 100%; }
-        .calendar-mode-option { font-size: .6rem; min-height: 25px; padding-inline: 6px; }
-        .save-feedback { grid-column: 1 / -1; grid-row: 3; min-height: 30px; }
-        .policy-note { grid-column: 1 / -1; grid-row: 4; white-space: normal; line-height: 1.2; align-self: start; }
+        .save-feedback { grid-column: 1 / -1; grid-row: 2; }
+        .policy-note { grid-column: 1 / -1; grid-row: 3; white-space: normal; line-height: 1.2; align-self: start; }
       }
     </style>
   </head>
@@ -751,7 +751,7 @@
     <script src="ASSETS/record-tools.js?v=26"></script>
     <script src="ASSETS/stable-dom.js?v=25"></script>
     <script src="ASSETS/registration.js?v=25"></script>
-    <script src="ASSETS/app.js?v=30"></script>
+    <script src="ASSETS/app.js?v=31"></script>
     <script src="ASSETS/motion.js?v=25"></script>
     <script>
       (() => {

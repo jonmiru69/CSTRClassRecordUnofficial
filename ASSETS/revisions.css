@@ -102,33 +102,23 @@
   transition-delay: 180ms, 0s, 0s, 0s, 0s !important;
 }
 
-/* Professional note within the white save bar. */
-.calendar-mode-control {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  min-width: 0;
-  padding: 3px;
-  border: 1px solid var(--crimson-700, #741426);
-  border-radius: 999px;
-  background: #fff;
-  white-space: nowrap;
+/* Keep both grading workspaces accessible from the navigation rail. */
+.sidebar-mode-switch {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, .2);
 }
-.calendar-mode-control > span { margin: 0 7px; color: var(--muted, #52606d); font-size: .64rem; font-weight: 700; }
-.calendar-mode-option {
-  min-height: 30px;
-  padding: 4px 10px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--crimson-700, #741426);
-  font: inherit;
-  font-size: .66rem;
-  font-weight: 700;
-  cursor: pointer;
+.sidebar-mode-switch .sidebar-label { margin-top: 10px; }
+.sidebar-mode-option { width: 100%; cursor: pointer; }
+.sidebar-mode-option[aria-pressed="true"] {
+  color: #f6bd60;
+  background: rgba(246, 189, 96, .16);
+  box-shadow: inset 3px 0 #f6bd60 !important;
 }
-.calendar-mode-option[aria-pressed="true"] { background: var(--crimson-700, #741426); color: #fff; }
-.calendar-mode-option:focus-visible { outline: 2px solid var(--crimson-700, #741426); outline-offset: 2px; }
+.sidebar-mode-option[aria-pressed="true"] .ui-icon { color: #f6bd60; }
+.sidebar-mode-option:focus-visible { outline: 2px solid #f6bd60; outline-offset: -2px; }
 .policy-note {
   flex: 1 1 auto;
   max-width: 720px;
