@@ -1,28 +1,8 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="CST-R Digital Class Record — a focused academic workspace for managing classes, assessment scores, and quarterly grades.">
-    <meta name="theme-color" content="#1a1a1a">
-    <title>CST-R Digital Class Record</title>
-    <link rel="icon" type="image/png" href="ASSETS/cstr-logo.png">
-    <link rel="stylesheet" href="ASSETS/styles.css?v=25">
-    <link rel="stylesheet" href="ASSETS/workspace.css?v=25">
-
-    <link rel="stylesheet" href="ASSETS/revisions.css?v=30">
-    <link rel="stylesheet" href="ASSETS/apple.css?v=1">
-  <link rel="stylesheet" href="ASSETS/policies.css?v=1">
-  </head>
-  <body>
-    <div id="siteBg" aria-hidden="true"></div>
-    <a class="skip-link" href="#app">Skip to workspace</a>
-    <div id="app" tabindex="-1"></div>
-    <dialog id="policy-dialog" class="policy-dialog" aria-labelledby="policy-title"><div class="policy-dialog-toolbar"><a href="policies.html" target="_blank" rel="noopener">Open full page ↗</a><button type="button" data-close-policies aria-label="Close privacy and terms">Close <span aria-hidden="true">×</span></button></div><div class="policy-intro"><p class="eyebrow">CST-R · Transparency center</p><h1 id="policy-title">Privacy, clearly.</h1><p>Understand the workspace, your information, and your responsibilities.</p><span class="policy-edition">Policy review edition · 20 September 2026</span></div><nav class="policy-navigation" aria-label="Policy sections"><a href="#dialog-how-it-works">How it works</a><a href="#dialog-privacy">Privacy policy</a><a href="#dialog-terms">Terms & conditions</a><a href="#dialog-protection">Data protection</a></nav><div class="policy-body"><section id="dialog-how-it-works">
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Privacy & Terms · CST-R Digital Class Record</title><meta name="description" content="How the CST-R class record works, privacy information, proposed terms and data-protection safeguards."><link rel="icon" href="ASSETS/cstr-logo.png"><link rel="stylesheet" href="ASSETS/apple.css?v=1"><link rel="stylesheet" href="ASSETS/policies.css?v=1"></head><body class="policy-page"><header class="policy-page-header"><a href="index.html">← Class record</a><span>Privacy &amp; terms</span><button type="button" onclick="window.print()">Print / save PDF</button></header><main><div class="policy-intro"><p class="eyebrow">CST-R · Transparency center</p><h1 >Privacy, clearly.</h1><p>Understand the workspace, your information, and your responsibilities.</p><span class="policy-edition">Policy review edition · 20 September 2026</span></div><nav class="policy-navigation" aria-label="Policy sections"><a href="#page-how-it-works">How it works</a><a href="#page-privacy">Privacy policy</a><a href="#page-terms">Terms & conditions</a><a href="#page-protection">Data protection</a></nav><div class="policy-body"><section id="page-how-it-works">
 <h2>Your records. Clearly explained.</h2><p>This is an independent, unofficial class-record tool for authorized CST-R teachers. It supports class rosters, assessment entry, calculated grades, teacher-assisted learner lookup, and Excel, PDF and Word exports.</p>
 <ol class="policy-steps"><li><strong>Sign in to your workspace.</strong> Use email/password or Google. New users need the administrator’s registration code; older records use the legacy-claim process.</li><li><strong>Create a class and select the grading mode.</strong> Quarterly/semestral and trimester workspaces are separate. Confirm the subject weights and calendar with the school.</li><li><strong>Enter learners, scores and highest possible scores.</strong> Grades are calculated from your inputs. Review missing entries, attendance codes and validation messages before finalizing a period.</li><li><strong>Check the save status.</strong> Changes have local recovery support. Cloud autosave is batched; use Save changes before changing devices or closing the browser. A successful cloud save is needed for another device to receive updates. Conflicting device edits can require a choice in Settings.</li><li><strong>Review and share carefully.</strong> Confirm computed grades before locking a period or exporting. Downloaded files are outside the app’s access controls.</li></ol>
 <h3>How learner lookup works</h3><p>The search is inside the signed-in teacher workspace. It matches a complete name, ignoring case and extra spaces, against that teacher’s records in the selected grading mode. It can include archived classes. It displays matching grades and assessment progress across periods. It does not verify a parent’s or learner’s identity. Teachers must verify the requester before showing a result; learners with identical names require an additional check against class and roster details.</p><p>There is no public student sign-in or public grade-lookup page in this release. No separate lookup audit log or rate limiter is implemented in the supplied application.</p>
-<h3>Grading references</h3><p>“Website for Class Record, with respect to DepEd Order No. 15, s. 2026.” The interface also references Order No. 009, s. 2026 for its three-term calendar. These labels describe the application’s references; they are not a certification of compliance. Teachers and the school must verify the applicable grading rules, weights and calendar before official submission.</p></section><section id="dialog-privacy">
+<h3>Grading references</h3><p>“Website for Class Record, with respect to DepEd Order No. 15, s. 2026.” The interface also references Order No. 009, s. 2026 for its three-term calendar. These labels describe the application’s references; they are not a certification of compliance. Teachers and the school must verify the applicable grading rules, weights and calendar before official submission.</p></section><section id="page-privacy">
 <h2>Privacy policy</h2><p><strong>Review edition · 20 September 2026.</strong> This notice describes the supplied application and proposed operating policy. Formal school/operator approval and a monitored private operator contact must be confirmed before this is treated as a final institutional policy.</p>
 <h3>Who handles the information</h3><p>The developer and site operator is Ramelito “Johnmil” Jr. C. Sanchez, LPT. Teachers enter and manage records for their assigned classes. The school retains its institutional responsibilities for academic records. The school and operator must document their controller/processor roles and authorization; an unofficial website does not itself establish these legal roles.</p>
 <h3>What the application processes</h3><p>Teacher information includes name, email, account identifier, profile details and an optional teacher photograph. Firebase Authentication handles password credentials and Google sign-in. The class-record database stores profiles and class records rather than authentication passwords.</p><p>Learner records include names, class/section/subject details, per-period rosters, scores, highest possible scores and adjustment history, attendance codes (A, M, E and L), and calculated grades. Roster rows can be added; there is no fixed 42-learner limit. The app does not ask for learner photos, LRNs, health records or identity documents. Do not put unrelated information into free-text fields.</p>
@@ -32,7 +12,7 @@
 <h3>Storage on your device</h3><p>Your browser may retain full class-record recovery copies, up to 8 local version-history snapshots, preferences and welcome-notice state. Session storage also contains workspace identity information. Firebase manages its own authentication persistence. <strong>Logging out does not remove the app’s local drafts or version history.</strong> Anyone with access to the browser profile or device may be able to inspect those local copies.</p><p>Use a protected device. Before removing this site’s browser data, verify a successful cloud save and secure any needed export. Clearing site data can erase unsynced work and local recovery history; it does not delete cloud records or files already downloaded.</p>
 <h3>Retention and deletion</h3><p>The supplied app has no automatic age-based deletion schedule for class records. Records remain until removed through available controls or administrator action, subject to school requirements. Archiving a class hides it from the active list but does not delete it. Revoking access does not delete its records. Local history, downloaded files and provider backups can outlast deletion from the active workspace.</p><p>Ticket expiry does not automatically delete ticket nodes. The owner confirms that the school has no fixed record-retention period. Teachers may keep archived classes for necessary, lawful educational or recordkeeping purposes and use deletion when records are no longer needed, subject to applicable duties and school directions. A deletion decision must account for local recovery history, exports and any provider copies; deleting a class is not a guarantee that every copy has been erased.</p>
 <h3>Your rights and requests</h3><p>Teachers, learners and authorized representatives may request information, access, correction and other rights available under applicable law, including objection, deletion or restriction where applicable. Requests may require identity and authority checks; legal record-retention duties can limit deletion.</p><p>Learners and parents/guardians should use their established teacher or school registrar/administration channel. Teachers should contact the operator through their established private school channel for account and security requests. The owner confirms there is no dedicated school privacy office. Requests should go to the teacher and the school office responsible for the record’s subject matter. A monitored private operator contact still needs to be confirmed; families do not need or receive an account to make a request through those established channels. <strong>Do not post learner names, grades, account codes or passwords in public GitHub issues.</strong></p><p>Unresolved privacy complaints may be raised with the <a href="https://privacy.gov.ph/" target="_blank" rel="noopener noreferrer">National Privacy Commission</a>. A public software issue tracker is not a private data-subject request channel.</p>
-<h3>Children’s data and updates</h3><p>Teachers enter learner records; children do not receive teacher accounts through this application. The school must establish the appropriate authority and safeguards for minors’ information. Material changes to processing should be reflected in this notice and brought to affected users’ attention. This release does not collect or store legal acceptance receipts.</p></section><section id="dialog-terms">
+<h3>Children’s data and updates</h3><p>Teachers enter learner records; children do not receive teacher accounts through this application. The school must establish the appropriate authority and safeguards for minors’ information. Material changes to processing should be reflected in this notice and brought to affected users’ attention. This release does not collect or store legal acceptance receipts.</p></section><section id="page-terms">
 <h2>Terms &amp; conditions</h2><p><strong>Proposed terms for school/operator review.</strong> Opening this page is informational. This release does not represent these draft terms as an already executed agreement.</p>
 <h3>Use and eligibility</h3><p>This unofficial service is intended for teachers authorized to maintain the relevant CST-R class records. The school name and crest identify the community served and do not imply formal endorsement. Use your own account and only records you are authorized to process.</p>
 <h3>Account responsibility</h3><p>Provide accurate registration details. Use a secure, functioning email account and protect that account, passwords, registration codes and sessions. Teachers are responsible for reasonable care of their credentials; this does not transfer all breach liability to teachers or remove the operator’s own security obligations. Do not share accounts, claim someone else’s legacy records, attempt to bypass access controls, scrape records or use the app for unlawful or unrelated purposes. Report suspected misuse privately to the operator or school.</p>
@@ -40,102 +20,11 @@
 <h3>Records and intellectual property</h3><p>The operator claims no ownership over the personal data entered by teachers. Data-subject rights and institutional recordkeeping obligations apply. School branding remains subject to its owner’s rights. No software license file was supplied with this archive; public availability alone does not grant a license to reuse the code.</p>
 <h3>Availability and limitations</h3><p>Network failures, provider outages, browser limits and software defects can interrupt access or synchronization. Use save indicators and maintain authorized backups. The service cannot promise uninterrupted availability, error-free calculations or absolute security. Nothing in these proposed terms excludes mandatory rights or liabilities that applicable law does not permit to be excluded.</p>
 <h3>Suspension and departure</h3><p>The operator/school may restrict access for loss of authorization, misuse or security reasons through the available administration process. Arrange lawful handover and retention of academic records before leaving. Account revocation and data deletion are separate actions.</p>
-<h3>Changes, law and contact</h3><p>Changes to these terms should be dated and communicated before taking effect. Philippine law and applicable mandatory jurisdiction rules govern. Any unenforceable term does not remove mandatory legal protections. Contact the operator through the established private school channel for service questions; the final contact and effective date require confirmation.</p></section><section id="dialog-protection">
+<h3>Changes, law and contact</h3><p>Changes to these terms should be dated and communicated before taking effect. Philippine law and applicable mandatory jurisdiction rules govern. Any unenforceable term does not remove mandatory legal protections. Contact the operator through the established private school channel for service questions; the final contact and effective date require confirmation.</p></section><section id="page-protection">
 <h2>Data protection &amp; safeguards</h2><p>This section distinguishes application behavior from administrative measures that must be verified by the school and operator. It is not a compliance certification.</p>
 <h3>Controls visible in the supplied implementation</h3><ul><li>Firebase Authentication supports email/password and Google sign-in.</li><li>The supplied database rules require authentication and a registration-approval record for class-record access, with UID or legacy-binding checks.</li><li>Registration code checks are performed by database rules; unauthenticated users are not granted class-record access by those supplied rules.</li><li>The intended hosted site and configured Firebase connections use HTTPS.</li><li>Local recovery, version history, save indicators and conflict handling help avoid accidental loss, but create additional copies that require device protection.</li></ul>
 <h3>Administrative access and known limits</h3><p>Firebase project administrators with sufficient privileges can access or change stored data through administrative tools. Client rules do not prevent that privileged access. The records are not end-to-end encrypted against the operator. API-key restrictions, deployed rules, account permissions, backups and administrator practices cannot be verified from front-end files alone.</p><p>Registration has no application-level IP throttling. Legacy account codes and registration tickets are sensitive. The supplied legacy-binding and approval-recreation rules need a focused server-rule review before making strong isolation or permanent-revocation claims. No security-rule deployment is included in this visual update.</p>
 <h3>Required operating practice</h3><p>The school/operator should document who has administrative access, controller/processor responsibilities, the lawful basis for educational data, private request channels, retention, backup disposal, access removal, vendor arrangements and periodic review. Restrict administrative privileges and protect accounts and devices. Never circulate unredacted exports through public channels.</p>
 <h3>Incident response</h3><p>Report suspected exposure privately. The responsible parties should contain the incident, preserve evidence, assess affected data and risk, coordinate with the school, document the decision, and remedy the cause. Where notification is legally required, the applicable NPC framework generally requires notification within 72 hours of knowledge or reasonable belief of a notifiable breach. Not every technical fault is a notifiable breach; apply the governing criteria and guidance.</p>
 <h3>Request handling</h3><p>Verify the requester’s identity and authority, record the request, locate the relevant records, assess applicable rights and retention duties, provide a secure response, and document the outcome. No automatic 15–30-day service promise or automated deletion workflow has been verified in this application.</p>
-<h3>Reference sources</h3><ul><li><a href="https://privacy.gov.ph/data-privacy-act/" target="_blank" rel="noopener noreferrer">Republic Act No. 10173</a></li><li><a href="https://privacy.gov.ph/implementing-rules-regulations-data-privacy-act-2012/" target="_blank" rel="noopener noreferrer">DPA Implementing Rules and Regulations</a></li><li><a href="https://privacy.gov.ph/pips-and-pics/breach-reporting/" target="_blank" rel="noopener noreferrer">NPC breach-reporting guidance</a></li><li><a href="https://firebase.google.com/docs/database/locations" target="_blank" rel="noopener noreferrer">Firebase database locations</a></li></ul><p>Version: review-2026-09-20. Replace review status only after the responsible school/operator has confirmed the remaining organizational and legal details.</p></section></div></dialog>
-    <script src="ASSETS/grading-engine.js?v=12"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
-    <script src="ASSETS/vendor/pdf-lib.min.js"></script>
-    <script src="ASSETS/vendor/docx.iife.js"></script>
-    <script src="ASSETS/official-egradesheet.js?v=3"></script>
-    <!-- Firebase compat SDK, self-hosted (see ASSETS/vendor/firebase-compat.bundle.js
-         for what this is and how to rebuild it after a version bump). Used to
-         load three separate files from www.gstatic.com; that's now a single
-         same-origin file so login/claim/sign-up no longer break on networks
-         where gstatic.com is slow, filtered, or unreachable. -->
-    <script src="ASSETS/vendor/firebase-compat.bundle.js"></script>
-    <script src="ASSETS/firebase-sync.js?v=25"></script>
-    <script src="ASSETS/record-tools.js?v=26"></script>
-    <script src="ASSETS/stable-dom.js?v=25"></script>
-    <script src="ASSETS/registration.js?v=25"></script>
-    <script src="ASSETS/app.js?v=32"></script>
-    <script src="ASSETS/apple.js?v=1" defer></script>
-    <script>
-      (() => {
-        const appRoot = document.querySelector("#app");
-        if (!appRoot) return;
-
-        const navigationIcon = (direction) => direction === "expand"
-          ? '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16M8 12h12M15 7l5 5-5 5"/></svg>'
-          : '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 4v16M16 12H4M9 7l-5 5 5 5"/></svg>';
-
-        let enhancementQueued = false;
-
-        function enhanceInterface() {
-          enhancementQueued = false;
-          const layout = document.querySelector(".app-layout");
-          const sidebar = document.querySelector(".app-sidebar");
-
-          if (layout && sidebar) {
-            const brand = sidebar.querySelector(".sidebar-brand");
-            const search = sidebar.querySelector(".sidebar-search-block");
-            const toggle = sidebar.querySelector('[data-action="toggle-sidebar"]');
-
-            if (brand && search && brand.nextElementSibling !== search) brand.after(search);
-            if (search && toggle && search.nextElementSibling !== toggle) search.after(toggle);
-
-            if (toggle) {
-              const collapsed = layout.classList.contains("sidebar-collapsed");
-              const direction = collapsed ? "expand" : "collapse";
-              if (toggle.dataset.directionIcon !== direction) {
-                toggle.innerHTML = navigationIcon(direction);
-                toggle.dataset.directionIcon = direction;
-              }
-              const label = collapsed ? "Expand navigation" : "Collapse navigation";
-              if (toggle.getAttribute("aria-label") !== label) toggle.setAttribute("aria-label", label);
-              if (toggle.getAttribute("title") !== label) toggle.setAttribute("title", label);
-            }
-          }
-
-          const header = document.querySelector(".app-header-inner");
-          if (header) {
-            let note = header.querySelector(".policy-note");
-            if (!note) {
-              note = document.createElement("p");
-              note.className = "policy-note";
-              note.setAttribute("role", "note");
-              note.setAttribute("aria-label", "Grading reference");
-              note.innerHTML = '<strong>Grading reference</strong><span>Order No. 15, s. 2026</span>';
-            }
-            const noteMarkup = header.closest(".app-layout")?.dataset.calendarMode === "trimester"
-              ? '<strong>Grading reference</strong><span>Order No. 15, s. 2026 · Three-Term Calendar: Order No. 009, s. 2026</span>'
-              : '<strong>Grading reference</strong><span>Order No. 15, s. 2026</span>';
-            if (note.innerHTML !== noteMarkup) note.innerHTML = noteMarkup;
-            const context = header.querySelector(".page-context");
-            if (context && context.nextElementSibling !== note) context.after(note);
-          }
-        }
-
-        const queueEnhancement = () => {
-          if (enhancementQueued) return;
-          enhancementQueued = true;
-          requestAnimationFrame(enhanceInterface);
-        };
-
-        const observer = new MutationObserver(queueEnhancement);
-        observer.observe(appRoot, {
-          childList: true,
-          subtree: true,
-          attributes: true,
-          attributeFilter: ["class"]
-        });
-        enhanceInterface();
-      })();
-    </script>
-  </body>
-</html>
+<h3>Reference sources</h3><ul><li><a href="https://privacy.gov.ph/data-privacy-act/" target="_blank" rel="noopener noreferrer">Republic Act No. 10173</a></li><li><a href="https://privacy.gov.ph/implementing-rules-regulations-data-privacy-act-2012/" target="_blank" rel="noopener noreferrer">DPA Implementing Rules and Regulations</a></li><li><a href="https://privacy.gov.ph/pips-and-pics/breach-reporting/" target="_blank" rel="noopener noreferrer">NPC breach-reporting guidance</a></li><li><a href="https://firebase.google.com/docs/database/locations" target="_blank" rel="noopener noreferrer">Firebase database locations</a></li></ul><p>Version: review-2026-09-20. Replace review status only after the responsible school/operator has confirmed the remaining organizational and legal details.</p></section></div></main><footer>Independent, unofficial CST-R faculty tool.</footer></body></html>

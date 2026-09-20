@@ -38,7 +38,7 @@
   let activeGroup = "JHS";
   let activeSectionId = DEFAULT_REGISTRY[0]?.id || "";
   let activePeriodIndex = 0;
-  let sidebarCollapsed = true;
+  let sidebarCollapsed = matchMedia("(max-width: 760px)").matches;
   try { const stored = localStorage.getItem("cstr-sidebar-collapsed"); if (stored !== null) sidebarCollapsed = stored === "true"; } catch (_) {}
   const hpsEdits = new WeakMap();
   let lastRenderedRecord = "";
@@ -935,23 +935,24 @@
   }
 
   function renderLogin() {
-    const titles = { signin: "Teacher Sign In", signup: "Create Your Account", legacy: "Claim Your Legacy Account" };
+    const titles = { signin: "Welcome back.", signup: "Your workspace awaits.", legacy: "Claim Your Legacy Account" };
     const panelBody = loginPanel === "signup" ? renderSignUpPanel()
       : loginPanel === "legacy" ? renderLegacyClaimPanel()
       : renderSignInPanel();
 
-    return `<section class="login-screen">
+    return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/cstr-logo.png" alt="">CST-R <span>Digital Class Record</span></a><button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></header><section class="login-screen">
+      <div class="welcome-story"><p class="eyebrow">A little clarity. Every school day.</p><h2>Your classes.<br>Your focus.<br><span>All in one place.</span></h2><p>A considered workspace for the work that matters. Organize your classes, record progress, and prepare grades with confidence.</p><div class="welcome-features"><span>${icon("records")} Clear class records</span><span>${icon("save")} Connected across devices</span><span>${icon("lock")} Teacher-controlled access</span></div><figure><img src="ASSETS/campus-bg.jpg" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Made for the CST-R teaching community.</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
       <div class="login-card">
         <div class="login-header-logo">
           <img src="ASSETS/cstr-logo.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
         </div>
         <p class="eyebrow">Colegio de Sto. Tomás – Recoletos</p>
-        <h1>${titles[loginPanel]}</h1>
+        <h1>${titles[loginPanel]}</h1><p class="login-intro">Your teaching day, thoughtfully organized.</p>
         <p class="muted">Website for Class Record, with respect to DepEd Order No. 15, s. 2026.</p>
 
         ${panelBody}
 
-        <p id="loginError" class="login-error" role="alert"></p>
+        <p class="login-policy-note">Read our <button type="button" data-open-policies>Privacy, Terms &amp; Data Protection</button> information before using the workspace.</p><p id="loginError" class="login-error" role="alert"></p>
         <p id="loginSuccess" class="login-success" role="status" style="display: none;"></p>
       </div>
       <article class="project-about" aria-labelledby="projectTitle">
@@ -961,8 +962,8 @@
         <p class="project-subtitle"><em>Unofficial Digital Grading Platform of Colegio de Sto. Tomás – Recoletos, Incorporated</em></p>
         <section><h3>About the Project</h3><p>This platform is the unofficial class record system of Colegio de Sto. Tomás – Recoletos, Incorporated, built to bring accuracy, consistency, and convenience to everyday classroom grade management.</p></section>
         <section><h3>About the Developer</h3><p>Designed and developed through vibe coding by Sir Ramelito &quot;Johnmil&quot; Jr. C. Sanchez, LPT — a Licensed Professional Teacher, Science and Research educator, and graduate of Science Education — as a personal initiative to give CSTR faculty a faster, more reliable way to handle their records.</p></section>
-        <section><h3>Features &amp; Advantages</h3><p>DepEd-aligned grade computation across Written Work, Performance Tasks, and Quarterly Assessments. Color-coded, easy-to-navigate class and section management. Privacy-preserving grade lookup for students.</p><p>Real-time sync across devices — log in anywhere and pick up right where you left off. Secure, code-verified account registration. One-click export to Excel for official submission.</p></section>
-        <section class="project-standout"><h3>The Standout Feature</h3><p>What sets this system apart is its live, cross-device synchronization — no spreadsheets to email, no files to lose, no retyping data on a new computer. Your class record simply follows you, always accurate and always up to date, on any device you log in from.</p></section>
+        <section><h3>Features &amp; Advantages</h3><p>Configurable grade computation across Written Work, Performance Tasks, and Quarterly Assessments. Color-coded, easy-to-navigate class and section management. Teacher-assisted lookup of an individual learner’s results within the signed-in workspace.</p><p>Real-time sync across devices — log in anywhere and pick up right where you left off. Secure, code-verified account registration. One-click export to Excel for official submission.</p></section>
+        <section class="project-standout"><h3>The Standout Feature</h3><p>What sets this system apart is its live, cross-device synchronization — no spreadsheets to email, no files to lose, no retyping data on a new computer. Your class record simply follows you, available across signed-in devices after a successful cloud save. Check the save status before switching devices.</p></section>
       </article>
     </section>`;
   }
@@ -988,7 +989,7 @@
             <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.79l7.97-6.2z"/>
             <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
           </svg>
-          <span>Sign up with Google</span>
+          <span>Continue with Google</span>
         </button>
       </div>
 
@@ -999,7 +1000,7 @@
   }
 
   function renderSignUpPanel() {
-    return `<p class="legacy-helper-text" style="text-align: left;">Enter your details below to create your official CSTR Class Record workspace.</p>
+    return `<p class="legacy-helper-text" style="text-align: left;">Enter your details below to create your CSTR Class Record workspace.</p>
       <form id="signupForm" class="legacy-login-box">
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Full Name
           <input id="signupName" type="text" placeholder="e.g. Maria Santos">
@@ -1481,6 +1482,7 @@
         </section>
         <nav class="sidebar-account-tools" aria-label="Account"><p class="sidebar-label">Account</p>
           <button class="sidebar-link" type="button" data-action="open-settings" title="Settings">${icon("settings")}<span>Settings</span></button>
+          <button class="sidebar-link policy-sidebar-link" type="button" data-open-policies title="Privacy, terms and data protection" aria-label="Privacy, terms and data protection">${icon("lock")}<span>Privacy &amp; terms</span></button>
           <button class="sidebar-link" type="button" data-action="logout" title="Log out">${icon("logout")}<span>Log out</span></button>
           <p class="sidebar-owner">${escapeHtml(currentUserName() || state.teacher.name || "Teacher")}</p>
         </nav>
@@ -1650,8 +1652,8 @@
               ${button(`${icon("plus")} Add period`, "add-period", "button button-secondary", state.calendarMode === "trimester" && periods.length >= trimesterTermNames(section).length ? 'disabled title="Three terms is the maximum"' : "")}
               ${button(`${icon(period.locked ? "unlock" : "lock")} ${period.locked ? "Unlock" : "Lock"} period`, "toggle-lock-period", "button button-secondary")}
               ${button(`${icon("trash")} Delete period`, "delete-period", "button button-danger", period.locked ? "disabled" : "")}
-              ${button(`${icon("print")} Excel`, "export-excel", "button button-secondary", 'aria-label="Download print-ready Excel sheet" title="Download print-ready Excel sheet"')}
-              ${button(`${icon("print")} Export to Official E-Gradesheet`, "export-official", "button button-primary", 'aria-label="Export this class as the official e-gradesheet in PDF or Word" title="Export this class as the official e-gradesheet in PDF or Word"')}
+              ${button(`${icon("download")} Excel`, "export-excel", "button button-secondary", 'aria-label="Download print-ready Excel sheet" title="Download print-ready Excel sheet"')}
+              ${button(`${icon("download")} Export to Official E-Gradesheet`, "export-official", "button button-primary", 'aria-label="Export this class as the official e-gradesheet in PDF or Word" title="Export this class as the official e-gradesheet in PDF or Word"')}
             </div>
           </div></details>
         </div>
@@ -2488,7 +2490,7 @@
     activeRegistry().forEach((section) => {
       activeSections()[section.id].periods.forEach((period) => {
         period.roster.forEach((learner) => {
-          if (!normalizedName(learner.name).includes(query) || getLearnerCategory(learner.name)) return;
+          if (normalizedName(learner.name) !== query || getLearnerCategory(learner.name)) return;
           const result = learnerResult(learner, period, section.weights);
           const complete = isLearnerAssessmentComplete(learner, period);
           if (!bySection.has(section.id)) bySection.set(section.id, { section, entries: [] });
@@ -2686,7 +2688,7 @@
   function showSearchModal(message, isHtml = false) {
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
-    modal.innerHTML = `<section class="modal search-result-modal" role="dialog" aria-modal="true" aria-labelledby="studentSearchTitle"><div class="section-heading"><div><p class="eyebrow">Private grade check</p><h2 id="studentSearchTitle">Student result</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div><div class="student-results">${isHtml ? message : `<p class="muted">${escapeHtml(message)}</p>`}</div></section>`;
+    modal.innerHTML = `<section class="modal search-result-modal" role="dialog" aria-modal="true" aria-labelledby="studentSearchTitle"><div class="section-heading"><div><p class="eyebrow">Teacher-assisted grade check</p><h2 id="studentSearchTitle">Student result</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div><div class="student-results">${isHtml ? message : `<p class="muted">${escapeHtml(message)}</p>`}</div></section>`;
     document.body.append(modal);
   }
 
