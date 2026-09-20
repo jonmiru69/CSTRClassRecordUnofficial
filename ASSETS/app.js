@@ -940,7 +940,7 @@
       : loginPanel === "legacy" ? renderLegacyClaimPanel()
       : renderSignInPanel();
 
-    return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/cstr-logo.png" alt="">CST-R <span>Digital Class Record</span></a><button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></header><section class="login-screen">
+    return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/cstr-logo.png" alt="">Colegio de Sto. Tomas, Recoletos, Incorporated <span>Digital Class Record</span></a><button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></header><section class="login-screen">
       <div class="welcome-story"><p class="eyebrow">A little clarity. Every school day.</p><h2>Your classes. <br>Your focus.<br><span>All in one place.</span></h2><p>A considered workspace for the work that matters. Organize your classes, record progress, and prepare grades with confidence.</p><div class="welcome-features"><span>${icon("records")} Clear class records</span><span>${icon("save")} Connected across devices</span><span>${icon("lock")} Teacher-controlled access</span></div><figure><img src="ASSETS/campus-bg.jpg" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Made for the CST-R teaching community.</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
       <div class="login-card">
         <div class="login-header-logo">
@@ -1465,7 +1465,7 @@
     const viewTitle = currentView === "home" ? "Overview" : currentView === "chooser" ? "Class records" : "Grade sheet";
     return `<div class="aura-bg"><div class="aura-content app-layout ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${currentView === "record" ? "sheet-layout" : ""}" data-calendar-mode="${state.calendarMode}">
       <aside class="app-sidebar" aria-label="Application navigation" id="workspaceSidebar">
-        <div class="sidebar-brand"><span class="sidebar-logo"><img src="ASSETS/cstr-logo.png" alt="CST-R crest"></span><span class="sidebar-brand-copy"><strong>CST-R</strong><small>Digital Class Record</small></span></div>
+        <div class="sidebar-brand"><span class="sidebar-logo"><img src="ASSETS/cstr-logo.png" alt="CST-R crest"></span><span class="sidebar-brand-copy"><strong>Colegio de Sto. Tomas-Recoletos, Incorporated</strong><small>Digital Class Record</small></span></div>
         <button type="button" class="sidebar-toggle sidebar-link" data-action="toggle-sidebar" aria-controls="workspaceSidebar" aria-expanded="${!sidebarCollapsed}" aria-label="${sidebarCollapsed ? "Expand navigation" : "Retract navigation"}" title="Expand or retract navigation">${icon("panel")}<span>Retract navigation</span></button>
         <nav class="sidebar-nav" aria-label="Workspace"><p class="sidebar-label">Workspace</p>
           <button class="sidebar-link" type="button" data-action="go-home" aria-current="${currentView === "home" ? "page" : "false"}" title="Overview">${icon("home")}<span>Overview</span></button>
