@@ -941,7 +941,7 @@
       : renderSignInPanel();
 
     return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/cstr-logo.png" alt="">CST-R <span>Digital Class Record</span></a><button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></header><section class="login-screen">
-      <div class="welcome-story"><p class="eyebrow">A little clarity. Every school day.</p><h2>Your classes.<br>Your focus.<br><span>All in one place.</span></h2><p>A considered workspace for the work that matters. Organize your classes, record progress, and prepare grades with confidence.</p><div class="welcome-features"><span>${icon("records")} Clear class records</span><span>${icon("save")} Connected across devices</span><span>${icon("lock")} Teacher-controlled access</span></div><figure><img src="ASSETS/campus-bg.jpg" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Made for the CST-R teaching community.</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
+      <div class="welcome-story"><p class="eyebrow">A little clarity. Every school day.</p><h2>Your classes. <br>Your focus.<br><span>All in one place.</span></h2><p>A considered workspace for the work that matters. Organize your classes, record progress, and prepare grades with confidence.</p><div class="welcome-features"><span>${icon("records")} Clear class records</span><span>${icon("save")} Connected across devices</span><span>${icon("lock")} Teacher-controlled access</span></div><figure><img src="ASSETS/campus-bg.jpg" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Made for the CST-R teaching community.</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
       <div class="login-card">
         <div class="login-header-logo">
           <img src="ASSETS/cstr-logo.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
@@ -1478,7 +1478,7 @@
         </nav>
         <section class="sidebar-search-block" aria-label="Find a learner"><p class="sidebar-label">Learner lookup</p>
           <button type="button" class="sidebar-link search-expand" data-action="expand-search" aria-label="Expand learner search" title="Find a learner">${icon("search")}<span>Find a learner</span></button>
-          <div class="header-search sidebar-search" role="search"><label for="studentSearch">Find a learner</label><input id="studentSearch" type="search" autocomplete="off" placeholder="Student's complete name"><button type="button" class="button button-secondary" data-action="search-student">${icon("search")}<span>Search learner</span></button></div>
+          <div class="header-search sidebar-search" role="search"><label for="studentSearch">Find a learner</label><input id="studentSearch" type="search" autocomplete="off" placeholder="Student's complete name"><button type="button" class="button button-secondary" data-action="search-student" aria-label="Search learner" title="Search learner">${icon("search")}<span>Search learner</span></button></div>
         </section>
         <nav class="sidebar-account-tools" aria-label="Account"><p class="sidebar-label">Account</p>
           <button class="sidebar-link" type="button" data-action="open-settings" title="Settings">${icon("settings")}<span>Settings</span></button>

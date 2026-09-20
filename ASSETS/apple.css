@@ -196,3 +196,8 @@ button[aria-busy="true"]::after {content:"";display:inline-block;width:12px;heig
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important;}button:not(:disabled):active,summary:active{transform:none!important;}}
 @media print{.welcome-nav,.skip-link,.policy-sidebar-link,.policy-dialog{display:none!important;}body,#siteBg{background:#fff!important;}.app-header{backdrop-filter:none!important;}}
+
+/* Save feedback must remain legible on light headers. */
+.save-status.error {color:#a50908!important;}
+
+.sidebar-search .button::after {content:none!important;}
