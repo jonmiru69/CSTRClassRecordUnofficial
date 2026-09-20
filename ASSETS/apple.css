@@ -41,24 +41,26 @@ button[aria-busy="true"]::after {content:"";display:inline-block;width:12px;heig
 .skip-link {position:fixed;top:-90px;left:16px;z-index:200000;background:#fff;color:#b20c0b;padding:14px;border-radius:8px;}
 .skip-link:focus {top:10px;}
 /* Welcome: editorial typography and authentic campus photography. */
-.welcome-nav {position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px max(24px,calc((100vw - 1200px)/2));background:#1a1a1a;color:#fff;}
+.welcome-nav {position:sticky;top:0;z-index:60;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px max(24px,calc((100% - 1152px)/2));background:#1a1a1a;color:#fff;box-shadow:0 2px 14px rgba(0,0,0,.18),0 1px 2px rgba(0,0,0,.12);}
+/* html and body both carry overflow-x:hidden, which turns body into a scroll container and silently disables position:sticky. On the sign-in page only, clip instead (same visual result, no scroll container). */
+body:has(.welcome-nav) {overflow-x:clip;}
 .welcome-brand {display:flex;align-items:center;gap:12px;color:#fff;text-decoration:none;font-size:17px;font-weight:600;white-space:nowrap;}
 .welcome-brand img {height:32px;width:32px;object-fit:contain;}
 .welcome-brand span {border-left:1px solid #626262;padding-left:12px;font-size:13px;font-weight:400;color:#dbdada;}
 .welcome-policy {display:flex;align-items:center;gap:8px;border:0;background:transparent;color:#fff;padding:8px;font-size:12px;min-height:36px;cursor:pointer;}
 .welcome-policy:hover {background:#333;}
 .welcome-policy .ui-icon {width:16px;height:16px;}
-.login-screen {position:relative;display:grid!important;grid-template-columns:minmax(0,1.2fr) minmax(340px,.85fr);align-items:start;gap:56px!important;max-width:1200px!important;margin:0 auto!important;padding:64px 24px 40px!important;min-height:0!important;background:transparent!important;}
-.welcome-story {grid-column:1;grid-row:1;min-width:0;}
+.login-screen {position:relative;display:grid!important;grid-template-columns:minmax(0,1.2fr) minmax(340px,.85fr);align-items:start;justify-items:stretch;gap:56px!important;max-width:1200px!important;margin:0 auto!important;padding:64px 24px 40px!important;min-height:0!important;background:transparent!important;}
+.welcome-story {grid-column:1;grid-row:1;min-width:0;display:flex;flex-direction:column;align-self:stretch;justify-self:stretch;}
 .welcome-story>.eyebrow {margin:0 0 18px;color:#b20c0b;font-size:11px;}
-.welcome-story h2 {font-size:clamp(42px,4.7vw,64px);line-height:1.04;margin:0 0 24px;color:#1a1a1a;}
+.welcome-story h2 {font-size:clamp(44px,5.4vw,76px);line-height:1.04;margin:0 0 26px;color:#1a1a1a;}
 .welcome-story h2 span {color:#767676;}
-.welcome-story>p:not(.eyebrow):not(.welcome-unofficial) {max-width:470px;font-size:17px;line-height:1.6;color:#626262;margin:0 0 24px;}
-.welcome-features {display:flex;flex-wrap:wrap;gap:12px 20px;font-size:12px;color:#505050;margin:0 0 28px;}
+.welcome-story>p:not(.eyebrow):not(.welcome-unofficial) {max-width:580px;font-size:18px;line-height:1.6;color:#626262;margin:0 0 26px;}
+.welcome-features {display:flex;flex-wrap:wrap;gap:12px 24px;font-size:13px;color:#505050;margin:0 0 30px;}
 .welcome-features span {display:flex;align-items:center;gap:7px;}
 .welcome-features .ui-icon {width:16px;height:16px;color:#b20c0b;}
-.welcome-story figure {margin:0;position:relative;max-width:520px;}
-.welcome-story figure img {display:block;width:100%;height:185px;object-fit:cover;object-position:50% 48%;border-radius:18px;filter:saturate(.7);}
+.welcome-story figure {margin:0;position:relative;width:100%;max-width:none;flex:1 1 auto;min-height:200px;max-height:520px;display:flex;flex-direction:column;}
+.welcome-story figure img {display:block;width:100%;flex:1 1 0;min-height:0;height:auto;object-fit:cover;object-position:50% 48%;border-radius:18px;filter:saturate(.7);}
 .welcome-story figcaption {font-size:11px;color:#626262;margin-top:10px;}
 .welcome-unofficial {font-size:11px;color:#626262;margin-top:20px;}
 .login-card {grid-column:2;grid-row:1;width:100%!important;max-width:none!important;margin:0!important;padding:32px!important;background:#fff!important;border:1px solid #e4e4e7!important;border-radius:24px!important;backdrop-filter:none!important;text-align:left!important;animation:cstr-enter 360ms var(--depth-ease) both!important;}
@@ -81,7 +83,7 @@ button[aria-busy="true"]::after {content:"";display:inline-block;width:12px;heig
 .project-about>.project-kicker,.project-about>h2,.project-about>.project-subtitle {grid-column:1/-1;}
 .project-label {display:none;}
 .project-kicker {color:#626262!important;font-size:10px!important;}
-.project-about h2 {font-size:28px!important;margin:0!important;}
+.project-about h2 {font-size:28px!important;margin:0!important;color:#1a1a1a!important;}
 .project-about h3 {color:#1a1a1a!important;font-size:16px!important;}
 .project-about p {color:#626262!important;font-size:14px!important;line-height:1.6!important;}
 .project-about .project-standout {background:none!important;border:0!important;padding:0!important;}
@@ -184,7 +186,7 @@ button[aria-busy="true"]::after {content:"";display:inline-block;width:12px;heig
 .record-table input.invalid {background:#ffe5e3!important;border:2px solid #b4232f!important;}
 .sheet-help-panel,.period-toolbar,.bulk-column-tools,.subject-picker-menu {background:#fff!important;border-color:#dbdada!important;border-radius:12px!important;}
 @keyframes cstr-enter {from {opacity:0;transform:translateY(7px);}to {opacity:1;transform:translateY(0);}}
-@media(max-width:1000px){.login-screen {gap:32px!important;grid-template-columns:minmax(0,1fr) minmax(320px,1fr);padding-top:40px!important;}.welcome-story h2 {font-size:44px;}.welcome-story figure img {height:160px;}.login-card {padding:26px!important;}.app-shell {padding:24px 20px;}.metric-card {padding:16px!important;}}
+@media(max-width:1000px){.login-screen {gap:32px!important;grid-template-columns:minmax(0,1fr) minmax(320px,1fr);padding-top:40px!important;}.welcome-story h2 {font-size:44px;}.welcome-story figure {min-height:200px;}.login-card {padding:26px!important;}.app-shell {padding:24px 20px;}.metric-card {padding:16px!important;}}
 @media(max-width:760px){
  .welcome-nav{padding:12px 16px;}.welcome-brand span{display:none;}.welcome-policy{font-size:11px;}
  .login-screen{grid-template-columns:minmax(0,1fr)!important;max-width:540px!important;padding:28px 18px!important;gap:28px!important;}
