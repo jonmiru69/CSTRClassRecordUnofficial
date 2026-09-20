@@ -564,8 +564,8 @@
       trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/>',
       edit: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
       chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
-      calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h3M14 14h3M8 18h3"/>',
-      terms: '<path d="M4 5h16M4 12h16M4 19h16M8 3v4M16 10v4M8 17v4"/>',
+      calendar: '<circle cx="12" cy="12" r="9"/><path d="M12 3V21M3 12H21"/>',
+      terms: '<circle cx="12" cy="12" r="9"/><path d="M12 3V12M12 12L19.79 16.5M12 12L4.21 16.5"/>',
       check: '<path d="m5 12 4 4L19 6"/>',
       alert: '<path d="M12 3 2 21h20Z"/><path d="M12 9v4M12 17h.01"/>',
       close: '<path d="m6 6 12 12M18 6 6 18"/>',
@@ -1662,7 +1662,7 @@
       <div id="periodIntegrity">${integrityNote}</div>
       <div class="sheet-utilities">
         ${button(`${icon("back")}<span>Sections</span>`, "go-records", "button button-ghost")}
-        <details class="roster-options"><summary>${icon("plus")}<span>Learner rows</span>${icon("chevron")}</summary><div class="bulk-column-tools roster-slots-tools"><label for="rosterSlotCount">Add learner rows (this period only)</label><input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" ${period.locked ? "disabled" : ""}>${button("Add rows","add-roster-slots","button button-secondary",period.locked ? "disabled" : "")}</div></details>
+        <details class="roster-options"><summary>Manage rows ${icon("chevron")}</summary><div class="bulk-column-tools roster-slots-tools"><label for="rosterSlotCount">Add learner rows (this period only)</label><input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" ${period.locked ? "disabled" : ""}>${button("Add rows","add-roster-slots","button button-secondary",period.locked ? "disabled" : "")}</div></details>
         <details class="column-options"><summary>Manage columns ${icon("chevron")}</summary><div class="bulk-column-tools" aria-label="Bulk column controls">${renderBulkColumnControl("ww","WW",period.wwDates.length,period.locked)}${renderBulkColumnControl("pt","PT",period.ptDates.length,period.locked)}${renderBulkColumnControl("qa","QA",period.qaDates.length,period.locked)}</div></details>
         <span class="sheet-caption">Assessment entries</span>
         <details class="sheet-help"><summary aria-label="Grade sheet help and legend" title="Grade sheet help and legend">?</summary><div class="sheet-help-panel">

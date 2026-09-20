@@ -95,9 +95,10 @@ button[aria-busy="true"]::after {content:"";display:inline-block;width:12px;heig
 .sidebar-logo,.sidebar-collapsed .sidebar-logo {width:34px!important;height:40px!important;flex:0 0 34px!important;}
 .sidebar-link {color:#dbdada!important;font-size:12px;min-height:42px;white-space:nowrap;}
 .sidebar-link:hover {background:#303030!important;color:#fff!important;}
-.sidebar-link[aria-current="page"],.sidebar-mode-option[aria-pressed="true"] {background:#333!important;color:#fff!important;box-shadow:none!important;border-color:#505050!important;}
+.sidebar-link[aria-current="page"],.sidebar-mode-option[aria-pressed="true"] {background:transparent!important;color:#fee30d!important;box-shadow:none!important;border-color:#505050!important;animation:cstr-tab-select 320ms var(--depth-ease)!important;}
 .sidebar-link[aria-current="page"] .ui-icon,.sidebar-mode-option[aria-pressed="true"] .ui-icon {color:#fee30d!important;}
 .sidebar-link[aria-current="page"]::before {background:#fee30d!important;}
+@keyframes cstr-tab-select {0%{transform:scale(1);}45%{transform:scale(1.06);}100%{transform:scale(1);}}
 .sidebar-label {font-size:9px;color:#a9a9ae!important;letter-spacing:.12em;}
 .sidebar-toggle {margin:12px 0 0!important;color:#a9a9ae!important;}
 .sidebar-toggle .ui-icon {transform:none!important;}
