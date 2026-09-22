@@ -1496,22 +1496,45 @@
     </div></div>`;
   }
 
+  function activeClassRow(section) {
+    const periods = activeSections()[section.id] && activeSections()[section.id].periods ? activeSections()[section.id].periods : [];
+    const learnerCount = computeLearnerNumbering(currentRosterOf(periods)).totalLearners;
+    const locked = periods.filter((period) => window.CSTRRecordTools.completion(period).complete).length;
+    return `<button type="button" class="recent-class-row" data-action="select-section" data-section="${section.id}">
+      <span class="recent-class-accent accent-${section.accent || section.theme}" aria-hidden="true"></span>
+      <span class="recent-class-main"><strong>${escapeHtml(section.subject)}</strong><small>${escapeHtml(section.level)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</small></span>
+      <span class="recent-class-stat"><strong>${learnerCount}</strong><small>Learners</small></span>
+      <span class="recent-class-stat"><strong>${locked}/${periods.length}</strong><small>Finalized</small></span>
+      ${icon("arrow", "ui-icon row-arrow")}
+    </button>`;
+  }
+
+  // Renders every active class on the Overview page (both JHS and SHS), grouped
+  // under a small level heading so long lists stay scannable instead of being
+  // silently cut off to the first few sections.
+  function buildActiveClassRows(sections) {
+    if (!sections.length) return "";
+    const groupOrder = [{ key: "JHS", label: "Junior High School" }, { key: "SHS", label: "Senior High School" }];
+    const claimed = new Set();
+    const blocks = [];
+    groupOrder.forEach(({ key, label }) => {
+      const groupSections = sections.filter((section) => section.group === key);
+      if (!groupSections.length) return;
+      groupSections.forEach((section) => claimed.add(section.id));
+      blocks.push(`<div class="recent-class-group-heading">${escapeHtml(label)}</div>${groupSections.map(activeClassRow).join("")}`);
+    });
+    const leftover = sections.filter((section) => !claimed.has(section.id));
+    if (leftover.length) {
+      blocks.push(`${blocks.length ? `<div class="recent-class-group-heading">Other</div>` : ""}${leftover.map(activeClassRow).join("")}`);
+    }
+    return blocks.join("");
+  }
+
   function renderHome() {
     const metrics = dashboardMetrics();
     const isTrimester = state.calendarMode === "trimester";
     const portrait = state.photo ? `<img class="profile-photo" src="${state.photo}" alt="Teacher portrait">` : `<span class="silhouette" aria-hidden="true"></span><span class="photo-caption">Upload photo</span>`;
-    const recentClasses = metrics.activeSections.slice(0, 4).map((section) => {
-      const periods = activeSections()[section.id] && activeSections()[section.id].periods ? activeSections()[section.id].periods : [];
-      const learnerCount = computeLearnerNumbering(currentRosterOf(periods)).totalLearners;
-      const locked = periods.filter((period) => window.CSTRRecordTools.completion(period).complete).length;
-      return `<button type="button" class="recent-class-row" data-action="select-section" data-section="${section.id}">
-        <span class="recent-class-accent accent-${section.accent || section.theme}" aria-hidden="true"></span>
-        <span class="recent-class-main"><strong>${escapeHtml(section.subject)}</strong><small>${escapeHtml(section.level)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</small></span>
-        <span class="recent-class-stat"><strong>${learnerCount}</strong><small>Learners</small></span>
-        <span class="recent-class-stat"><strong>${locked}/${periods.length}</strong><small>Finalized</small></span>
-        ${icon("arrow", "ui-icon row-arrow")}
-      </button>`;
-    }).join("");
+    const recentClasses = buildActiveClassRows(metrics.activeSections);
 
     return `<section class="dashboard">
       <div class="dashboard-hero">
@@ -1535,7 +1558,7 @@
 
       <div class="dashboard-grid">
         <section class="dashboard-panel recent-panel">
-          <div class="panel-heading"><div><p class="eyebrow">Your workspace</p><h3>Active class records</h3></div>${button(`View all ${icon("arrow")}`, "go-records", "button button-ghost button-small")}</div>
+          <div class="panel-heading"><div><p class="eyebrow">Your workspace</p><h3>Active class records${metrics.activeSections.length ? ` <span class="panel-count">${metrics.activeSections.length}</span>` : ""}</h3></div>${button(`View all ${icon("arrow")}`, "go-records", "button button-ghost button-small")}</div>
           <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4><p>Create your first class to begin building a roster and entering scores.</p>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
         </section>
 

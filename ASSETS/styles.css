@@ -1490,10 +1490,12 @@ h3 { font-size: 1.04rem; }
 .panel-heading { min-height: 75px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid var(--border-light); }
 .panel-heading .eyebrow { margin-bottom: 3px; }
 .panel-heading h3 { margin: 0; font-size: 1rem; }
+.panel-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 4px; border-radius: 99px; background: var(--surface-subtle); border: 1px solid var(--border-light); color: var(--muted); font-family: var(--font-mono); font-size: .68rem; font-weight: 700; vertical-align: middle; }
 .autosave-pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 99px; color: var(--success); background: var(--success-soft); font-size: .64rem; font-weight: 800; }
 .autosave-pill .ui-icon { width: 13px; height: 13px; }
 
-.recent-class-list { display: grid; }
+.recent-class-list { display: grid; max-height: 480px; overflow-y: auto; }
+.recent-class-group-heading { position: sticky; top: 0; z-index: 1; padding: 9px 17px 9px 23px; font-size: .64rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--surface-subtle); border-bottom: 1px solid var(--border-light); }
 .recent-class-row { position: relative; width: 100%; min-height: 76px; padding: 13px 17px 13px 23px; display: grid; grid-template-columns: minmax(0,1fr) 72px 72px 24px; align-items: center; gap: 12px; border: 0; border-bottom: 1px solid var(--border-light); background: transparent; color: var(--text); text-align: left; }
 .recent-class-row:last-child { border-bottom: 0; }
 .recent-class-row:hover { transform: none; background: var(--surface-subtle); box-shadow: none; }
