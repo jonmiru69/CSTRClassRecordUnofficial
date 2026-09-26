@@ -176,7 +176,7 @@
         recoveryState = cloneState(state);
         const recoverySections = recoveryState.calendarMode === "trimester" ? recoveryState.sectionsTri : recoveryState.sections;
         const period = recoverySections[activeSectionId]?.periods[activePeriodIndex];
-        if (period) window.CSTRRecordTools.adjustHps(period, input.dataset.hps, Number(input.dataset.index), hpsEdits.get(input), input.value);
+        if (period) adjustRecordHps(period, input.dataset.hps, Number(input.dataset.index), hpsEdits.get(input), input.value);
       }
       localStorage.setItem(localDraftKey(), JSON.stringify({ savedAt: new Date().toISOString(), state: recoveryState }));
     } catch (error) {
@@ -624,7 +624,7 @@
     activeClasses.forEach((section) => {
       const periods = sectionRecords[section.id] && Array.isArray(sectionRecords[section.id].periods) ? sectionRecords[section.id].periods : [];
       totalPeriods += periods.length;
-      lockedPeriods += periods.filter((period) => window.CSTRRecordTools.completion(period).complete).length;
+      lockedPeriods += periods.filter((period) => recordCompletion(period).complete).length;
       learners += computeLearnerNumbering(currentRosterOf(periods)).totalLearners;
     });
     const completion = totalPeriods ? Math.round((lockedPeriods / totalPeriods) * 100) : 0;
@@ -652,9 +652,24 @@
   function getLearnerCategory(name) {
     if (typeof name !== "string") return null;
     const clean = name.trim().toLowerCase();
-    if (/^boys\s*:?$/i.test(clean)) return "boys";
-    if (/^girls\s*:?$/i.test(clean)) return "girls";
+    if (clean.includes("boys")) return "boys";
+    if (clean.includes("girls")) return "girls";
     return null;
+  }
+
+  // Keep divider rows out of the record tools, including when their labels
+  // contain additional words (for example, "Grade 8 Boys").
+  function recordablePeriod(period) {
+    if (!period || !Array.isArray(period.roster)) return period;
+    return { ...period, roster: period.roster.filter((learner) => !getLearnerCategory(learner.name)) };
+  }
+
+  function recordCompletion(period) {
+    return window.CSTRRecordTools.completion(recordablePeriod(period));
+  }
+
+  function adjustRecordHps(period, kind, index, previous, next) {
+    return window.CSTRRecordTools.adjustHps(recordablePeriod(period), kind, index, previous, next);
   }
 
   function sectionNameShade(accent) {
@@ -765,6 +780,7 @@
         if (!Number.isFinite(hps) || hps <= 0) issues.invalidHps += 1;
       });
       (period.roster || []).forEach((learner) => {
+        if (getLearnerCategory(learner.name)) return;
         (learner[kind] || []).forEach((value, index) => {
           if (value === "" || value === null || value === undefined || isAttendanceCode(value)) return;
           const score = Number(value);
@@ -1509,7 +1525,7 @@
   function activeClassRow(section) {
     const periods = activeSections()[section.id] && activeSections()[section.id].periods ? activeSections()[section.id].periods : [];
     const learnerCount = computeLearnerNumbering(currentRosterOf(periods)).totalLearners;
-    const locked = periods.filter((period) => window.CSTRRecordTools.completion(period).complete).length;
+    const locked = periods.filter((period) => recordCompletion(period).complete).length;
     return `<button type="button" class="recent-class-row" data-action="select-section" data-section="${section.id}">
       <span class="recent-class-accent accent-${section.accent || section.theme}" aria-hidden="true"></span>
       <span class="recent-class-main"><strong>${escapeHtml(section.subject)}</strong><small>${escapeHtml(section.level)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</small></span>
@@ -1677,7 +1693,7 @@
           <div class="class-context-line"><span id="liveLearnerCount">${totalLearners} learner${totalLearners === 1 ? "" : "s"}</span><span>${escapeHtml(section.level)}</span><span>WW ${section.weights[0]}% · PT ${section.weights[1]}% · QA ${section.weights[2]}%</span></div>
         </div>
         <div class="class-period-area">
-          <div class="period-tabs" role="group" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-pressed="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index, state.calendarMode))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${window.CSTRRecordTools.completion(entry).complete ? "Complete" : "In progress"}">${window.CSTRRecordTools.completion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
+          <div class="period-tabs" role="group" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-pressed="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index, state.calendarMode))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${recordCompletion(entry).complete ? "Complete" : "In progress"}">${recordCompletion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
           <details class="period-settings"><summary>${icon("settings")}<span>Period options</span>${icon("chevron")}</summary><div class="period-toolbar">
             <label class="period-name-field" for="periodName"><span>Period name</span><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name ${period.locked ? "disabled" : ""}></label>
             <div id="periodCompletion" class="period-completion" role="status">${renderCompletionLabel(period, section, activePeriodIndex)}</div>
@@ -1714,7 +1730,7 @@
   }
 
   function renderCompletionLabel(period, section, index) {
-    const result = window.CSTRRecordTools.completion(period);
+    const result = recordCompletion(period);
     const label = escapeHtml(window.CSTRRecordTools.periodLabel(period, section.group, index, state.calendarMode));
     return `<span class="${result.complete ? "is-complete" : "is-incomplete"}">${result.complete ? "Complete" : "In progress"} · ${label}</span><small>${result.filled} / ${result.expected} score entries</small>`;
   }
@@ -1724,12 +1740,12 @@
     const section = currentSection(), period = currentPeriod();
     const node = document.querySelector("#periodCompletion");
     if (node) node.innerHTML = renderCompletionLabel(period, section, activePeriodIndex);
-    const complete = window.CSTRRecordTools.completion(period).complete;
+    const complete = recordCompletion(period).complete;
     const previous = completionSeen.get(period);
     completionSeen.set(period, complete);
     if (previous === false && complete) showSaveToast(`All required entries complete: ${window.CSTRRecordTools.periodLabel(period, section.group, activePeriodIndex, state.calendarMode)}`);
     document.querySelectorAll("[data-period-dot]").forEach(dot => {
-      const value = window.CSTRRecordTools.completion(activeSections()[section.id].periods[Number(dot.dataset.periodDot)]).complete;
+      const value = recordCompletion(activeSections()[section.id].periods[Number(dot.dataset.periodDot)]).complete;
       dot.textContent = value ? "✓" : "·";
       dot.setAttribute("aria-label", value ? "Complete" : "In progress");
     });
@@ -1821,7 +1837,11 @@
       const kindLabel = kind === "ww" ? "Written Work" : kind === "pt" ? "Performance Task" : "Assessment";
       return `<td class="${tdBorderClass}"><input class="${inputClasses}" type="text" inputmode="text" maxlength="6" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cellsDisabled ? 'disabled tabindex="-1"' : ''} title="${invalidMessage || "Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)"}" aria-invalid="${invalidScore || aboveHps}" aria-label="${learnerLabel}, ${kindLabel} ${index + 1}${invalidMessage ? `, ${invalidMessage}` : ""}"></td>`;
     }).join("");
-    const result = learnerResult(learner, period, section.weights);
+    const result = learnerResult(cat ? {
+      ww: learner.ww.map(() => ""),
+      pt: learner.pt.map(() => ""),
+      qa: learner.qa.map(() => "")
+    } : learner, period, section.weights);
     const deleteRowBtn = `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${periodLocked ? "Unlock this grading period to delete rows" : "Remove this learner row from this grading period only"}" aria-label="Delete learner ${rowIndex + 1} row" ${periodLocked ? "disabled" : ""}>${icon("trash")}</button>`;
     return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell" style="--section-name-bg:${nameShade.background};--section-name-color:${nameShade.color};"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td>${state.calendarMode === "trimester" ? "" : `<td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td>`}<td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
   }
@@ -2497,7 +2517,7 @@
 
   function isPeriodFinalized(period, section) {
     const learners = period.roster.filter((learner) => learner.name.trim() && !getLearnerCategory(learner.name));
-    return window.CSTRRecordTools.completion(period).complete;
+    return recordCompletion(period).complete;
   }
 
   function isLearnerAssessmentComplete(learner, period) {
@@ -2968,7 +2988,11 @@
     const learner = period.roster[rowIndex];
     const row = document.querySelector(`[data-learner-row="${rowIndex}"]`);
     if (!row) return;
-    const result = learnerResult(learner, period, section.weights);
+    const result = learnerResult(getLearnerCategory(learner.name) ? {
+      ww: learner.ww.map(() => ""),
+      pt: learner.pt.map(() => ""),
+      qa: learner.qa.map(() => "")
+    } : learner, period, section.weights);
     
     const wwTot = row.querySelector(".summary-ww-total"); if (wwTot) wwTot.textContent = scoreTotal(result.ww);
     const wwPs = row.querySelector(".summary-ww-ps"); if (wwPs) wwPs.textContent = format(result.ww.percentage, 3);
@@ -4076,7 +4100,7 @@
     hpsEdits.delete(input);
     const period = currentPeriod();
     if (!period || period.locked) return;
-    const result = window.CSTRRecordTools.adjustHps(period, input.dataset.hps, Number(input.dataset.index), previous, input.value);
+    const result = adjustRecordHps(period, input.dataset.hps, Number(input.dataset.index), previous, input.value);
     document.querySelectorAll(`input[data-score="${input.dataset.hps}"][data-index="${input.dataset.index}"]`).forEach(cell => {
       cell.value = period.roster[Number(cell.dataset.row)][input.dataset.hps][Number(input.dataset.index)];
     });
