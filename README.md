@@ -1,5 +1,40 @@
 # CSTR Class Record — Live
 
+## September 26 design and audit revision
+
+The active visual layers are consolidated into `ASSETS/design-system.css`. The
+maroon and gold identity now uses shared color, shape, typography, and motion
+tokens. Score and HPS fields have room for `100.00` at desktop and mobile
+widths; controls use small corners instead of pill geometry. A labeled light /
+dark control follows the device preference until a teacher chooses a theme,
+then remembers that choice. Reduced-motion preferences disable transitions.
+
+The audit also corrected a roster bug: a learner name containing "boys" or
+"girls" (for example, Boysen) was previously treated as a category divider,
+which could clear that learner's scores. Only the explicit `Boys` and `Girls`
+divider labels now receive that treatment. The grading engine, Firebase sync,
+registration, database rules, and saved-data structure are unchanged.
+
+The supplied ZIP did not include the `cstr-design-system.css` file mentioned in
+the audit brief. Its unused `premium.css` referenced Open Sans and Raleway font
+files that were also absent. The unused premium CSS, Quicksand files, motion
+script, and superseded CSS layers were removed; the site uses system fonts and
+one active stylesheet. New classes in this snapshot start with 50 blank rows;
+existing 42-row records continue to retain their saved roster length.
+
+**Verified in the supplied snapshot:** local browser previews of sign-in,
+overview, records, and both grading modes at desktop and 390px widths; light
+and dark mode, persisted theme choice, reduced motion, `100.00` display,
+attendance and invalid-score cues, HPS cap and exact restoration, the Boysen
+regression, and PDF/Word downloads. The grading engine's worked example still
+passes and its source is byte-identical to the archive.
+
+**Not yet verified:** live two-device Firebase propagation and save conflict
+resolution with a real account; Excel download, because the existing external
+XLSX script did not load in the local test environment; opening the generated
+files in Microsoft Office; school-specific grading approval and real teacher
+records. The archive has no automated test harness.
+
 ## September 19 three-term workspace revision
 
 The header now switches between the existing Quarterly / Semestral records and

@@ -632,22 +632,8 @@
   }
 
   function themeColorHex(name) {
-    const shades = {
-      purple: "#7763a4",
-      green: "#3c8a58",
-      blue: "#2980b9",
-      red: "#c0392b",
-      charcoal: "#374151",
-      "baby-blue": "#2587be",
-      "deep-red": "#87232b",
-      black: "#1f2937",
-      brown: "#8b4513",
-      orange: "#d35400",
-      pink: "#d81b60",
-      gray: "#546e7a",
-      yellow: "#b78103"
-    };
-    return shades[name] || shades.blue;
+    const allowed = ["purple", "green", "blue", "red", "charcoal", "baby-blue", "deep-red", "black", "brown", "orange", "pink", "gray", "yellow"];
+    return `var(--section-${allowed.includes(name) ? name : "blue"})`;
   }
 
   function renderDescriptorBadge(descriptor) {
@@ -666,29 +652,18 @@
   function getLearnerCategory(name) {
     if (typeof name !== "string") return null;
     const clean = name.trim().toLowerCase();
-    if (clean.includes("boys")) return "boys";
-    if (clean.includes("girls")) return "girls";
+    if (/^boys\s*:?$/i.test(clean)) return "boys";
+    if (/^girls\s*:?$/i.test(clean)) return "girls";
     return null;
   }
 
   function sectionNameShade(accent) {
-    const shades = {
-      purple: ["#eeeafd", "#4c3f7b"],
-      green: ["#e7f4eb", "#2f6542"],
-      blue: ["#e7f1fb", "#245d88"],
-      red: ["#fae9e8", "#823c3c"],
-      charcoal: ["#eaedf0", "#344150"],
-      "baby-blue": ["#e5f3fa", "#285f7c"],
-      "deep-red": ["#f7e7e8", "#792e35"],
-      black: ["#ebedef", "#30343a"],
-      brown: ["#f5ece5", "#71452e"],
-      orange: ["#fff0e1", "#8a4b12"],
-      pink: ["#fcebf0", "#88445f"],
-      gray: ["#eef1f2", "#4b5961"],
-      yellow: ["#fff7d6", "#705911"]
-    };
-    const [background, color] = shades[accent] || shades.blue;
-    return { background, color };
+    return { background: "var(--section-surface)", color: themeColorHex(accent) };
+  }
+
+  function themeControl() {
+    const dark = document.documentElement.dataset.theme === "dark";
+    return `<button type="button" class="theme-toggle" data-toggle-theme aria-pressed="${dark}" aria-label="Switch to ${dark ? "light" : "dark"} mode" title="Switch to ${dark ? "light" : "dark"} mode"><span class="theme-toggle-icon" aria-hidden="true">${dark ? "☀" : "☾"}</span><span class="theme-toggle-label">${dark ? "Light mode" : "Dark mode"}</span></button>`;
   }
 
   function computeLearnerNumbering(roster) {
@@ -974,7 +949,7 @@
       : loginPanel === "legacy" ? renderLegacyClaimPanel()
       : renderSignInPanel();
 
-    return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/cstr-logo.png" alt="">Colegio de Sto. Tomas-Recoletos, Incorporated <span>Digital Class Record</span></a><button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></header><section class="login-screen">
+    return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/cstr-logo.png" alt="">Colegio de Sto. Tomas-Recoletos, Incorporated <span>Digital Class Record</span></a><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen">
       <div class="welcome-story"><p class="eyebrow">A little clarity. Every school day.</p><h2>Your classes. <br>Your focus.<br><span>All in one place.</span></h2><p>A considered workspace for the work that matters. Organize your classes, record progress, and prepare grades with confidence.</p><div class="welcome-features"><span>${icon("records")} Clear class records</span><span>${icon("save")} Checkable save status</span><span>${icon("lock")} Authorized teacher access</span></div><figure><img src="ASSETS/campus-bg.png" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Made for the CST-R teaching community.</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
       <div class="login-card">
         <div class="login-header-logo">
@@ -1524,6 +1499,7 @@
       <div class="app-main"><header class="app-header"><div class="app-header-inner">
         <div class="page-context"><p class="eyebrow">Teacher workspace</p><h1 class="app-title">${viewTitle}</h1></div>
         <div class="header-actions-wrap"><div class="save-feedback"><p id="statusMessage" class="save-status" role="status" aria-live="polite"></p><p id="saveMeta" class="save-meta" aria-live="polite"></p></div>
+          ${themeControl()}
           ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", 'id="saveChanges"')}
         </div>
       </div></header><div class="app-shell">${content}</div></div>

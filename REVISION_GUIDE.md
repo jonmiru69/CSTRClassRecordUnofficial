@@ -1,5 +1,36 @@
 # Workspace revision — September 13, 2026
 
+## Design-system and roster audit — September 26, 2026
+
+- Replaced six loaded CSS passes with one `ASSETS/design-system.css`. Its light
+  and dark tokens cover controls, surfaces, validation, status, and the record
+  table. Color literals are confined to the token blocks. Four remaining
+  `!important` declarations apply only to reduced-motion accessibility.
+- Replaced fixed score-cell widths with a `ch`-based field sized for six
+  characters such as `100.00`, with relative font sizing; HPS fields use the
+  same width. Removed interactive pill corners and the unused tilt/ripple code.
+- Added an accessible theme control to the sign-in and workspace headers and
+  standalone policy page. The preference is applied before CSS loads and
+  persists across reloads. The inline policy dialog and full policy page use
+  the same stylesheet.
+- Limited category-row matching to the explicit `Boys`/`Girls` labels. A name
+  such as `Alex Boysen` remains an editable learner and counts toward the
+  roster. Saved JSON fields are unchanged.
+- The audit prompt described `cstr-design-system.css`, which is absent from
+  this ZIP. `premium.css` pointed to absent Open Sans/Raleway fonts and was
+  never loaded. Removed it, the unused Quicksand files, `motion.js`, and the
+  previous CSS layers after consolidating their active layout rules.
+
+**Verified in the supplied snapshot:** Chromium previews at 1440px and 390px,
+both themes and modes, theme persistence, reduced motion, score/HPS display,
+HPS cap/restore, attendance and invalid states, roster matching, and PDF/Word
+download generation. The unchanged grading-engine worked example passes.
+
+**Not yet verified:** authenticated live Firebase sync and concurrent conflict
+handling, Excel export while the external XLSX CDN is unavailable, Microsoft
+Office opening, school-approved official output, and real teacher data. No
+automated suite is present in the supplied archive.
+
 ## Three-term workspace — September 19, 2026
 
 The top bar now offers **Quarterly / Semestral** and **Trimester (Zero-Based)**.

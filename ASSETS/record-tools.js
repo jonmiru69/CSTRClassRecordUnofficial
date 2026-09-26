@@ -9,7 +9,8 @@
   const kinds = ['ww', 'pt', 'qa'];
   const present = v => v !== '' && v !== null && v !== undefined && String(v).trim() !== '';
   const numeric = v => present(v) && Number.isFinite(Number(v)) && Number(v) >= 0;
-  const category = name => /boys|girls/i.test(String(name || ''));
+  // Only explicit roster dividers are categories. Names such as Boysen are learners.
+  const category = name => /^(?:boys|girls)\s*:?$/i.test(String(name || '').trim());
 
   function setScore(learner, kind, index, value) {
     if (!kinds.includes(kind)) throw new Error('Unknown assessment component');
