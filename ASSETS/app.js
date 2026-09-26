@@ -2792,13 +2792,13 @@
             <p class="custom-weights-heading">Custom Grading Distribution</p>
             <div class="custom-weights-row">
               <label>Written Work (WW) %
-                <input id="addClassWW" type="number" min="0" max="100" step="any" inputmode="decimal" value="20">
+                <input id="addClassWW" type="number" min="0" max="100" step="any" inputmode="decimal" autocomplete="off" value="20">
               </label>
               <label>Performance Task (PT) %
-                <input id="addClassPT" type="number" min="0" max="100" step="any" inputmode="decimal" value="50">
+                <input id="addClassPT" type="number" min="0" max="100" step="any" inputmode="decimal" autocomplete="off" value="50">
               </label>
               <label>Quarterly Assessment (QA) %
-                <input id="addClassQA" type="number" min="0" max="100" step="any" inputmode="decimal" value="30">
+                <input id="addClassQA" type="number" min="0" max="100" step="any" inputmode="decimal" autocomplete="off" value="30">
               </label>
             </div>
             <p id="addClassWeightTotal" class="form-note"></p>
@@ -2861,13 +2861,13 @@
             <p class="custom-weights-heading">Custom Grading Distribution</p>
             <div class="custom-weights-row">
               <label>Written Work (WW) %
-                <input id="editSectionWW" type="number" min="0" max="100" step="any" inputmode="decimal" value="${isPreset ? 20 : section.weights[0]}">
+                <input id="editSectionWW" type="number" min="0" max="100" step="any" inputmode="decimal" autocomplete="off" value="${isPreset ? 20 : section.weights[0]}">
               </label>
               <label>Performance Task (PT) %
-                <input id="editSectionPT" type="number" min="0" max="100" step="any" inputmode="decimal" value="${isPreset ? 50 : section.weights[1]}">
+                <input id="editSectionPT" type="number" min="0" max="100" step="any" inputmode="decimal" autocomplete="off" value="${isPreset ? 50 : section.weights[1]}">
               </label>
               <label>Quarterly Assessment (QA) %
-                <input id="editSectionQA" type="number" min="0" max="100" step="any" inputmode="decimal" value="${isPreset ? 30 : section.weights[2]}">
+                <input id="editSectionQA" type="number" min="0" max="100" step="any" inputmode="decimal" autocomplete="off" value="${isPreset ? 30 : section.weights[2]}">
               </label>
             </div>
             <p id="editSectionWeightTotal" class="form-note"></p>
