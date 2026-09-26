@@ -844,15 +844,15 @@
     backdrop.innerHTML = `<div class="regcode-modal" role="dialog" aria-modal="true" aria-labelledby="regCodeTitle">
       <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
         <div>
-          <span class="regcode-badge">${icon("lock")} Official Account Registration Gateway</span>
-          <h2 id="regCodeTitle">Input Secret Code for Official Account Registration</h2>
+          <span class="regcode-badge">${icon("lock")} Teacher registration</span>
+          <h2 id="regCodeTitle">Enter your registration code</h2>
         </div>
         <button type="button" class="icon-button" data-action="close-regcode-modal" title="Close" aria-label="Close">${icon("close")}</button>
       </div>
       
       <div class="regcode-formal-box">
-        <strong>Official Authorization Notice:</strong><br>
-        To register a new official CSTR Class Record account, an authorized registration code is strictly required. You must possess the authorized code if you are the system developer, or if you have been officially granted access and settled the one-time account registration fee directly with the system developer, <strong>Sir Johnmil Sanchez</strong>.
+        <strong>Access is limited to authorized teachers.</strong><br>
+        Enter the registration code provided by the operator. If a one-time registration fee applies, arrange it directly with the operator. This is an independent, unofficial class-record tool; account access does not indicate school or DepEd endorsement.
       </div>
 
       <form id="regCodeForm">
@@ -975,7 +975,7 @@
       : renderSignInPanel();
 
     return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/cstr-logo.png" alt="">Colegio de Sto. Tomas-Recoletos, Incorporated <span>Digital Class Record</span></a><button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></header><section class="login-screen">
-      <div class="welcome-story"><p class="eyebrow">A little clarity. Every school day.</p><h2>Your classes. <br>Your focus.<br><span>All in one place.</span></h2><p>A considered workspace for the work that matters. Organize your classes, record progress, and prepare grades with confidence.</p><div class="welcome-features"><span>${icon("records")} Clear class records</span><span>${icon("save")} Connected across devices</span><span>${icon("lock")} Teacher-controlled access</span></div><figure><img src="ASSETS/campus-bg.jpg" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Made for the CST-R teaching community.</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
+      <div class="welcome-story"><p class="eyebrow">A little clarity. Every school day.</p><h2>Your classes. <br>Your focus.<br><span>All in one place.</span></h2><p>A considered workspace for the work that matters. Organize your classes, record progress, and prepare grades with confidence.</p><div class="welcome-features"><span>${icon("records")} Clear class records</span><span>${icon("save")} Checkable save status</span><span>${icon("lock")} Authorized teacher access</span></div><figure><img src="ASSETS/campus-bg.png" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Made for the CST-R teaching community.</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
       <div class="login-card">
         <div class="login-header-logo">
           <img src="ASSETS/cstr-logo.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
@@ -1005,10 +1005,10 @@
   function renderSignInPanel() {
     return `<form id="signinForm" class="legacy-login-box">
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Email
-          <input id="signinEmail" type="email" autocomplete="username" placeholder="you@example.com">
+          <input id="signinEmail" type="email" autocomplete="username" placeholder="you@example.com" required>
         </label>
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Password
-          <input id="signinPassword" type="password" autocomplete="current-password" placeholder="Your password">
+          <input id="signinPassword" type="password" autocomplete="current-password" placeholder="Your password" required>
         </label>
         <button type="submit" class="button button-primary" data-action="email-signin" style="width: 100%; margin-top: 6px;">Sign In</button>
       </form>
@@ -1037,16 +1037,16 @@
     return `<p class="legacy-helper-text" style="text-align: left;">Enter your details below to create your CSTR Class Record workspace.</p>
       <form id="signupForm" class="legacy-login-box">
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Full Name
-          <input id="signupName" type="text" placeholder="e.g. Maria Santos">
+          <input id="signupName" type="text" autocomplete="name" placeholder="e.g. Maria Santos" required>
         </label>
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Email
-          <input id="signupEmail" type="email" autocomplete="username" placeholder="you@example.com">
+          <input id="signupEmail" type="email" autocomplete="username" placeholder="you@example.com" required>
         </label>
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Password
-          <input id="signupPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+          <input id="signupPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters" minlength="6" required>
         </label>
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Confirm Password
-          <input id="signupPasswordConfirm" type="password" autocomplete="new-password" placeholder="Re-enter password">
+          <input id="signupPasswordConfirm" type="password" autocomplete="new-password" placeholder="Re-enter password" minlength="6" required>
         </label>
         <button type="submit" class="button button-primary" data-action="email-signup" style="width: 100%; margin-top: 6px;"> Create My Class Record</button>
       </form>
@@ -1057,10 +1057,10 @@
     return `<p class="legacy-helper-text" style="text-align: left;">Have class records from before this upgrade? Claim them below to set up a normal email + password login.</p>
       <form id="legacyClaimForm" class="legacy-login-box">
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Your Email
-          <input id="legacyClaimEmail" type="email" autocomplete="username" placeholder="you@example.com">
+          <input id="legacyClaimEmail" type="email" autocomplete="username" placeholder="you@example.com" required>
         </label>
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Account Code (becomes your password)
-          <input id="legacyClaimCode" type="password" autocomplete="off" placeholder="Enter your account code...">
+          <input id="legacyClaimCode" type="password" autocomplete="off" placeholder="Enter your account code..." required>
         </label>
         <button type="submit" class="button button-outline" data-action="legacy-claim" style="width: 100%; margin-top: 6px;"> Claim & Set Up Login</button>
       </form>
@@ -1538,7 +1538,7 @@
       <span class="recent-class-accent accent-${section.accent || section.theme}" aria-hidden="true"></span>
       <span class="recent-class-main"><strong>${escapeHtml(section.subject)}</strong><small>${escapeHtml(section.level)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</small></span>
       <span class="recent-class-stat"><strong>${learnerCount}</strong><small>Learners</small></span>
-      <span class="recent-class-stat"><strong>${locked}/${periods.length}</strong><small>Finalized</small></span>
+      <span class="recent-class-stat"><strong>${locked}/${periods.length}</strong><small>Complete</small></span>
       ${icon("arrow", "ui-icon row-arrow")}
     </button>`;
   }
@@ -1586,8 +1586,8 @@
       <div class="metric-grid" aria-label="Class record overview">
         <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
         <article class="metric-card"><span class="metric-icon">${icon("users")}</span><div><p>Total learners</p><strong>${metrics.learners}</strong><small>Across active class rosters</small></div></article>
-        <article class="metric-card"><span class="metric-icon">${icon("lock")}</span><div><p>Finalized periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>Completed assessment data</small></div></article>
-        <article class="metric-card metric-progress"><span class="metric-icon">${icon("chart")}</span><div><p>Record readiness</p><strong>${metrics.completion}%</strong><div class="progress-track" aria-label="${metrics.completion}% of periods finalized"><span style="width:${metrics.completion}%"></span></div></div></article>
+        <article class="metric-card"><span class="metric-icon">${icon("chart")}</span><div><p>Complete periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>All required entries present</small></div></article>
+        <article class="metric-card metric-progress"><span class="metric-icon">${icon("chart")}</span><div><p>Entry completion</p><strong>${metrics.completion}%</strong><div class="progress-track" aria-label="${metrics.completion}% of periods complete"><span style="width:${metrics.completion}%"></span></div></div></article>
       </div>
 
       <div class="dashboard-grid">
@@ -1660,8 +1660,8 @@
       
       <div class="archive-toggle-bar">
         <div class="archive-pills">
-          <button type="button" class="archive-pill" data-action="set-archive-filter" data-filter="active" aria-selected="${archiveFilter === "active"}">Active Classes (${activeCount})</button>
-          <button type="button" class="archive-pill" data-action="set-archive-filter" data-filter="archived" aria-selected="${archiveFilter === "archived"}">${icon("archive")} Archived Classes (${archivedCount})</button>
+          <button type="button" class="archive-pill" data-action="set-archive-filter" data-filter="active" aria-pressed="${archiveFilter === "active"}">Active Classes (${activeCount})</button>
+          <button type="button" class="archive-pill" data-action="set-archive-filter" data-filter="archived" aria-pressed="${archiveFilter === "archived"}">${icon("archive")} Archived Classes (${archivedCount})</button>
         </div>
         ${archiveFilter === "archived" ? `<span style="font-size:0.8rem;color:var(--muted);">Showing archived records. Stored safely for future reference.</span>` : ""}
       </div>
@@ -1701,7 +1701,7 @@
           <div class="class-context-line"><span id="liveLearnerCount">${totalLearners} learner${totalLearners === 1 ? "" : "s"}</span><span>${escapeHtml(section.level)}</span><span>WW ${section.weights[0]}% · PT ${section.weights[1]}% · QA ${section.weights[2]}%</span></div>
         </div>
         <div class="class-period-area">
-          <div class="period-tabs" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-selected="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index, state.calendarMode))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${window.CSTRRecordTools.completion(entry).complete ? "Finalized" : "In progress"}">${window.CSTRRecordTools.completion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
+          <div class="period-tabs" role="group" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-pressed="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index, state.calendarMode))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${window.CSTRRecordTools.completion(entry).complete ? "Complete" : "In progress"}">${window.CSTRRecordTools.completion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
           <details class="period-settings"><summary>${icon("settings")}<span>Period options</span>${icon("chevron")}</summary><div class="period-toolbar">
             <label class="period-name-field" for="periodName"><span>Period name</span><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name ${period.locked ? "disabled" : ""}></label>
             <div id="periodCompletion" class="period-completion" role="status">${renderCompletionLabel(period, section, activePeriodIndex)}</div>
@@ -1726,11 +1726,12 @@
           <h3>Working in your grade sheet</h3>
           <p>Drag across cells to select a block. Copy with Ctrl+C, cut with Ctrl+X, clear with Delete, or paste a spreadsheet block with Ctrl+V.</p>
           <p>To fill a selection with one value, type in its first cell and press Enter or Tab.</p>
-          <h3>Score legend</h3><dl><dt>Red outline</dt><dd>Score above HPS or invalid value. Correct before finalizing.</dd><dt>A — Absent · M — Missing</dt><dd>Counted as zero against HPS.</dd><dt>E — Excused · L — Late</dt><dd>Excluded from the grade calculation.</dd><dt>Quarterly assessment</dt><dd>With three QA slots, ST1/ST2/Term Exam use 30%/30%/40%, normalized to included entries. Other slot counts use the existing uniform calculation.</dd></dl>
-          <p>Finalized means every named learner has an entry for every visible WW, PT and QA activity, and every HPS is valid. Remove unused columns. A manual lock is separate.</p>
+          <h3>Score legend</h3><dl><dt>Red outline</dt><dd>Score above HPS or invalid value. Correct before finalizing.</dd><dt>A — Absent · M — Missing</dt><dd>Counted as zero against HPS.</dd><dt>E — Excused · L — Late</dt><dd>Excluded from the grade calculation.</dd><dt>${state.calendarMode === "trimester" ? "Term assessment" : "Quarterly assessment"}</dt><dd>With three QA slots, ST1/ST2/Term Exam use 30%/30%/40%, normalized to included entries. Other slot counts use the existing uniform calculation.</dd></dl>
+          <p>Complete means every named learner has an entry for every visible WW, PT and QA activity, and every HPS is valid. Remove unused columns. Locking a period is a separate action.</p>
           <p>Lowering HPS caps scores above it when you leave the field. Restoring the original HPS restores those original scores unless you explicitly edited them afterward.</p>
         </div></details>
       </div>
+      <p class="sheet-scroll-hint" id="sheetScrollHint">Grade sheet: scroll sideways to reach all assessments. Select the sheet to use keyboard scrolling.</p>
       ${renderRecordTable(section, period)}
 
     </div>`;
@@ -1739,7 +1740,7 @@
   function renderCompletionLabel(period, section, index) {
     const result = window.CSTRRecordTools.completion(period);
     const label = escapeHtml(window.CSTRRecordTools.periodLabel(period, section.group, index, state.calendarMode));
-    return `<span class="${result.complete ? "is-complete" : "is-incomplete"}">${result.complete ? "Finalized" : "In progress"} · ${label}</span><small>${result.filled} / ${result.expected} score entries</small>`;
+    return `<span class="${result.complete ? "is-complete" : "is-incomplete"}">${result.complete ? "Complete" : "In progress"} · ${label}</span><small>${result.filled} / ${result.expected} score entries</small>`;
   }
 
   function updateCompletionIndicators() {
@@ -1750,11 +1751,11 @@
     const complete = window.CSTRRecordTools.completion(period).complete;
     const previous = completionSeen.get(period);
     completionSeen.set(period, complete);
-    if (previous === false && complete) showSaveToast(`Finalized: ${window.CSTRRecordTools.periodLabel(period, section.group, activePeriodIndex, state.calendarMode)}`);
+    if (previous === false && complete) showSaveToast(`All required entries complete: ${window.CSTRRecordTools.periodLabel(period, section.group, activePeriodIndex, state.calendarMode)}`);
     document.querySelectorAll("[data-period-dot]").forEach(dot => {
       const value = window.CSTRRecordTools.completion(activeSections()[section.id].periods[Number(dot.dataset.periodDot)]).complete;
       dot.textContent = value ? "✓" : "·";
-      dot.setAttribute("aria-label", value ? "Finalized" : "In progress");
+      dot.setAttribute("aria-label", value ? "Complete" : "In progress");
     });
     const issues = getPeriodInputIntegrity(period), integrity = document.querySelector("#periodIntegrity");
     if (integrity) integrity.innerHTML = hasPeriodInputIssues(issues) ? `<p class="integrity-note">Review needed: ${escapeHtml(periodInputIssueMessage(issues))}.</p>` : "";
@@ -1784,24 +1785,24 @@
     const sectionLocked = sectionHasLockedPeriod(section);
     const rows = period.roster.map((learner, rowIndex) => renderLearnerRow(learner, rowIndex, period, section, numbering[rowIndex], period.locked)).join("");
     
-    return `<div class="table-wrap"><table class="record-table compact-record"><thead>
+    return `<div class="table-wrap" role="region" aria-label="Scrollable grade sheet" aria-describedby="sheetScrollHint" tabindex="0"><table class="record-table compact-record"><caption class="sr-only">Scores, highest possible scores, and calculated grades for ${escapeHtml(section.subject)}. Attendance codes and editing guidance are in Grade sheet help.</caption><thead>
       <tr class="component-row">
         <th class="number-cell" scope="col" rowspan="3">#</th>
         <th class="name-cell" scope="col" rowspan="3">Learner name</th>
         <th class="component-header component-ww" scope="colgroup" colspan="${wwLen + 3}">
           Written Works (${section.weights[0]}%)
-          <button type="button" class="col-btn" data-action="add-col" data-kind="ww" title="Add Column" ${period.locked ? "disabled" : ""}>+</button>
-          <button type="button" class="col-btn" data-action="remove-col" data-kind="ww" title="Remove Column" ${period.locked ? "disabled" : ""}>-</button>
+          <button type="button" class="col-btn" data-action="add-col" data-kind="ww" title="Add Written Work column" aria-label="Add Written Work column" ${period.locked ? "disabled" : ""}>+</button>
+          <button type="button" class="col-btn" data-action="remove-col" data-kind="ww" title="Remove Written Work column" aria-label="Remove Written Work column" ${period.locked ? "disabled" : ""}>-</button>
         </th>
         <th class="component-header component-pt border-start-pt" scope="colgroup" colspan="${ptLen + 3}">
           Performance Tasks (${section.weights[1]}%)
-          <button type="button" class="col-btn" data-action="add-col" data-kind="pt" title="Add Column" ${period.locked ? "disabled" : ""}>+</button>
-          <button type="button" class="col-btn" data-action="remove-col" data-kind="pt" title="Remove Column" ${period.locked ? "disabled" : ""}>-</button>
+          <button type="button" class="col-btn" data-action="add-col" data-kind="pt" title="Add Performance Task column" aria-label="Add Performance Task column" ${period.locked ? "disabled" : ""}>+</button>
+          <button type="button" class="col-btn" data-action="remove-col" data-kind="pt" title="Remove Performance Task column" aria-label="Remove Performance Task column" ${period.locked ? "disabled" : ""}>-</button>
         </th>
         <th class="component-header component-qa border-start-qa" scope="colgroup" colspan="${qaLen + 3}">
-          Quarterly Assessment (${section.weights[2]}%)
-          <button type="button" class="col-btn" data-action="add-col" data-kind="qa" title="Add Column" ${period.locked ? "disabled" : ""}>+</button>
-          <button type="button" class="col-btn" data-action="remove-col" data-kind="qa" title="Remove Column" ${period.locked ? "disabled" : ""}>-</button>
+          ${state.calendarMode === "trimester" ? "Term Assessment" : "Quarterly Assessment"} (${section.weights[2]}%)
+          <button type="button" class="col-btn" data-action="add-col" data-kind="qa" title="Add assessment column" aria-label="Add assessment column" ${period.locked ? "disabled" : ""}>+</button>
+          <button type="button" class="col-btn" data-action="remove-col" data-kind="qa" title="Remove assessment column" aria-label="Remove assessment column" ${period.locked ? "disabled" : ""}>-</button>
         </th>
         <th class="initial-header" scope="col" rowspan="3">${state.calendarMode === "trimester" ? "Term<br>Grade" : "Initial<br>Grade"}</th>
         ${state.calendarMode === "trimester" ? "" : '<th class="transmuted-header" scope="col" rowspan="3">Final Transmuted<br>Grade</th>'}
@@ -1831,6 +1832,7 @@
     const catClass = cat ? `row-category row-category-${cat}` : "";
     const nameShade = sectionNameShade(section.accent || section.theme);
     const cellsDisabled = cat || period.locked;
+    const learnerLabel = escapeHtml(String(learner.name || "").trim() || `Learner ${rowIndex + 1}`);
 
     const scoreInputs = (kind, values, hpsValues) => values.map((value, index) => {
       const tdBorderClass = (index === 0 && kind === "pt") ? "border-start-pt" : (index === 0 && kind === "qa") ? "border-start-qa" : "";
@@ -1839,12 +1841,13 @@
       const invalidScore = !isAttendanceCode(value) && value !== "" && (!Number.isFinite(rawNumber) || rawNumber < 0);
       const aboveHps = hasRawAboveHps(value, hpsValues[index]);
       const inputClasses = [aboveHps || invalidScore ? "invalid" : "", isAttendanceCode(value) ? "code-cell" : "", codeValue === "M" ? "code-cell-missing" : ""].filter(Boolean).join(" ");
-      const invalidMessage = invalidScore ? "Invalid score. Enter zero or a positive number, or an attendance code." : "";
-      return `<td class="${tdBorderClass}"><input class="${inputClasses}" type="text" inputmode="text" maxlength="6" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cellsDisabled ? 'disabled tabindex="-1"' : ''} title="${invalidMessage || "Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)"}" aria-invalid="${invalidScore || aboveHps}" aria-label="Learner ${rowIndex + 1} ${kind.toUpperCase()} ${index + 1}"></td>`;
+      const invalidMessage = invalidScore ? "Invalid score. Enter zero or a positive number, or an attendance code." : aboveHps ? "Score is above the highest possible score." : "";
+      const kindLabel = kind === "ww" ? "Written Work" : kind === "pt" ? "Performance Task" : "Assessment";
+      return `<td class="${tdBorderClass}"><input class="${inputClasses}" type="text" inputmode="text" maxlength="6" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cellsDisabled ? 'disabled tabindex="-1"' : ''} title="${invalidMessage || "Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)"}" aria-invalid="${invalidScore || aboveHps}" aria-label="${learnerLabel}, ${kindLabel} ${index + 1}${invalidMessage ? `, ${invalidMessage}` : ""}"></td>`;
     }).join("");
     const result = learnerResult(learner, period, section.weights);
     const deleteRowBtn = `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${periodLocked ? "Unlock this grading period to delete rows" : "Remove this learner row from this grading period only"}" aria-label="Delete learner ${rowIndex + 1} row" ${periodLocked ? "disabled" : ""}>${icon("trash")}</button>`;
-    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell" style="--section-name-bg:${nameShade.background};--section-name-color:${nameShade.color};"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td>${state.calendarMode === "trimester" ? "" : `<td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td>`}<td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
+    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell" style="--section-name-bg:${nameShade.background};--section-name-color:${nameShade.color};"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td>${state.calendarMode === "trimester" ? "" : `<td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td>`}<td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
   }
 
   function learnerResult(learner, period, weights) {
@@ -2758,8 +2761,8 @@
     modal.className = "modal-backdrop welcome-modal";
     modal.innerHTML = `<section class="modal welcome-modal-card" role="dialog" aria-modal="true" aria-labelledby="welcomeModalTitle">
       <p class="eyebrow">First time on this device</p>
-      <h2 id="welcomeModalTitle">WELCOME TO CST-R CLASS RECORD WEBSITE DEVELOPED BY SIR JOHNMIL SANCHEZ, LPT!</h2>
-      <p class="welcome-modal-subtitle">This is an UNOFFICIAL class record — not an official DepEd or school-issued system — but it is fully functional, built to follow all necessary DepEd grading guidelines and details, and supports all the necessary class record functions.</p>
+      <h2 id="welcomeModalTitle">Welcome to your class record</h2>
+      <p class="welcome-modal-subtitle">This independent, unofficial tool helps you manage classes, scores, and grade exports. Confirm the grading rules and weights with your school, review calculated grades before submission, and check that changes are saved before switching devices.</p>
       <div class="stack-actions" style="justify-content:flex-end; margin-top:20px;">${button("Got it, let's start", "close-modal", "button button-primary")}</div>
     </section>`;
     document.body.append(modal);

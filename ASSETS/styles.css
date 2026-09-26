@@ -96,7 +96,7 @@ body { margin: 0; min-width: 320px; position: relative; overflow-x: hidden; back
 #siteBg.bg-login {
   background:
     linear-gradient(135deg, rgba(255,255,255,.92) 0%, rgba(255,255,255,.62) 42%, rgba(248,227,163,.40) 78%, rgba(240,203,110,.58) 100%),
-    url("campus-bg.jpg") center 32% / cover no-repeat;
+    url("campus-bg.png") center 32% / cover no-repeat;
   filter: contrast(1.06) saturate(1.08);
 }
 
@@ -1309,7 +1309,7 @@ h3 { font-size: 1.04rem; }
 #siteBg.bg-login {
   background:
     linear-gradient(90deg, rgba(52, 6, 16, .93) 0%, rgba(72, 9, 22, .86) 42%, rgba(31, 35, 40, .40) 100%),
-    url("campus-bg.jpg") center / cover no-repeat;
+    url("campus-bg.png") center / cover no-repeat;
   filter: none;
 }
 
