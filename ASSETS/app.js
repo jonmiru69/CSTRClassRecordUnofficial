@@ -719,15 +719,17 @@
   function adjustNameColumnWidth() {
     const period = currentPeriod();
     if (!period || !period.roster) return;
-    let maxLen = 14;
-    period.roster.forEach((learner) => {
-      const len = (learner.name || "").length;
-      if (len > maxLen) maxLen = len;
+    const inputs = document.querySelectorAll(".record-table .name-cell input[data-name-row]");
+    if (!inputs.length) return;
+    // Measure the rendered text, so wide letters, uppercase dividers, and
+    // long names all expand the same shared table column without a hard cap.
+    document.documentElement.style.setProperty("--name-col-width", "218px");
+    let newWidth = 218;
+    inputs.forEach((input) => {
+      const cell = input.closest(".name-cell");
+      const overflow = Math.max(0, input.scrollWidth - input.clientWidth);
+      newWidth = Math.max(newWidth, Math.ceil(cell.getBoundingClientRect().width + overflow + 12));
     });
-    document.querySelectorAll(".name-cell input").forEach((input) => {
-      if (input.value.length > maxLen) maxLen = input.value.length;
-    });
-    const newWidth = Math.min(380, Math.max(240, Math.ceil(maxLen * 7.2 + 36)));
     document.documentElement.style.setProperty("--name-col-width", `${newWidth}px`);
   }
 
@@ -1503,7 +1505,7 @@
         </nav>
         <section class="sidebar-search-block" aria-label="Find a learner"><p class="sidebar-label">Learner lookup</p>
           <button type="button" class="sidebar-link search-expand" data-action="expand-search" aria-label="Expand learner search" title="Find a learner">${icon("search")}<span>Find a learner</span></button>
-          <div class="header-search sidebar-search" role="search"><label for="studentSearch">Find a learner</label><input id="studentSearch" type="search" autocomplete="off" placeholder="Student's complete name"><button type="button" class="button button-secondary" data-action="search-student" aria-label="Search learner" title="Search learner">${icon("search")}<span>Search learner</span></button></div>
+          <div class="header-search sidebar-search" role="search"><label for="studentSearch">Find a learner by complete name</label><input id="studentSearch" type="search" autocomplete="off" placeholder="Full student name"><button type="button" class="button button-secondary" data-action="search-student" aria-label="Search learner" title="Search learner">${icon("search")}<span>Search learner</span></button></div>
         </section>
         <nav class="sidebar-account-tools" aria-label="Account"><p class="sidebar-label">Account</p>
           <button class="sidebar-link" type="button" data-action="open-settings" title="Settings">${icon("settings")}<span>Settings</span></button>
@@ -1811,7 +1813,7 @@
         <th colspan="${qaLen}" scope="row" class="border-start-qa">Highest Possible Scores (HPS)</th><th class="component-summary component-qa">Raw / HPS</th><th class="component-summary component-qa">Percentage</th><th class="component-summary component-qa">Weighted</th>
       </tr>
       <tr class="hps-input-row">
-        <th colspan="2" scope="row">Enter HPS</th>
+        <th class="number-cell" aria-hidden="true"></th><th class="name-cell" scope="row">Enter HPS</th>
         ${hpsInputs("ww", period.wwHps)}<td colspan="3">&nbsp;</td>
         ${hpsInputs("pt", period.ptHps)}<td colspan="3">&nbsp;</td>
         ${hpsInputs("qa", period.qaHps)}<td colspan="3">&nbsp;</td><td colspan="${state.calendarMode === "trimester" ? 2 : 3}">&nbsp;</td>

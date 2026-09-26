@@ -2877,3 +2877,107 @@ h1,h2,h3,h4,h5,h6 { font-family: var(--font-heading); }
 [data-theme="dark"] .name-cell { --section-name-bg: var(--surface-subtle); --section-name-color: var(--text); }
 @media (max-width: 760px) { .theme-toggle { min-width: 44px; width: 44px; padding: .5rem; } .theme-toggle-label { display: none; } .app-header .theme-toggle { grid-column: 2; grid-row: 2; justify-self: end; align-self: start; } .app-header .save-feedback { grid-column: 1; grid-row: 2; } .record-table input[data-score] { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+
+/* Readability and compact grade-sheet revision. Keep all theme pairs together. */
+:root {
+  --sidebar-ink: #f7eff1;
+  --sidebar-muted: #d5c2c8;
+  --sidebar-gold: #f2d27e;
+  --sidebar-field: #30232b;
+  --sidebar-field-border: #82636c;
+  --grade-initial-bg: #d1ab4e;
+  --grade-initial-ink: #292116;
+  --grade-transmuted-bg: #741426;
+  --grade-transmuted-ink: #fff7f8;
+  --grade-descriptor-bg: #272026;
+  --grade-descriptor-ink: #fff7f8;
+  --grade-initial-cell-bg: #f7efd8;
+  --grade-transmuted-cell-bg: #f5e8eb;
+  --grade-descriptor-cell-bg: #f5f7f8;
+  --hps-bg: #f0ebe2;
+  --hps-ink: #343941;
+}
+:root[data-theme="dark"] {
+  --sidebar-ink: #f6ebee;
+  --sidebar-muted: #dac7cd;
+  --sidebar-gold: #f1d587;
+  --sidebar-field: #34272e;
+  --sidebar-field-border: #78606a;
+  --grade-initial-bg: #5b4727;
+  --grade-initial-ink: #f4dfa8;
+  --grade-transmuted-bg: #56303b;
+  --grade-transmuted-ink: #f7e3e9;
+  --grade-descriptor-bg: #30434e;
+  --grade-descriptor-ink: #dcedf6;
+  --grade-initial-cell-bg: #383124;
+  --grade-transmuted-cell-bg: #382930;
+  --grade-descriptor-cell-bg: #2b343b;
+  --hps-bg: #343039;
+  --hps-ink: #f1e9eb;
+}
+
+.app-sidebar .sidebar-brand-copy small,
+.app-sidebar .sidebar-owner,
+.app-sidebar .sidebar-label,
+.app-sidebar .sidebar-toggle { color: var(--sidebar-muted); }
+.app-sidebar .sidebar-link { color: var(--sidebar-ink); }
+.app-sidebar .sidebar-link[aria-current="page"],
+.app-sidebar .sidebar-mode-option[aria-pressed="true"],
+.app-sidebar .sidebar-link[aria-current="page"] .ui-icon,
+.app-sidebar .sidebar-mode-option[aria-pressed="true"] .ui-icon { color: var(--sidebar-gold); }
+.app-sidebar .sidebar-search input,
+.app-sidebar .sidebar-search .button { background: var(--sidebar-field); border-color: var(--sidebar-field-border); color: var(--sidebar-ink); }
+.app-sidebar .sidebar-search input { font-size: 12.5px; padding-inline: 9px; }
+.app-sidebar .sidebar-search input::placeholder { color: var(--sidebar-muted); opacity: 1; }
+.app-sidebar .sidebar-search .button:hover { background: #49343d; color: #fff; }
+.welcome-story > p:not(.eyebrow):not(.welcome-unofficial) { color: var(--brand-foreground); }
+.welcome-story .welcome-features .ui-icon { color: var(--gold-300); }
+.save-status, .save-meta { color: var(--stone-700); }
+.record-table .number-cell { color: var(--stone-700); }
+.record-table thead .component-summary.component-ww { color: var(--text); }
+.bulk-column-control input, .roster-slots-tools input { background: var(--surface); color: var(--text); border-color: var(--border); }
+:root[data-theme="dark"] .bulk-column-control input,
+:root[data-theme="dark"] .roster-slots-tools input { background-color: var(--surface); color: var(--text); border-color: var(--border); }
+
+.record-table .name-cell, .compact-record .name-cell {
+  width: var(--name-col-width, 218px);
+  min-width: var(--name-col-width, 218px);
+  max-width: var(--name-col-width, 218px);
+}
+.record-table tbody :is(th,td) { padding-block: 2px; }
+.record-table tbody .name-cell input { min-height: 32px; padding-block: 4px; }
+.record-table tbody input[data-score] { min-height: 32px; padding-block: 3px; }
+.record-table tbody .row-delete-btn { min-width: 28px; min-height: 28px; width: 28px; height: 28px; }
+
+.record-table thead .initial-header { background: var(--grade-initial-bg); color: var(--grade-initial-ink); }
+.record-table thead .transmuted-header { background: var(--grade-transmuted-bg); color: var(--grade-transmuted-ink); border-left-color: var(--grade-transmuted-bg); }
+.record-table thead .descriptor-header { background: var(--grade-descriptor-bg); color: var(--grade-descriptor-ink); }
+.record-table tbody .initial-cell { background: var(--grade-initial-cell-bg); color: var(--text); }
+.record-table tbody .transmuted-cell { background: var(--grade-transmuted-cell-bg); color: var(--text); }
+.record-table tbody .descriptor-cell { background: var(--grade-descriptor-cell-bg); color: var(--text); }
+.record-table thead .col-btn { background: var(--surface); border-color: var(--border); color: var(--text); }
+.record-table thead .col-btn:hover { background: var(--info-soft); color: var(--info); }
+.button-danger, .regcode-actions .button-primary, .regcode-actions .button-primary:hover { background: var(--crimson-800); border-color: var(--crimson-800); color: var(--on-brand); }
+
+.record-table .hps-input-row :is(th,td) { height: 36px; background: var(--hps-bg); color: var(--hps-ink); }
+.record-table .hps-input-row th.number-cell { position: static; z-index: auto; padding: 0; }
+.record-table .hps-input-row th.name-cell { position: sticky; left: 0; z-index: 21; background: var(--hps-bg); color: var(--hps-ink); text-align: left; box-shadow: 2px 0 0 var(--border); }
+.record-table .hps-input-row input[data-hps] { min-height: 30px; height: 30px; padding-block: 2px; background: var(--surface); color: var(--text); }
+:root[data-theme="dark"] .record-table thead :is(.initial-header,.transmuted-header,.descriptor-header),
+:root[data-theme="dark"] .record-table .hps-input-row :is(th,td) { background-color: var(--hps-bg); color: var(--hps-ink); }
+:root[data-theme="dark"] .record-table thead .initial-header { background-color: var(--grade-initial-bg); color: var(--grade-initial-ink); }
+:root[data-theme="dark"] .record-table thead .transmuted-header { background-color: var(--grade-transmuted-bg); color: var(--grade-transmuted-ink); }
+:root[data-theme="dark"] .record-table thead .descriptor-header { background-color: var(--grade-descriptor-bg); color: var(--grade-descriptor-ink); }
+:root[data-theme="dark"] .record-table tbody :is(.initial-cell,.transmuted-cell,.descriptor-cell) { color: var(--text); }
+:root[data-theme="dark"] .record-table tbody .initial-cell { background-color: var(--grade-initial-cell-bg); }
+:root[data-theme="dark"] .record-table tbody .transmuted-cell { background-color: var(--grade-transmuted-cell-bg); }
+:root[data-theme="dark"] .record-table tbody .descriptor-cell { background-color: var(--grade-descriptor-cell-bg); }
+:root[data-theme="dark"] .record-table .hps-input-row input[data-hps] { background: var(--surface); color: var(--text); }
+:root[data-theme="dark"] .record-table tr.row-category-boys input.text-input { background: var(--info-soft); color: var(--info); border-color: var(--info); }
+:root[data-theme="dark"] .record-table tr.row-category-girls input.text-input { background: var(--brand-soft); color: var(--maroon); border-color: var(--brand-line); }
+
+@media (max-width: 760px) {
+  .record-table tbody .name-cell input,
+  .record-table tbody input[data-score] { min-height: 38px; }
+  .record-table tbody .row-delete-btn { min-width: 36px; min-height: 36px; width: 36px; height: 36px; }
+}
