@@ -742,7 +742,27 @@ input.cell-selected {
 .custom-weights-heading { margin: 0 0 8px; font-weight: 700; font-size: 0.82rem; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
 .custom-weights-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .custom-weights-row label { display: grid; gap: 6px; font-weight: 600; font-size: 0.82rem; }
-.custom-weights-row input { min-height: 42px; border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 10px; background: #fff; font-size: 0.9rem; }
+.custom-weights-row input {
+  width: 100%;
+  min-height: 42px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  /* Hide the native up/down spinner UI. On some browsers/extensions those
+     stepper controls render as overlapping icons inside the narrow field;
+     removing them keeps the box clean while typing and arrow-key stepping
+     still work. */
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.custom-weights-row input::-webkit-outer-spin-button,
+.custom-weights-row input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 .form-note.is-valid { color: var(--success); font-weight: 600; }
 .settings-note { margin: 18px 0; padding: 12px 14px; border-left: 4px solid var(--gold); background: #fffdf4; color: var(--muted); line-height: 1.5; font-size: .88rem; border-radius: 0 6px 6px 0; }
 .welcome-modal-card { border-top: 5px solid var(--gold); text-align: center; }
