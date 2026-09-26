@@ -580,6 +580,40 @@
 
   function button(label, action, className = "button", extra = "") { return `<button type="button" class="${className}" data-action="${action}" ${extra}>${label}</button>`; }
 
+  // Custom/Other subject grading weights — lets a teacher set their own
+  // WW / PT / QA split for a subject that isn't one of the DepEd presets.
+  // The QA column's internal ST1/ST2/Term Exam 30/30/40 split is untouched:
+  // that split lives in CSTRGrading.calculateQuarterlyAssessment and applies
+  // uniformly whenever a period has exactly 3 QA columns, regardless of subject.
+  function attachCustomWeightLiveTotal(modal, ids, noteId) {
+    const inputs = ids.map((id) => modal.querySelector(`#${id}`)).filter(Boolean);
+    const note = modal.querySelector(`#${noteId}`);
+    if (!note || inputs.length !== 3) return;
+    const refresh = () => {
+      const total = inputs.reduce((sum, input) => sum + (Number(input.value) || 0), 0);
+      const rounded = Math.round(total * 100) / 100;
+      const balanced = Math.abs(rounded - 100) <= 0.01;
+      note.textContent = balanced
+        ? `Total: ${rounded}% ✓ (WW ${Number(inputs[0].value) || 0}% · PT ${Number(inputs[1].value) || 0}% · QA ${Number(inputs[2].value) || 0}%)`
+        : `Total: ${rounded}% — WW + PT + QA must add up to exactly 100%.`;
+      note.classList.toggle("error", !balanced);
+      note.classList.toggle("is-valid", balanced);
+    };
+    inputs.forEach((input) => input.addEventListener("input", refresh));
+    refresh();
+  }
+
+  // Reads and validates the three custom-weight inputs. Returns null (and
+  // never a partially-valid array) when any value is missing, negative, or
+  // the three don't sum to 100 within floating-point tolerance.
+  function readCustomWeightInputs(modal, ids) {
+    const values = ids.map((id) => Number(modal.querySelector(`#${id}`)?.value));
+    if (values.some((value) => !Number.isFinite(value) || value < 0)) return null;
+    const total = values.reduce((sum, value) => sum + value, 0);
+    if (Math.abs(total - 100) > 0.01) return null;
+    return values;
+  }
+
   function dashboardMetrics() {
     const activeClasses = activeRegistry().filter((section) => !section.archived);
     const archivedSections = activeRegistry().filter((section) => section.archived);
@@ -2754,6 +2788,22 @@
           <label id="customSubjectWrap" style="display:none;">Custom Subject Name
             <input id="addClassCustomSubject" placeholder="e.g. Robotics & Applied Technology">
           </label>
+          <div id="customWeightsWrap" style="display:none;">
+            <p class="custom-weights-heading">Custom Grading Distribution</p>
+            <div class="custom-weights-row">
+              <label>Written Work (WW) %
+                <input id="addClassWW" type="number" min="0" max="100" step="any" inputmode="decimal" value="20">
+              </label>
+              <label>Performance Task (PT) %
+                <input id="addClassPT" type="number" min="0" max="100" step="any" inputmode="decimal" value="50">
+              </label>
+              <label>Quarterly Assessment (QA) %
+                <input id="addClassQA" type="number" min="0" max="100" step="any" inputmode="decimal" value="30">
+              </label>
+            </div>
+            <p id="addClassWeightTotal" class="form-note"></p>
+            <p class="form-note">Quarterly Assessment keeps its built-in Summative Test 1 / Summative Test 2 / Term Exam split of 30% / 30% / 40% — only the overall WW / PT / QA shares above are yours to set.</p>
+          </div>
           <label>Section Name
             <input id="addClassSection" placeholder="e.g. Saint Alfonso de Orozco">
           </label>
@@ -2774,9 +2824,13 @@
 
     const presetSelect = modal.querySelector("#addClassSubjectPreset");
     const customWrap = modal.querySelector("#customSubjectWrap");
+    const customWeightsWrap = modal.querySelector("#customWeightsWrap");
     presetSelect.addEventListener("change", () => {
-      customWrap.style.display = presetSelect.value === "custom" ? "grid" : "none";
+      const isCustom = presetSelect.value === "custom";
+      customWrap.style.display = isCustom ? "grid" : "none";
+      customWeightsWrap.style.display = isCustom ? "block" : "none";
     });
+    attachCustomWeightLiveTotal(modal, ["addClassWW", "addClassPT", "addClassQA"], "addClassWeightTotal");
   }
 
   function renderEditSection(sectionId) {
@@ -2803,6 +2857,22 @@
           <label id="editCustomSubjectWrap" style="display:${isPreset ? "none" : "grid"};">Custom Subject Name
             <input id="editSectionCustomSubject" value="${isPreset ? "" : safeValue(section.subject)}">
           </label>
+          <div id="editCustomWeightsWrap" style="display:${isPreset ? "none" : "block"};">
+            <p class="custom-weights-heading">Custom Grading Distribution</p>
+            <div class="custom-weights-row">
+              <label>Written Work (WW) %
+                <input id="editSectionWW" type="number" min="0" max="100" step="any" inputmode="decimal" value="${isPreset ? 20 : section.weights[0]}">
+              </label>
+              <label>Performance Task (PT) %
+                <input id="editSectionPT" type="number" min="0" max="100" step="any" inputmode="decimal" value="${isPreset ? 50 : section.weights[1]}">
+              </label>
+              <label>Quarterly Assessment (QA) %
+                <input id="editSectionQA" type="number" min="0" max="100" step="any" inputmode="decimal" value="${isPreset ? 30 : section.weights[2]}">
+              </label>
+            </div>
+            <p id="editSectionWeightTotal" class="form-note"></p>
+            <p class="form-note">Quarterly Assessment keeps its built-in Summative Test 1 / Summative Test 2 / Term Exam split of 30% / 30% / 40% — only the overall WW / PT / QA shares above are yours to set.</p>
+          </div>
           <label>Section Name <input id="editSectionSection" value="${safeValue(section.section)}" placeholder="e.g. Saint Alfonso de Orozco"></label>
           <label>Color Code Theme
             <select id="editSectionTheme">
@@ -2826,9 +2896,13 @@
 
     const presetSelect = modal.querySelector("#editSectionSubjectPreset");
     const customWrap = modal.querySelector("#editCustomSubjectWrap");
+    const customWeightsWrap = modal.querySelector("#editCustomWeightsWrap");
     presetSelect.addEventListener("change", () => {
-      customWrap.style.display = presetSelect.value === "custom" ? "grid" : "none";
+      const isCustom = presetSelect.value === "custom";
+      customWrap.style.display = isCustom ? "grid" : "none";
+      customWeightsWrap.style.display = isCustom ? "block" : "none";
     });
+    attachCustomWeightLiveTotal(modal, ["editSectionWW", "editSectionPT", "editSectionQA"], "editSectionWeightTotal");
   }
 
   function renderDeleteSectionConfirmation(sectionId) {
@@ -3843,6 +3917,7 @@
     if (action === "save-new-class") {
       const level = document.querySelector("#addClassLevel").value.trim() || "Grade 8";
       const presetSelect = document.querySelector("#addClassSubjectPreset");
+      const isCustomSubject = presetSelect ? presetSelect.value === "custom" : false;
       let subject = presetSelect ? presetSelect.value : "Science";
       if (subject === "custom") {
         const customInput = document.querySelector("#addClassCustomSubject");
@@ -3850,8 +3925,17 @@
       }
       const sectionName = document.querySelector("#addClassSection").value.trim();
       const theme = document.querySelector("#addClassTheme").value;
-      
-      const weights = matchSubjectWeights(subject);
+
+      let weights;
+      if (isCustomSubject) {
+        weights = readCustomWeightInputs(document, ["addClassWW", "addClassPT", "addClassQA"]);
+        if (!weights) {
+          showSaveToast("Custom grading weights must be zero or greater and add up to exactly 100% (WW + PT + QA).", "error");
+          return;
+        }
+      } else {
+        weights = matchSubjectWeights(subject);
+      }
       const isSHS = String(level).includes("11") || String(level).includes("12");
       const group = isSHS ? "SHS" : "JHS";
       
@@ -3876,13 +3960,24 @@
       if (section) {
         section.level = document.querySelector("#editSectionLevel").value.trim();
         const presetSelect = document.querySelector("#editSectionSubjectPreset");
+        const isCustomSubject = presetSelect ? presetSelect.value === "custom" : false;
         let subject = presetSelect ? presetSelect.value : section.subject;
         if (subject === "custom") {
           const customInput = document.querySelector("#editSectionCustomSubject");
           subject = (customInput && customInput.value.trim()) || section.subject;
         }
-        section.subject = subject;
-        section.weights = matchSubjectWeights(subject);
+        if (isCustomSubject) {
+          const customWeights = readCustomWeightInputs(document, ["editSectionWW", "editSectionPT", "editSectionQA"]);
+          if (!customWeights) {
+            showSaveToast("Custom grading weights must be zero or greater and add up to exactly 100% (WW + PT + QA).", "error");
+            return;
+          }
+          section.subject = subject;
+          section.weights = customWeights;
+        } else {
+          section.subject = subject;
+          section.weights = matchSubjectWeights(subject);
+        }
         section.section = document.querySelector("#editSectionSection").value.trim();
         const theme = document.querySelector("#editSectionTheme").value;
         section.theme = theme;

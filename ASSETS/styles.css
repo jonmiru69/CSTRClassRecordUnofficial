@@ -739,6 +739,11 @@ input.cell-selected {
 .settings-grid { display: grid; gap: 14px; }
 .settings-grid label { display: grid; gap: 6px; font-weight: 600; font-size: 0.9rem; }
 .settings-grid input, .settings-grid select { min-height: 42px; border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 12px; background: #fff; font-size: 0.92rem; }
+.custom-weights-heading { margin: 0 0 8px; font-weight: 700; font-size: 0.82rem; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+.custom-weights-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.custom-weights-row label { display: grid; gap: 6px; font-weight: 600; font-size: 0.82rem; }
+.custom-weights-row input { min-height: 42px; border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 10px; background: #fff; font-size: 0.9rem; }
+.form-note.is-valid { color: var(--success); font-weight: 600; }
 .settings-note { margin: 18px 0; padding: 12px 14px; border-left: 4px solid var(--gold); background: #fffdf4; color: var(--muted); line-height: 1.5; font-size: .88rem; border-radius: 0 6px 6px 0; }
 .welcome-modal-card { border-top: 5px solid var(--gold); text-align: center; }
 .welcome-modal-card .eyebrow { text-align: center; }
@@ -811,6 +816,7 @@ input.cell-selected {
   .bulk-column-control { flex-wrap: wrap; }
   .modal { padding: 20px 16px; border-radius: 14px; }
   .regcode-modal { padding: 24px 18px; border-radius: 14px; }
+  .custom-weights-row { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
