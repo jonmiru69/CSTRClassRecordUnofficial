@@ -16,8 +16,6 @@
       button.setAttribute('aria-pressed', String(dark));
       button.setAttribute('aria-label', `Switch to ${dark ? 'light' : 'dark'} mode`);
       button.title = `Switch to ${dark ? 'light' : 'dark'} mode`;
-      const icon = button.querySelector('.theme-toggle-icon');
-      if (icon) icon.textContent = dark ? '☀' : '☾';
       const label = button.querySelector('.theme-toggle-label');
       if (label) label.textContent = dark ? 'Light mode' : 'Dark mode';
     });

@@ -678,7 +678,7 @@
 
   function themeControl() {
     const dark = document.documentElement.dataset.theme === "dark";
-    return `<button type="button" class="theme-toggle" data-toggle-theme aria-pressed="${dark}" aria-label="Switch to ${dark ? "light" : "dark"} mode" title="Switch to ${dark ? "light" : "dark"} mode"><span class="theme-toggle-icon" aria-hidden="true">${dark ? "☀" : "☾"}</span><span class="theme-toggle-label">${dark ? "Light mode" : "Dark mode"}</span></button>`;
+    return `<button type="button" class="theme-toggle" data-toggle-theme aria-pressed="${dark}" aria-label="Switch to ${dark ? "light" : "dark"} mode" title="Switch to ${dark ? "light" : "dark"} mode"><span class="theme-switch-track" aria-hidden="true"><svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg><span class="theme-switch-thumb"></span><svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.2 15.5A8.4 8.4 0 0 1 8.5 3.8 8.5 8.5 0 1 0 20.2 15.5Z"/></svg></span><span class="theme-toggle-label">${dark ? "Light mode" : "Dark mode"}</span></button>`;
   }
 
   function computeLearnerNumbering(roster) {
@@ -962,19 +962,19 @@
   }
 
   function renderLogin() {
-    const titles = { signin: "Welcome back.", signup: "Your workspace awaits.", legacy: "Claim Your Legacy Account" };
+    const titles = { signin: "Sign in to your records", signup: "Create your teacher account", legacy: "Claim your existing records" };
     const panelBody = loginPanel === "signup" ? renderSignUpPanel()
       : loginPanel === "legacy" ? renderLegacyClaimPanel()
       : renderSignInPanel();
 
     return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/cstr-logo.png" alt="">Colegio de Sto. Tomas-Recoletos, Incorporated <span>Digital Class Record</span></a><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen">
-      <div class="welcome-story"><p class="eyebrow">A little clarity. Every school day.</p><h2>Your classes. <br>Your focus.<br><span>All in one place.</span></h2><p>A considered workspace for the work that matters. Organize your classes, record progress, and prepare grades with confidence.</p><div class="welcome-features"><span>${icon("records")} Clear class records</span><span>${icon("save")} Checkable save status</span><span>${icon("lock")} Authorized teacher access</span></div><figure><img src="ASSETS/campus-bg.png" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Made for the CST-R teaching community.</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
+      <div class="welcome-story"><p class="eyebrow">CST-R · Digital Class Record</p><h2>Teaching records,<br><span>clearly organized.</span></h2><p>Keep class rosters, assessment scores, and grade reviews together in your teacher workspace.</p><div class="welcome-features"><span>${icon("records")} Class records</span><span>${icon("save")} Visible save status</span><span>${icon("lock")} Teacher access</span></div><figure><img src="ASSETS/campus-bg.png" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Colegio de Sto. Tomás – Recoletos</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
       <div class="login-card">
         <div class="login-header-logo">
           <img src="ASSETS/cstr-logo.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
         </div>
         <p class="eyebrow">Colegio de Sto. Tomás – Recoletos</p>
-        <h1>${titles[loginPanel]}</h1><p class="login-intro">Your teaching day, thoughtfully organized.</p>
+        <h1>${titles[loginPanel]}</h1><p class="login-intro">Access your class record workspace.</p>
         <p class="muted">Website for Class Record, with respect to DepEd Order No. 15, s. 2026.</p>
 
         ${panelBody}
@@ -1560,22 +1560,35 @@
 
   function renderHome() {
     const metrics = dashboardMetrics();
-    const isTrimester = state.calendarMode === "trimester";
-    const portrait = state.photo ? `<img class="profile-photo" src="${state.photo}" alt="Teacher portrait">` : `<span class="silhouette" aria-hidden="true"></span><span class="photo-caption">Upload photo</span>`;
+    const portrait = state.photo ? `<img class="profile-photo" src="${state.photo}" alt="Teacher portrait">` : `<span class="photo-placeholder" aria-hidden="true">${icon("users")}</span><span class="photo-caption">Upload photo</span>`;
     const recentClasses = buildActiveClassRows(metrics.activeSections);
 
     return `<section class="dashboard">
-      <div class="dashboard-hero">
-        <div>
-          <p class="eyebrow">${isTrimester ? "Trimester (Zero-Based)" : "Quarterly / Semestral"} overview</p>
-          <h2>Welcome back, ${escapeHtml((state.teacher.name || "Teacher").split(/\s+/)[0])}.</h2>
-          <p>Manage classes, enter assessment scores, and finalize ${isTrimester ? "term" : "quarterly"} records from one focused workspace.</p>
+      <section class="dashboard-hero" aria-labelledby="ownerTitle">
+        <div class="owner-intro">
+          <p class="eyebrow">Teacher profile</p>
+          <h2 id="ownerTitle">Class record owner</h2>
+          <p class="owner-context">${state.calendarMode === "trimester" ? "Trimester (Zero-Based)" : "Quarterly / Semestral"} workspace</p>
+          <input id="photoInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" hidden>
+          <button class="photo-frame" type="button" data-action="choose-photo" data-has-photo="${Boolean(state.photo)}" aria-label="${state.photo ? "Change" : "Upload"} teacher photo" title="${state.photo ? "Change" : "Upload"} teacher photo">${portrait}</button>
+          <p id="photoNote" class="form-note">Select a PNG or JPEG photo</p>
         </div>
-        <div class="dashboard-hero-actions">
-          ${button(`${icon("records")}<span>Open class records</span>`, "go-records", "button button-primary")}
-          ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-secondary")}
+        <div class="owner-workspace">
+          <div class="profile-editor">
+            <div class="teacher-block">
+              <label class="profile-field profile-name-field"><span>Full name</span><input type="text" class="teacher-name-input" data-teacher="name" value="${safeValue(state.teacher.name)}" placeholder="Full name"></label>
+              <label class="profile-field"><span>Age</span><input type="number" min="0" class="teacher-meta-input" data-teacher="age" value="${safeValue(state.teacher.age)}" placeholder="Age"></label>
+              <label class="profile-field"><span>School level</span><select class="teacher-meta-input" data-teacher="level"><option value="Elementary" ${state.teacher.level === "Elementary" ? "selected" : ""}>Elementary</option><option value="Secondary" ${state.teacher.level === "Secondary" ? "selected" : ""}>Secondary</option></select></label>
+              <label class="profile-field"><span>Specialization</span><input type="text" class="teacher-meta-input" data-teacher="specialization" value="${safeValue(state.teacher.specialization)}" placeholder="e.g. Science and Research"></label>
+              <label class="profile-field profile-bio-field"><span>Professional bio</span><textarea class="teacher-bio-input" data-teacher="bio" placeholder="Short bio or role description">${safeValue(state.teacher.bio)}</textarea></label>
+            </div>
+          </div>
+          <div class="owner-footer"><p class="teacher-edit-hint">Profile edits are included in your next save.</p><div class="dashboard-hero-actions">
+            ${button(`${icon("records")}<span>Open class records</span>`, "go-records", "button button-primary")}
+            ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-secondary")}
+          </div></div>
         </div>
-      </div>
+      </section>
 
       <div class="metric-grid" aria-label="Class record overview">
         <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
@@ -1590,24 +1603,6 @@
           <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4><p>Create your first class to begin building a roster and entering scores.</p>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
         </section>
 
-        <section class="dashboard-panel profile-panel">
-          <div class="panel-heading"><div><p class="eyebrow">Profile</p><h3>Class record owner</h3></div><span class="autosave-pill">Profile</span></div>
-          <div class="profile-editor">
-            <input id="photoInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" hidden>
-            <button class="photo-frame" type="button" data-action="choose-photo" aria-label="Upload teacher photo">${portrait}</button>
-            <div class="teacher-block">
-              <label class="profile-field profile-name-field"><span>Full name</span><input type="text" class="teacher-name-input" data-teacher="name" value="${safeValue(state.teacher.name)}" placeholder="Full name"></label>
-              <div class="profile-field-grid">
-                <label class="profile-field"><span>Age</span><input type="number" min="0" class="teacher-meta-input" data-teacher="age" value="${safeValue(state.teacher.age)}" placeholder="Age"></label>
-                <label class="profile-field"><span>School level</span><select class="teacher-meta-input" data-teacher="level"><option value="Elementary" ${state.teacher.level === "Elementary" ? "selected" : ""}>Elementary</option><option value="Secondary" ${state.teacher.level === "Secondary" ? "selected" : ""}>Secondary</option></select></label>
-              </div>
-              <label class="profile-field"><span>Specialization</span><input type="text" class="teacher-meta-input" data-teacher="specialization" value="${safeValue(state.teacher.specialization)}" placeholder="e.g. Science and Research"></label>
-              <label class="profile-field"><span>Professional bio</span><textarea class="teacher-bio-input" data-teacher="bio" placeholder="Short bio or role description">${safeValue(state.teacher.bio)}</textarea></label>
-              <p class="teacher-edit-hint">Profile edits are included in your next save.</p>
-            </div>
-          </div>
-          <p id="photoNote" class="form-note">PNG or JPEG, optimized automatically after upload.</p>
-        </section>
       </div>
     </section>`;
   }
@@ -2759,7 +2754,7 @@
     modal.className = "modal-backdrop welcome-modal";
     modal.innerHTML = `<section class="modal welcome-modal-card" role="dialog" aria-modal="true" aria-labelledby="welcomeModalTitle">
       <p class="eyebrow">First time on this device</p>
-      <h2 id="welcomeModalTitle">Welcome to your class record</h2>
+      <h2 id="welcomeModalTitle">Before you begin</h2>
       <p class="welcome-modal-subtitle">This independent, unofficial tool helps you manage classes, scores, and grade exports. Confirm the grading rules and weights with your school, review calculated grades before submission, and check that changes are saved before switching devices.</p>
       <div class="stack-actions" style="justify-content:flex-end; margin-top:20px;">${button("Got it, let's start", "close-modal", "button button-primary")}</div>
     </section>`;
@@ -3038,7 +3033,7 @@
 
     if (!isSyncConfigured()) {
       btn.disabled = false;
-      setStatus(" Live sync isn't set up yet — see FIREBASE_SETUP.md. Saving on this device only.");
+      setStatus("Cloud save isn't ready. Changes save on this device only.");
     } else if (isLoading) {
       btn.disabled = true;
       setStatus("Connecting to live sync... Please wait.", "saving");
