@@ -84,6 +84,8 @@
   let autoSaveMaxWaitTimer = null;  // Forces a save AUTOSAVE_MAX_WAIT_MS after the first unsaved change, even under the change threshold
   let preBatchSnapshot = null;      // Full state as of the last clean save — the restorable "previous version"
   let lastSavedAt = null;           // Date of the last successful save (cloud, or local-only fallback)
+  let lastCloudSavedAt = null;
+  let lastCloudVerifiedAt = null;
   let saveIndicatorTicker = null;
 
   const AUTOSAVE_DELAY = 900; // Quiet period after the most recent edit before the change-count is checked
@@ -369,11 +371,15 @@
   function updateSaveIndicators() {
     const meta = document.querySelector("#saveMeta");
     if (!meta) return;
-    const changeLabel = pendingAutoSaveChanges === 0
-      ? "All changes saved"
-      : `${pendingAutoSaveChanges} unsaved change${pendingAutoSaveChanges === 1 ? "" : "s"}`;
-    meta.textContent = `${changeLabel} • ${formatSavedAt(lastSavedAt)}`;
-    meta.classList.toggle("has-unsaved", pendingAutoSaveChanges > 0);
+    const pending = pendingAutoSaveChanges > 0 || stateRevision > lastSavedRevision && isSaving;
+    if (!isSyncConfigured()) meta.textContent = "Cloud unavailable · recovery copy on this device only";
+    else if (isStale) meta.textContent = "Cloud conflict · review in Settings before saving";
+    else if (!isDataLoaded) meta.textContent = "Cloud save unverified · check your connection";
+    else if (isSaving) meta.textContent = "Saving to cloud…";
+    else if (pending) meta.textContent = `${pendingAutoSaveChanges} unsaved change${pendingAutoSaveChanges === 1 ? "" : "s"} · ${lastCloudSavedAt ? `last cloud save ${lastCloudSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "not yet saved to cloud this session"}`;
+    else if (lastCloudSavedAt) meta.textContent = `All changes saved to cloud · ${lastCloudSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+    else meta.textContent = `Cloud copy current · verified ${lastCloudVerifiedAt ? lastCloudVerifiedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "this session"}`;
+    meta.classList.toggle("has-unsaved", pending || isStale || !isDataLoaded);
   }
 
   function emptyRoster(size, wwLen = 10, ptLen = 8, qaLen = 3) {
@@ -390,6 +396,7 @@
       wwHps: Array(10).fill(""),
       ptHps: Array(8).fill(""),
       qaHps: Array(3).fill(""),
+      activityMeta: { ww: Array.from({ length: 10 }, () => ({ title: "", competency: "", topic: "" })), pt: Array.from({ length: 8 }, () => ({ title: "", competency: "", topic: "" })), qa: Array.from({ length: 3 }, () => ({ title: "", competency: "", topic: "" })) },
       roster: emptyRoster(section.rosterSize || 50, 10, 8, 3),
       locked: false
     };
@@ -397,7 +404,7 @@
 
   function createInitialState() {
     return {
-      version: 3,
+      version: 4,
       photo: "",
       teacher: {
         name: "Juan Dela Cruz",
@@ -463,6 +470,10 @@
           wwHps: fitArray(period.wwHps, wwLen),
           ptHps: fitArray(period.ptHps, ptLen),
           qaHps: fitArray(period.qaHps, qaLen),
+          activityMeta: Object.fromEntries(["ww", "pt", "qa"].map((kind) => [kind, Array.from({ length: kind === "ww" ? wwLen : kind === "pt" ? ptLen : qaLen }, (_, index) => {
+            const item = period.activityMeta?.[kind]?.[index];
+            return { title: typeof item?.title === "string" ? item.title : "", competency: typeof item?.competency === "string" ? item.competency : "", topic: typeof item?.topic === "string" ? item.topic : "" };
+          })])),
           roster: Array.from({ length: Array.isArray(period.roster) && period.roster.length ? period.roster.length : (section.rosterSize || 50) }, (_, index) => {
             const learner = Array.isArray(period.roster) ? period.roster[index] : null;
             return {
@@ -568,6 +579,7 @@
       terms: '<circle cx="12" cy="12" r="9"/><path d="M12 3V12M12 12L19.79 16.5M12 12L4.21 16.5"/>',
       check: '<path d="m5 12 4 4L19 6"/>',
       alert: '<path d="M12 3 2 21h20Z"/><path d="M12 9v4M12 17h.01"/>',
+      info: '<circle cx="12" cy="12" r="9"/><path d="M12 10.5v6M12 7.5h.01"/>',
       close: '<path d="m6 6 12 12M18 6 6 18"/>',
       chevron: '<path d="m6 9 6 6 6-6"/>',
       panel: '<rect x="3" y="3" width="18" height="18"/><path d="M9 3v18m5-13 4 4-4 4"/>',
@@ -652,8 +664,8 @@
   function getLearnerCategory(name) {
     if (typeof name !== "string") return null;
     const clean = name.trim().toLowerCase();
-    if (clean.includes("boys")) return "boys";
-    if (clean.includes("girls")) return "girls";
+    if (/^(?:grade\s+\d+\s+)?boys$/.test(clean)) return "boys";
+    if (/^(?:grade\s+\d+\s+)?girls$/.test(clean)) return "girls";
     return null;
   }
 
@@ -958,7 +970,28 @@
     }
     updateCompletionIndicators();
     sizeSheetWorkspace();
+    requestAnimationFrame(fitSectionName);
     restoreTableScroll(scrollLeft);
+  }
+
+  function fitSectionName() {
+    const name = document.querySelector(".class-name");
+    if (!name) return;
+    const available = name.clientWidth;
+    if (!available) return;
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    const style = getComputedStyle(name);
+    const weight = style.fontWeight || "700";
+    const family = style.fontFamily || "sans-serif";
+    let low = 10, high = 88;
+    while (high - low > 0.5) {
+      const size = (low + high) / 2;
+      context.font = `${weight} ${size}px ${family}`;
+      if (context.measureText(name.textContent).width <= available - 4) low = size;
+      else high = size;
+    }
+    name.style.fontSize = `${Math.floor(low)}px`;
   }
 
   function renderLogin() {
@@ -1571,7 +1604,6 @@
           <p class="owner-context">${state.calendarMode === "trimester" ? "Trimester (Zero-Based)" : "Quarterly / Semestral"} workspace</p>
           <input id="photoInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" hidden>
           <button class="photo-frame" type="button" data-action="choose-photo" data-has-photo="${Boolean(state.photo)}" aria-label="${state.photo ? "Change" : "Upload"} teacher photo" title="${state.photo ? "Change" : "Upload"} teacher photo">${portrait}</button>
-          <p id="photoNote" class="form-note">Select a PNG or JPEG photo</p>
         </div>
         <div class="owner-workspace">
           <div class="profile-editor">
@@ -1675,19 +1707,20 @@
       : "";
 
     const shade = sectionNameShade(section.accent || section.theme);
-    return `<div class="record-section">
+    return `<div class="record-section" style="--class-color:${sectionColorHex};--class-surface:${shade.background};--class-ink:${shade.color}">
       <section class="class-header-card" style="--class-color:${sectionColorHex};--class-surface:${shade.background};--class-ink:${shade.color}">
         ${section.archived ? `<div class="archive-banner"><span>Archived class</span>${button("Restore class", "unarchive-section", "button", `data-section="${section.id}"`)}</div>` : ""}
         <div class="class-identity">
-          <details class="subject-picker"><summary aria-label="Change subject and grading weights"><span>${escapeHtml(section.subject)}</span>${icon("chevron")}</summary>
+          <div class="class-subject-line"><details class="subject-picker"><summary aria-label="Change subject"><span>${escapeHtml(section.subject)}</span>${icon("chevron")}</summary>
             <div class="subject-menu" aria-label="Subject choices">
               ${SUBJECT_PRESETS.map(p => `<button type="button" data-action="choose-sheet-subject" data-subject="${escapeHtml(p.name)}" ${sectionLocked ? "disabled" : ""}><span>${escapeHtml(p.name)}</span><span class="weight-preview" role="tooltip">WW ${p.weights[0]}% · PT ${p.weights[1]}% · QA ${p.weights[2]}%</span></button>`).join("")}
               <button type="button" data-action="choose-sheet-subject" data-subject="custom" ${sectionLocked ? "disabled" : ""}>Other / Custom<span class="weight-preview">Review subject settings</span></button>
               ${sectionLocked ? '<p>Unlock all periods to change grading weights.</p>' : ""}
             </div>
-          </details>
+          </details><div class="class-weights" tabindex="0" aria-label="${escapeHtml(section.subject)} grading weights: Written Works ${section.weights[0]}%, Performance Tasks ${section.weights[1]}%, ${state.calendarMode === "trimester" ? "Term" : "Quarterly"} Assessment ${section.weights[2]}%"><span aria-hidden="true">${icon("info")}</span><div class="class-weights-popover" role="tooltip"><strong>${escapeHtml(section.subject)} grading weights</strong><span>Written Works ${section.weights[0]}%</span><span>Performance Tasks ${section.weights[1]}%</span><span>${state.calendarMode === "trimester" ? "Term" : "Quarterly"} Assessment ${section.weights[2]}%</span></div></div></div>
+          <p class="class-level">${escapeHtml(section.level)}</p>
           <h2 class="class-name" title="${escapeHtml(section.section || section.level)}">${escapeHtml(section.section || section.level)}</h2>
-          <div class="class-context-line"><span id="liveLearnerCount">${totalLearners} learner${totalLearners === 1 ? "" : "s"}</span><span>${escapeHtml(section.level)}</span><span>WW ${section.weights[0]}% · PT ${section.weights[1]}% · QA ${section.weights[2]}%</span></div>
+          <div class="class-context-line"><span id="liveLearnerCount">${totalLearners} learner${totalLearners === 1 ? "" : "s"}</span><span>${escapeHtml(section.subject)}</span></div>
         </div>
         <div class="class-period-area">
           <div class="period-tabs" role="group" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-pressed="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index, state.calendarMode))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${recordCompletion(entry).complete ? "Complete" : "In progress"}">${recordCompletion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
@@ -1722,6 +1755,7 @@
       </div>
       <p class="sheet-scroll-hint" id="sheetScrollHint">Grade sheet: scroll sideways to reach all assessments. Select the sheet to use keyboard scrolling.</p>
       ${renderRecordTable(section, period)}
+      ${renderActivityRegister(section, period)}
 
     </div>`;
   }
@@ -1816,10 +1850,29 @@
       </thead><tbody>${rows}</tbody></table></div>`;
   }
 
+  function renderActivityRegister(section, period) {
+    const kinds = [
+      ["ww", "Written Works"],
+      ["pt", "Performance Tasks"],
+      ["qa", state.calendarMode === "trimester" ? "Term Assessment" : "Quarterly Assessment"]
+    ];
+    const rows = kinds.flatMap(([kind, label]) => period[`${kind}Hps`].map((hps, index) => {
+      const info = period.activityMeta[kind][index];
+      const number = `${kind.toUpperCase()} ${index + 1}`;
+      const disabled = period.locked ? "disabled" : "";
+      return `<tr><th scope="row"><span class="activity-kind">${escapeHtml(label)}</span><strong>${number}</strong></th>
+        <td><input data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" maxlength="120" value="${safeValue(info.title)}" placeholder="Activity title" aria-label="${number} title" ${disabled}></td>
+        <td><input data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="competency" maxlength="240" value="${safeValue(info.competency)}" placeholder="Learning competency" aria-label="${number} competency" ${disabled}></td>
+        <td><input data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="topic" maxlength="160" value="${safeValue(info.topic)}" placeholder="Topic" aria-label="${number} topic" ${disabled}></td>
+        <td><input data-date="${kind}" data-index="${index}" maxlength="12" value="${safeValue(period[`${kind}Dates`][index])}" placeholder="Date" aria-label="${number} date" ${disabled}></td>
+        <td><input type="number" min="0" step="any" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(hps)}" aria-label="${number} highest possible score" ${disabled}></td></tr>`;
+    })).join("");
+    return `<section class="activity-register" aria-labelledby="activityRegisterTitle"><div class="activity-register-heading"><div><p class="eyebrow">Assessment transparency</p><h3 id="activityRegisterTitle">${state.calendarMode === "trimester" ? "Term" : "Quarter"} activity register</h3></div><p>One row per score column. Dates and HPS are shared with the grade sheet above.</p></div><div class="activity-register-scroll"><table><caption class="sr-only">Activity title, competency, topic, date, and HPS for ${escapeHtml(section.subject)} ${escapeHtml(period.name)}</caption><thead><tr><th scope="col">Score column</th><th scope="col">Activity title</th><th scope="col">Learning competency</th><th scope="col">Topic</th><th scope="col">Date</th><th scope="col">HPS</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  }
+
   function renderLearnerRow(learner, rowIndex, period, section, numDisplay, periodLocked) {
     const cat = getLearnerCategory(learner.name);
     const catClass = cat ? `row-category row-category-${cat}` : "";
-    const nameShade = sectionNameShade(section.accent || section.theme);
     const cellsDisabled = cat || period.locked;
     const learnerLabel = escapeHtml(String(learner.name || "").trim() || `Learner ${rowIndex + 1}`);
 
@@ -1840,7 +1893,7 @@
       qa: learner.qa.map(() => "")
     } : learner, period, section.weights);
     const deleteRowBtn = `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${periodLocked ? "Unlock this grading period to delete rows" : "Remove this learner row from this grading period only"}" aria-label="Delete learner ${rowIndex + 1} row" ${periodLocked ? "disabled" : ""}>${icon("trash")}</button>`;
-    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell" style="--section-name-bg:${nameShade.background};--section-name-color:${nameShade.color};"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td>${state.calendarMode === "trimester" ? "" : `<td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td>`}<td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
+    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td>${state.calendarMode === "trimester" ? "" : `<td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td>`}<td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
   }
 
   function learnerResult(learner, period, weights) {
@@ -2059,6 +2112,7 @@
       for (let index = 0; index < amount; index += 1) {
         dates.push("");
         hps.push("");
+        period.activityMeta[kind].push({ title: "", competency: "", topic: "" });
         period.roster.forEach((learner) => learner[kind].push(""));
       }
       markStateDirty();
@@ -2074,6 +2128,7 @@
     }
     dates.splice(-removable, removable);
     hps.splice(-removable, removable);
+    period.activityMeta[kind].splice(-removable, removable);
     period.roster.forEach((learner) => {
       learner[kind].splice(-removable, removable);
       if (learner.hpsOriginals?.[kind]) Object.keys(learner.hpsOriginals[kind]).forEach(key => {
@@ -2512,6 +2567,15 @@
     return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
   }
 
+  function searchNameKey(value) {
+    const words = String(value || "").normalize("NFD").replace(/\p{M}/gu, "")
+      .toLocaleLowerCase().replace(/[’']/g, "").match(/[\p{L}\p{N}]+/gu) || [];
+    // A single letter in a full-name lookup is ordinarily an optional middle
+    // initial. Keep every substantive name word exact, regardless of order.
+    const substantive = words.filter(word => word.length > 1);
+    return substantive.length >= 2 ? substantive.sort().join("|") : "";
+  }
+
   function isPeriodFinalized(period, section) {
     const learners = period.roster.filter((learner) => learner.name.trim() && !getLearnerCategory(learner.name));
     return recordCompletion(period).complete;
@@ -2533,7 +2597,7 @@
 
   function searchStudent() {
     const input = document.querySelector("#studentSearch");
-    const query = normalizedName(input && input.value);
+    const query = searchNameKey(input && input.value);
     if (!query) { showSearchModal("Enter the student's complete name to check a grade."); return; }
 
     // Group matches by section (not by section+period) so a learner who has
@@ -2543,7 +2607,7 @@
     activeRegistry().forEach((section) => {
       activeSections()[section.id].periods.forEach((period) => {
         period.roster.forEach((learner) => {
-          if (normalizedName(learner.name) !== query || getLearnerCategory(learner.name)) return;
+          if (searchNameKey(learner.name) !== query || getLearnerCategory(learner.name)) return;
           const result = learnerResult(learner, period, section.weights);
           const complete = isLearnerAssessmentComplete(learner, period);
           if (!bySection.has(section.id)) bySection.set(section.id, { section, entries: [] });
@@ -2552,77 +2616,143 @@
       });
     });
 
-    if (!bySection.size) { showSearchModal("No student matching '" + escapeHtml(query) + "' was found. Please verify the name and try again."); return; }
+    if (!bySection.size) { showSearchModal("No student matching '" + String(input.value).trim() + "' was found. Please verify the name and try again."); return; }
 
-    const blocks = [...bySection.values()].map(({ section, entries }) => {
-      // entries[].period follows activeSections()[section.id].periods order (real grading-period order)
+    const blocks = [...bySection.values()].map(({ section, entries }, index) => {
       const learnerName = entries[0].learner.name;
-      const scoreSeries = entries.map(({ period, result }) => ({
-        periodName: period.name,
-        ww: result.ww.percentage,
-        pt: result.pt.percentage,
-        qa: result.qa.percentage
-      }));
-      const cardsHtml = entries.map(({ period, result, complete }) => renderStudentGradeCard(period, result, complete)).join("");
       return `<div class="student-perf-block">
-        <p class="eyebrow">${escapeHtml(section.level)} &bull; ${escapeHtml(section.subject)}${section.section ? ` — ${escapeHtml(section.section)}` : ""} ${section.archived ? "(Archived)" : ""}</p>
-        <h3 class="student-perf-name">${escapeHtml(learnerName)}</h3>
-        ${renderStudentPerformanceChart(scoreSeries)}
-        <div class="student-grade-cards">${cardsHtml}</div>
+        <div class="student-report-actions"><p>Grade report for ${escapeHtml(learnerName)} · ${escapeHtml(section.subject)}</p><button type="button" class="button button-primary" data-action="export-student-png" data-report-id="${index}" data-report-name="${escapeHtml(learnerName)}" data-report-section="${escapeHtml(section.section || section.level)}">${icon("download")} Save as PNG image</button></div>
+        ${renderStudentReportSvg(section, entries, index)}
       </div>`;
     }).join("");
 
     showSearchModal(blocks, true);
   }
 
-  function renderStudentGradeCard(period, result, complete) {
-    const initialGrade = format(result.initial.rounded, 3);
-    const transmutedGrade = format(result.initial.transmuted, 0);
-    const descriptor = result.initial.descriptor;
-    const label = complete ? "Validated Grade — Complete Requirements" : "Current Grade — Provisional (Incomplete Requirements)";
-    const note = complete ? "All entered WW, PT, and QA requirements are complete for this learner." : "This grade updates live as scores are entered; missing or incomplete requirements prevent final validation.";
-    return `<article class="student-grade-result ${complete ? "grade-complete" : "grade-provisional"}">
-      <p class="student-period-name">${escapeHtml(period.name)}</p>
-      <div class="student-grade-grid">
-        <div class="student-grade-box">
-          <p class="student-grade-label">Initial Grade</p>
-          <p class="student-grade">${initialGrade}</p>
-        </div>
-        <div class="student-grade-box">
-          <p class="student-grade-label">Final Transmuted</p>
-          <p class="student-grade transmuted">${transmutedGrade}</p>
-        </div>
-        <div class="student-grade-box">
-          <p class="student-grade-label">Descriptor</p>
-          <div style="margin-top:6px;">${renderDescriptorBadge(descriptor)}</div>
-        </div>
-      </div>
-      <p class="student-grade-label" style="margin-top:12px;">${label}</p>
-      <p class="grade-status-note">${note}</p>
-    </article>`;
+  function reportLines(value, limit = 48) {
+    const words = String(value || "").split(/\s+/).filter(Boolean);
+    const lines = [];
+    let current = "";
+    words.forEach(word => {
+      if (current && `${current} ${word}`.length > limit) { lines.push(current); current = word; }
+      else current = current ? `${current} ${word}` : word;
+    });
+    if (current) lines.push(current);
+    return lines.length ? lines : ["—"];
   }
 
-  // ---- Private per-student WW/PT/QA performance chart, used only inside the search popup ----
-  //
-  // Deliberately a grouped bar chart, not a trendline. A class record only has
-  // a handful of grading periods (often just one or two at a time), and a
-  // line chart with 1–2 points either can't draw a line at all or draws one
-  // sharp diagonal that misreads as a dramatic swing. Bars compare cleanly at
-  // any number of periods and let a parent read "how did each area score
-  // this period" at a glance, without needing several data points to make
-  // sense of it.
-  //
-  // Tips are generated only from the recorded WW/PT/QA percentages — never
-  // from assumptions about behavior (deadlines, submission habits, effort).
-  // A learner can submit everything on time and still score lower in one
-  // component than another; the copy below only ever describes what that
-  // component measures and suggests generic, content-focused next steps.
+  function renderStudentReportSvg(section, entries, reportId) {
+    const width = 960;
+    const learnerName = entries[0].learner.name;
+    const nameLines = reportLines(learnerName, 38);
+    const classLines = reportLines(`${section.level} · ${section.subject}${section.section ? ` · ${section.section}` : ""}${section.archived ? " · Archived" : ""}`, 76);
+    const headerHeight = 110 + nameLines.length * 40 + classLines.length * 22;
+    const chartTop = headerHeight + 32;
+    const plotTop = chartTop + 76;
+    const plotBottom = plotTop + 150;
+    const statsTop = chartTop + 282;
+    const cardsTop = statsTop + 138;
+    const cardStep = 226;
+    const footerTop = cardsTop + entries.length * cardStep + 5;
+    const height = footerTop + 100;
+    const ink = "#202833", muted = "#5d6874", line = "#dfe4e8", crimson = "#8f1d31";
+    const categories = [
+      { key: "ww", label: "Written Works", color: "#846b1d", weight: section.weights[0] },
+      { key: "pt", label: "Performance Tasks", color: "#326f89", weight: section.weights[1] },
+      { key: "qa", label: state.calendarMode === "trimester" ? "Term Assessment" : "Quarterly Assessment", color: "#a13d49", weight: section.weights[2] }
+    ];
+    const t = (x, y, value, size = 16, color = ink, weight = 400, extra = "") => `<text x="${x}" y="${y}" fill="${color}" font-family="Arial, sans-serif" font-size="${size}" font-weight="${weight}" ${extra}>${escapeHtml(value)}</text>`;
+    const pct = value => Number.isFinite(value) ? `${format(value, 1)}%` : "—";
+    const start = `<svg xmlns="http://www.w3.org/2000/svg" class="student-report-svg" data-report-id="${reportId}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grade report for ${escapeHtml(learnerName)} in ${escapeHtml(section.subject)}"><rect width="${width}" height="${height}" fill="#fff"/><rect width="${width}" height="9" fill="${crimson}"/>`;
+    const header = `${t(44, 44, "INDIVIDUAL GRADE REPORT", 13, crimson, 700, 'letter-spacing="2"')}
+      ${nameLines.map((value, index) => t(44, 87 + index * 40, value, 35, ink, 700)).join("")}
+      ${classLines.map((value, index) => t(44, 96 + nameLines.length * 40 + index * 22, value, 16, muted, 400)).join("")}
+      <line x1="44" y1="${headerHeight}" x2="916" y2="${headerHeight}" stroke="${line}" stroke-width="2"/>`;
+    const chartTitle = `${t(44, chartTop, "Assessment performance", 23, ink, 700)}${t(44, chartTop + 25, "Percentage scored by component and grading period", 14, muted)}`;
+    const legends = categories.map((cat, index) => `<rect x="${44 + index * 280}" y="${chartTop + 41}" width="12" height="12" rx="2" fill="${cat.color}"/>${t(62 + index * 280, chartTop + 52, `${cat.label} (${cat.weight}%)`, 13, ink, 500)}`).join("");
+    const chartLeft = 82, chartRight = 914, chartWidth = chartRight - chartLeft;
+    const grids = [0, 25, 50, 75, 100].map(value => {
+      const y = plotBottom - value * 1.5;
+      return `<line x1="${chartLeft}" y1="${y}" x2="${chartRight}" y2="${y}" stroke="${line}"/>${t(44, y + 5, `${value}`, 11, muted)}`;
+    }).join("");
+    const groupWidth = chartWidth / entries.length;
+    const barWidth = Math.min(30, Math.max(7, (groupWidth - 36) / 4));
+    const bars = entries.map(({ period, result }, index) => {
+      const center = chartLeft + groupWidth * (index + 0.5);
+      const barSet = categories.map((cat, catIndex) => {
+        const value = result[cat.key].percentage;
+        if (!Number.isFinite(value)) return "";
+        const barHeight = Math.max(0, Math.min(100, value)) * 1.5;
+        const x = center + (catIndex - 1.5) * (barWidth + 5);
+        return `<rect x="${x}" y="${plotBottom - barHeight}" width="${barWidth}" height="${barHeight}" rx="3" fill="${cat.color}"/>`;
+      }).join("");
+      return `${barSet}${t(center, plotBottom + 27, shortenPeriodLabel(period.name), 12, ink, 600, 'text-anchor="middle"')}`;
+    }).join("");
+    const stats = categories.map((cat, index) => {
+      const values = entries.map(({ result }) => result[cat.key].percentage).filter(Number.isFinite);
+      const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+      const x = 44 + index * 294;
+      return { label: cat.label, average, count: values.length, html: `<rect x="${x}" y="${statsTop}" width="280" height="90" rx="12" fill="#f6f8fa" stroke="${line}"/><rect x="${x}" y="${statsTop}" width="5" height="90" rx="2" fill="${cat.color}"/>${t(x + 19, statsTop + 26, cat.label, 13, muted, 600)}${t(x + 19, statsTop + 66, pct(average), 29, ink, 700)}${t(x + 158, statsTop + 65, `${values.length} period${values.length === 1 ? "" : "s"}`, 12, muted)}` };
+    });
+    const ranked = stats.filter(item => Number.isFinite(item.average)).sort((a, b) => b.average - a.average);
+    const interpretation = ranked.length > 1
+      ? `Highest recorded component mean: ${ranked[0].label} (${pct(ranked[0].average)}); lowest: ${ranked[ranked.length - 1].label} (${pct(ranked[ranked.length - 1].average)}).`
+      : ranked.length ? `Only ${ranked[0].label} has a recorded component percentage so far.` : "No component percentages are available yet.";
+    const summary = `${t(44, statsTop - 16, "Component means across recorded periods", 17, ink, 700)}${stats.map(item => item.html).join("")}${t(44, statsTop + 113, interpretation, 13, muted)}`;
+    const cards = entries.map(({ period, result, complete }, index) => {
+      const y = cardsTop + index * cardStep;
+      const status = complete ? "Complete requirements" : "Provisional · incomplete requirements";
+      const finalLabel = state.calendarMode === "trimester" ? "Transmutation" : "Final transmuted";
+      const finalValue = state.calendarMode === "trimester" ? "Not used" : format(result.initial.transmuted, 0);
+      const components = categories.map((cat, catIndex) => {
+        const component = result[cat.key];
+        const x = 65 + catIndex * 294;
+        return `${t(x, y + 146, cat.label, 12, cat.color, 700)}${t(x, y + 170, `${pct(component.percentage)} · ${Number.isFinite(component.weighted) ? `${format(component.weighted, 2)} weighted` : "— weighted"}`, 14, ink, 600)}${t(x, y + 191, `${scoreTotal(component)} raw / HPS`, 12, muted)}`;
+      }).join("");
+      return `<rect x="44" y="${y}" width="872" height="209" rx="14" fill="#fff" stroke="${line}"/><rect x="44" y="${y}" width="6" height="209" rx="3" fill="${complete ? "#327657" : "#b47a22"}"/>
+        ${t(65, y + 35, period.name, 21, ink, 700)}${t(895, y + 34, status, 13, complete ? "#327657" : "#8a5d16", 600, 'text-anchor="end"')}
+        ${t(65, y + 70, state.calendarMode === "trimester" ? "Term grade" : "Initial grade", 12, muted, 600)}${t(65, y + 109, format(result.initial.rounded, 3), 32, ink, 700)}
+        ${t(350, y + 70, finalLabel, 12, muted, 600)}${t(350, y + 109, finalValue, 32, crimson, 700)}
+        ${t(620, y + 70, "Qualitative descriptor", 12, muted, 600)}${t(620, y + 105, result.initial.descriptor, 21, ink, 700)}
+        <line x1="65" y1="${y + 126}" x2="895" y2="${y + 126}" stroke="${line}"/>${components}`;
+    }).join("");
+    const footer = `<line x1="44" y1="${footerTop}" x2="916" y2="${footerTop}" stroke="${line}"/>${t(44, footerTop + 27, "Component means are unweighted averages of available period percentages; they are not final grades.", 12, muted)}${t(44, footerTop + 47, "A/M count as zero. E/L are excluded. A provisional grade has missing or incomplete requirements.", 12, muted)}${t(44, footerTop + 70, "Source: this teacher's current class record view", 12, crimson, 600)}`;
+    return `${start}${header}${chartTitle}${legends}${grids}${bars}${summary}${cards}${footer}</svg>`;
+  }
 
-  const PERF_CATS = [
-    { key: "ww", label: "Written Works", dot: "var(--yellow)", line: "var(--ww-line)" },
-    { key: "pt", label: "Performance Tasks", dot: "var(--blue)", line: "var(--pt-line)" },
-    { key: "qa", label: "Quarterly Assessment", dot: "var(--red)", line: "var(--qa-line)" }
-  ];
+  async function exportStudentReportPng(button) {
+    const svg = document.querySelector(`.student-report-svg[data-report-id="${button.dataset.reportId}"]`);
+    if (!svg) return;
+    const clone = svg.cloneNode(true);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    const source = new XMLSerializer().serializeToString(clone);
+    const url = URL.createObjectURL(new Blob([source], { type: "image/svg+xml;charset=utf-8" }));
+    try {
+      const image = new Image();
+      await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = url; });
+      const canvas = document.createElement("canvas");
+      canvas.width = Number(svg.getAttribute("width")) * 2;
+      canvas.height = Number(svg.getAttribute("height")) * 2;
+      const context = canvas.getContext("2d");
+      context.scale(2, 2);
+      context.drawImage(image, 0, 0);
+      const png = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+      if (!png) throw new Error("PNG conversion failed");
+      const download = document.createElement("a");
+      const filename = `${button.dataset.reportName}-${button.dataset.reportSection}-grades`.normalize("NFD").replace(/\p{M}/gu, "").replace(/[^a-z0-9-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 100);
+      const pngUrl = URL.createObjectURL(png);
+      download.href = pngUrl;
+      download.download = `${filename || "student-grades"}.png`;
+      document.body.append(download);
+      download.click();
+      download.remove();
+      setTimeout(() => URL.revokeObjectURL(pngUrl), 1000);
+    } catch (error) {
+      showSaveToast(`Image export failed: ${error.message}`, "error");
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
 
   function shortenPeriodLabel(name) {
     const short = {
@@ -2632,110 +2762,6 @@
     };
     if (short[name]) return short[name];
     return name.length > 14 ? name.slice(0, 13) + "…" : name;
-  }
-
-  function categoryScoreStats(series, key) {
-    const points = series.map((p, i) => ({ i, value: p[key] })).filter((p) => Number.isFinite(p.value));
-    if (!points.length) return null;
-    const avg = points.reduce((sum, p) => sum + p.value, 0) / points.length;
-    const first = points[0].value;
-    const last = points[points.length - 1].value;
-    return { avg, first, last, delta: points.length > 1 ? last - first : 0, count: points.length };
-  }
-
-  // What each component actually measures, in plain terms — used to keep
-  // every tip tied to the score itself rather than a guess about why the
-  // score is what it is.
-  const COMPONENT_FOCUS = {
-    ww: "Written Works reflects day-to-day seatwork and quizzes. Reviewing the specific topics covered and practicing similar items can help raise this score.",
-    pt: "Performance Tasks reflects projects and hands-on, applied work. Practicing the specific skills those tasks call for can help raise this score.",
-    qa: "Quarterly Assessment reflects one comprehensive exam covering the whole quarter. Reviewing the full range of topics and taking practice tests can help raise this score."
-  };
-
-  function performanceInterpretation(catsWithStats) {
-    if (!catsWithStats.length) return { interpretation: "", tip: "" };
-
-    const labels = { ww: "Written Works", pt: "Performance Tasks", qa: "Quarterly Assessment" };
-
-    if (catsWithStats.length === 1) {
-      const only = catsWithStats[0];
-      const missing = Object.keys(labels).filter((k) => k !== only.key).map((k) => labels[k]);
-      return {
-        interpretation: `Only ${only.label} has recorded scores so far, averaging ${format(only.stats.avg, 1)}%. ${missing.join(" and ")} don't have entries yet for this learner.`,
-        tip: `Once the remaining components are scored, a fuller picture of this learner's strengths will show here.`
-      };
-    }
-
-    const sorted = [...catsWithStats].sort((a, b) => b.stats.avg - a.stats.avg);
-    const strongest = sorted[0];
-    const focusArea = sorted[sorted.length - 1];
-    const periodCount = Math.max(...catsWithStats.map((c) => c.stats.count));
-
-    const moved = catsWithStats.filter((c) => c.stats.count > 1).sort((a, b) => Math.abs(b.stats.delta) - Math.abs(a.stats.delta))[0];
-    let movementSentence = "";
-    if (moved && Math.abs(moved.stats.delta) >= 1) {
-      const dir = moved.stats.delta > 0 ? "improved" : "went down";
-      movementSentence = ` Their ${moved.label} score ${dir} from ${format(moved.stats.first, 1)}% to ${format(moved.stats.last, 1)}% across the periods recorded.`;
-    } else if (moved) {
-      movementSentence = ` ${moved.label} has stayed fairly steady across the periods recorded.`;
-    }
-
-    const interpretation = `Based on ${periodCount} grading period${periodCount > 1 ? "s" : ""} of recorded scores, ${strongest.label} is this learner's strongest component at ${format(strongest.stats.avg, 1)}%, while ${focusArea.label} is comparatively lower at ${format(focusArea.stats.avg, 1)}%.${movementSentence}`;
-
-    const tip = `${strongest.label} at ${format(strongest.stats.avg, 1)}% is a genuine strength, worth recognizing. For ${focusArea.label}, ${COMPONENT_FOCUS[focusArea.key]}`;
-
-    return { interpretation, tip };
-  }
-
-  function renderStudentPerformanceChart(series) {
-    if (!series.length) return "";
-    const stats = PERF_CATS.map((c) => ({ ...c, stats: categoryScoreStats(series, c.key) }));
-    const withData = stats.filter((c) => c.stats);
-    if (!withData.length) return "";
-
-    const w = 560, h = 230, padL = 34, padR = 16, padT = 22, padB = 40;
-    const plotW = w - padL - padR, plotH = h - padT - padB;
-    const n = series.length;
-    const groupW = plotW / n;
-    const groupPad = Math.min(16, groupW * 0.18);
-    const barGap = 4;
-    const barW = Math.max(8, (groupW - groupPad * 2 - barGap * (PERF_CATS.length - 1)) / PERF_CATS.length);
-    const baseline = padT + plotH;
-
-    const yFor = (v) => padT + plotH - (plotH * Math.max(0, Math.min(100, v))) / 100;
-
-    const gridLines = [0, 25, 50, 75, 100].map((v) => {
-      const y = yFor(v);
-      return `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="var(--border)" stroke-width="1"/><text x="${padL - 8}" y="${y + 4}" font-size="10" fill="var(--muted)" text-anchor="end">${v}</text>`;
-    }).join("");
-
-    const bars = series.map((p, i) => {
-      const groupX = padL + groupW * i + groupPad;
-      return PERF_CATS.map((c, ci) => {
-        const v = p[c.key];
-        if (!Number.isFinite(v)) return "";
-        const x = groupX + ci * (barW + barGap);
-        const y = yFor(v);
-        const barH = Math.max(0, baseline - y);
-        const valueLabel = `<text x="${(x + barW / 2).toFixed(1)}" y="${(y - 5).toFixed(1)}" font-size="9" fill="var(--muted)" text-anchor="middle">${format(v, 0)}</text>`;
-        return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${c.dot}" stroke="${c.line}" stroke-width="1.2"/>${valueLabel}`;
-      }).join("");
-    }).join("");
-
-    const xLabels = series.map((p, i) => {
-      const groupCenter = padL + groupW * i + groupW / 2;
-      return `<text x="${groupCenter.toFixed(1)}" y="${h - padB + 16}" font-size="10" fill="var(--muted)" text-anchor="middle">${escapeHtml(shortenPeriodLabel(p.periodName))}</text>`;
-    }).join("");
-
-    const legend = withData.map((c) => `<span class="perf-legend-item"><span class="perf-swatch" style="background:${c.line}"></span>${c.label} <strong>${format(c.stats.avg, 1)}%</strong></span>`).join("");
-    const analysis = performanceInterpretation(withData);
-
-    return `<div class="student-perf-chart">
-      <svg viewBox="0 0 ${w} ${h}" class="perf-chart-svg" role="img" aria-label="Written Work, Performance Task, and Quarterly Assessment scores by grading period for this learner">${gridLines}${bars}${xLabels}</svg>
-      <div class="perf-chart-legend">${legend}</div>
-      <p class="perf-interpretation">${analysis.interpretation}</p>
-      <p class="perf-tip"><strong>Tip:</strong> ${analysis.tip}</p>
-    </div>`;
   }
 
   function showSearchModal(message, isHtml = false) {
@@ -3089,10 +3115,13 @@
     const stateSnapshot = cloneState(state);
     const currentUser = currentUserKey();
     isSaving = true;
+    updateSaveIndicators();
     setStatus(automatic ? "Autosaving..." : "Saving...", "saving");
     try {
       await window.CSTRSync.ready;
       await window.CSTRSync.save(currentUser, stateSnapshot);
+      lastCloudSavedAt = new Date();
+      lastCloudVerifiedAt = lastCloudSavedAt;
       lastSavedRevision = Math.max(lastSavedRevision, savedRevision);
       if (stateRevision === savedRevision) {
         localStorage.removeItem(localDraftKey());
@@ -3107,8 +3136,9 @@
         persistLocalDraft(); updateSaveIndicators(); scheduleAutoSaveMaxWait();
         saveQueued = true;
       }
-      setStatus(automatic ? "Autosaved ✓ (live on every device)" : "Saved ✓ (live on every device)");
-      showSaveToast(automatic ? "All changes autosaved — live on every device." : "Changes saved — live on every device.");
+      const newerEditsPending = pendingAutoSaveChanges > 0;
+      setStatus(newerEditsPending ? "Earlier edits saved to cloud; newer edits are still pending." : automatic ? "Autosaved ✓ (live on every device)" : "Saved ✓ (live on every device)");
+      showSaveToast(newerEditsPending ? "Earlier edits saved to cloud; newer edits still need saving." : automatic ? "All changes autosaved — live on every device." : "Changes saved — live on every device.");
       return true;
     } catch (error) {
       setStatus(`Error - check your connection: ${error.message}`, "error");
@@ -3116,6 +3146,8 @@
       return false;
     } finally {
       isSaving = false;
+      updateSaveIndicators();
+      refreshLogoutModal();
       if (saveQueued) {
         saveQueued = false;
         queueAutoSave();
@@ -3137,6 +3169,8 @@
     isLoading = true;
     lastLoadError = "";
     isDataLoaded = false;
+    lastCloudSavedAt = null;
+    lastCloudVerifiedAt = null;
     syncSaveControl();
     setStatus("Connecting to live sync...", "saving");
 
@@ -3176,6 +3210,7 @@
           state = normalizeState(remoteState || localDraft || {});
           activePeriodIndex = 0;
           isDataLoaded = true; isLoading = false; lastLoadError = "";
+          lastCloudVerifiedAt = new Date();
           pendingAutoSaveChanges = 0;
           commitActiveFieldEdit();
           if (autoSaveMaxWaitTimer) { clearTimeout(autoSaveMaxWaitTimer); autoSaveMaxWaitTimer = null; }
@@ -3213,6 +3248,7 @@
   function handleRemoteUpdate(remoteState, meta) {
     isDataLoaded = true; // A real server response is required before cloud writes.
     if (meta.isOwnEcho) return; // hearing our own save reflected back — already applied locally
+    lastCloudVerifiedAt = new Date();
     if (pendingAutoSaveChanges === 0 && !isSaving && !isStale) {
       // Nothing unsaved on this device — safe to take the newer copy immediately.
       state = normalizeState(remoteState || {});
@@ -3444,8 +3480,7 @@
   function handlePhoto(file) {
     const allowedType = file && ["image/png", "image/jpeg"].includes(file.type);
     const allowedExtension = file && /\.(png|jpe?g)$/i.test(file.name);
-    const note = document.querySelector("#photoNote");
-    if (!allowedType || !allowedExtension) { if (note) { note.textContent = "Only .png, .jpg, and .jpeg image files are accepted."; note.classList.add("error"); } return; }
+    if (!allowedType || !allowedExtension) { showSaveToast("Only .png, .jpg, and .jpeg image files are accepted.", "error"); return; }
     const reader = new FileReader();
     reader.onload = () => {
       const image = new Image();
@@ -3741,6 +3776,138 @@
     setStatus(`Cut ${bounds.maxRow - bounds.minRow + 1} rows × ${bounds.maxCol - bounds.minCol + 1} columns.`);
   });
 
+  function summarizeUnsavedChanges() {
+    if (pendingAutoSaveChanges === 0) return [];
+    const before = preBatchSnapshot || createInitialState();
+    const changes = [];
+    const changed = (a, b) => JSON.stringify(a) !== JSON.stringify(b);
+    if (changed(before.teacher, state.teacher)) {
+      const fields = { name: "name", age: "age", specialization: "specialization", level: "school level", bio: "bio" };
+      changes.push(`Teacher profile: ${Object.keys(fields).filter(key => changed(before.teacher?.[key], state.teacher?.[key])).map(key => fields[key]).join(", ")}`);
+    }
+    if (before.photo !== state.photo) changes.push("Teacher photo");
+    if (before.calendarMode !== state.calendarMode) changes.push("Selected grading workspace");
+    [["Quarterly / Semestral", "registry", "sections"], ["Trimester", "registryTri", "sectionsTri"]].forEach(([mode, registryKey, sectionsKey]) => {
+      const oldRegistry = before[registryKey] || [];
+      const newRegistry = state[registryKey] || [];
+      const oldClasses = new Map(oldRegistry.map(item => [item.id, item]));
+      const newClasses = new Map(newRegistry.map(item => [item.id, item]));
+      new Set([...oldClasses.keys(), ...newClasses.keys()]).forEach(id => {
+        const oldClass = oldClasses.get(id), newClass = newClasses.get(id);
+        const label = newClass || oldClass;
+        const className = `${label.subject || "Class"}${label.section ? ` · ${label.section}` : ""} (${mode})`;
+        if (!oldClass || !newClass) { changes.push(`${!oldClass ? "Added" : "Removed"} class: ${className}`); return; }
+        if (changed(oldClass, newClass)) {
+          const fields = ["level", "subject", "section", "weights", "theme", "archived"].filter(key => changed(oldClass[key], newClass[key]));
+          changes.push(`Class ${fields.join(", ") || "settings"}: ${className}`);
+        }
+        const oldPeriods = before[sectionsKey]?.[id]?.periods || [];
+        const newPeriods = state[sectionsKey]?.[id]?.periods || [];
+        if (oldPeriods.length !== newPeriods.length) changes.push(`Grading periods: ${className}`);
+        for (let index = 0; index < Math.min(oldPeriods.length, newPeriods.length); index += 1) {
+          const oldPeriod = oldPeriods[index], newPeriod = newPeriods[index];
+          const periodLabel = `${className} · ${newPeriod.name || `period ${index + 1}`}`;
+          if (oldPeriod.name !== newPeriod.name || oldPeriod.locked !== newPeriod.locked) changes.push(`Period settings: ${periodLabel}`);
+          const kinds = ["ww", "pt", "qa"];
+          const changedColumns = kinds.filter(kind => oldPeriod[`${kind}Dates`].length !== newPeriod[`${kind}Dates`].length);
+          if (changedColumns.length) changes.push(`Score columns (${changedColumns.map(kind => kind.toUpperCase()).join(", ")}): ${periodLabel}`);
+          const activityChanges = [];
+          kinds.forEach(kind => {
+            const oldDates = oldPeriod[`${kind}Dates`], newDates = newPeriod[`${kind}Dates`];
+            const oldHps = oldPeriod[`${kind}Hps`], newHps = newPeriod[`${kind}Hps`];
+            const oldMeta = oldPeriod.activityMeta?.[kind] || [], newMeta = newPeriod.activityMeta?.[kind] || [];
+            for (let slot = 0; slot < Math.max(oldDates.length, newDates.length); slot += 1) {
+              const prefix = `${kind.toUpperCase()} ${slot + 1}`;
+              if (String(oldDates[slot] ?? "") !== String(newDates[slot] ?? "")) activityChanges.push(`${prefix} date`);
+              if (String(oldHps[slot] ?? "") !== String(newHps[slot] ?? "")) activityChanges.push(`${prefix} HPS`);
+              ["title", "competency", "topic"].forEach(field => { if (String(oldMeta[slot]?.[field] ?? "") !== String(newMeta[slot]?.[field] ?? "")) activityChanges.push(`${prefix} ${field}`); });
+            }
+          });
+          if (activityChanges.length) changes.push(`Activities: ${activityChanges.slice(0, 3).join(", ")}${activityChanges.length > 3 ? ` +${activityChanges.length - 3} more` : ""} · ${periodLabel}`);
+          if (changed(oldPeriod.roster.map(item => item.name), newPeriod.roster.map(item => item.name))) changes.push(`Learner names or rows: ${periodLabel}`);
+          let scoreCount = 0;
+          const scoreLearners = new Set();
+          for (let row = 0; row < Math.max(oldPeriod.roster.length, newPeriod.roster.length); row += 1) {
+            kinds.forEach(kind => {
+              const oldScores = oldPeriod.roster[row]?.[kind] || [], newScores = newPeriod.roster[row]?.[kind] || [];
+              for (let slot = 0; slot < Math.max(oldScores.length, newScores.length); slot += 1) {
+                if (String(oldScores[slot] ?? "") !== String(newScores[slot] ?? "")) {
+                  scoreCount += 1;
+                  scoreLearners.add(newPeriod.roster[row]?.name || oldPeriod.roster[row]?.name || `row ${row + 1}`);
+                }
+              }
+            });
+          }
+          if (scoreCount) changes.push(`${scoreCount} score entr${scoreCount === 1 ? "y" : "ies"}: ${periodLabel}${scoreLearners.size === 1 ? ` · ${[...scoreLearners][0]}` : ""}`);
+        }
+      });
+    });
+    return changes.length ? changes : ["Other class record changes"];
+  }
+
+  function logoutDialogContent() {
+    const dirty = pendingAutoSaveChanges > 0;
+    const cloudReady = isSyncConfigured() && isDataLoaded && !isStale;
+    const unverifiedLocalCopy = !cloudReady && Boolean(restoreLocalDraft());
+    const summary = dirty ? summarizeUnsavedChanges() : unverifiedLocalCopy ? ["Local recovery copy may contain changes that are not in cloud"] : [];
+    const current = !dirty && cloudReady && !isSaving;
+    const status = isSaving ? "A cloud save is in progress. Wait for its result before logging out."
+      : isStale ? "Another device changed the cloud record. Review the conflict in Settings before deciding."
+      : !isSyncConfigured() ? "Cloud save is unavailable. This browser may hold a recovery copy."
+      : !isDataLoaded ? "The cloud copy is unverified on this device. A local recovery copy may exist."
+      : dirty ? `${pendingAutoSaveChanges} change${pendingAutoSaveChanges === 1 ? " is" : "s are"} not saved to cloud.`
+      : lastCloudSavedAt ? `All changes saved to cloud at ${lastCloudSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
+      : `This record was loaded and verified from cloud${lastCloudVerifiedAt ? ` at ${lastCloudVerifiedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}. No edits are pending.`;
+    return `<div class="section-heading"><div><p class="eyebrow">Before you leave</p><h2 id="logoutTitle">Log out of your class record?</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
+      <p class="logout-status ${current ? "is-current" : "is-pending"}" role="status">${escapeHtml(status)}</p>
+      ${summary.length ? `<div class="logout-changes"><strong>${dirty ? "Changes since the last save" : "Local copy to check"}</strong><ul>${summary.slice(0, 6).map(item => `<li>${escapeHtml(item)}</li>`).join("")}${summary.length > 6 ? `<li>And ${summary.length - 6} more changed areas</li>` : ""}</ul></div>` : ""}
+      ${!current ? '<p class="logout-recovery">Logging out without a cloud save keeps a recovery copy only in this browser. It may not appear on another device.</p>' : ""}
+      <div class="logout-actions">${current ? button("Cloud copy current — log out", "confirm-logout", "button button-primary") : cloudReady && dirty && !isSaving ? button("Save to cloud, then log out", "save-then-logout", "button button-primary") : ""}
+        ${button("Double-check changes · cancel", "close-modal", "button button-secondary")}</div>
+      ${!current && !isSaving ? `<div class="logout-destructive">${button("Log out without cloud saving", "logout-without-save", "button button-danger")}</div>` : ""}`;
+  }
+
+  function showLogoutModal() {
+    commitHpsField(document.activeElement);
+    commitPendingBulkFill();
+    document.querySelector("#logoutModal")?.remove();
+    const modal = document.createElement("div");
+    modal.id = "logoutModal";
+    modal.className = "modal-backdrop";
+    modal.innerHTML = `<section class="modal logout-modal" role="dialog" aria-modal="true" aria-labelledby="logoutTitle">${logoutDialogContent()}</section>`;
+    document.body.append(modal);
+    modal.querySelector("[data-action='close-modal']")?.focus();
+  }
+
+  function refreshLogoutModal() {
+    const dialog = document.querySelector("#logoutModal .logout-modal");
+    if (dialog) dialog.innerHTML = logoutDialogContent();
+  }
+
+  async function performLogout() {
+    persistLocalDraft();
+    try {
+      if (window.CSTRSync?.signOut) await window.CSTRSync.signOut();
+    } catch (error) {
+      showSaveToast(`Could not log out: ${error.message}`, "error");
+      return;
+    }
+    if (unsubscribeSync) { unsubscribeSync(); unsubscribeSync = null; }
+    ++loadRequestId;
+    if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+    if (autoSaveMaxWaitTimer) { clearTimeout(autoSaveMaxWaitTimer); autoSaveMaxWaitTimer = null; }
+    commitActiveFieldEdit();
+    isStale = false; pendingRemoteState = null; pendingRemoteAt = null; isDataLoaded = false; isLoading = false;
+    lastCloudSavedAt = null; lastCloudVerifiedAt = null; lastSavedAt = null;
+    pendingAutoSaveChanges = 0; stateRevision = 0; lastSavedRevision = 0; preBatchSnapshot = null;
+    state = createInitialState();
+    ["cstr-class-record-login", "cstr-class-record-user", "cstr-class-record-email", "cstr-class-record-name"].forEach(key => sessionStorage.removeItem(key));
+    window.CSTRRegistration?.clear();
+    document.querySelector("#logoutModal")?.remove();
+    currentView = "home";
+    render();
+  }
+
   // Form submit listeners (Enter key on any of these forms). Attached to
   // `document`, not `app`, because Settings is a modal appended directly to
   // document.body — outside #app — so its forms wouldn't bubble to an
@@ -3835,10 +4002,10 @@
     }
     if (action === "onboard-cancel") {
       event.preventDefault();
-      document.querySelector(".modal-backdrop.onboarding-modal")?.remove();
+      const onboarding = document.querySelector(".modal-backdrop.onboarding-modal");
       if (window.CSTRSync && window.CSTRSync.signOut) {
-        window.CSTRSync.signOut();
-      }
+        window.CSTRSync.signOut().then(() => onboarding?.remove()).catch(error => showSaveToast(`Could not sign out: ${error.message}`, "error"));
+      } else onboarding?.remove();
     }
     
     if (action === "add-col") {
@@ -3993,19 +4160,21 @@
       document.querySelector(".modal-backdrop")?.remove();
     }
 
-    if (action === "logout") {
-      if (unsubscribeSync) { unsubscribeSync(); unsubscribeSync = null; }
-      isStale = false; pendingRemoteState = null; pendingRemoteAt = null; isDataLoaded = false;
-      sessionStorage.removeItem("cstr-class-record-login");
-      sessionStorage.removeItem("cstr-class-record-user");
-      sessionStorage.removeItem("cstr-class-record-email");
-      sessionStorage.removeItem("cstr-class-record-name");
-      window.CSTRRegistration?.clear();
-      if (window.CSTRSync && window.CSTRSync.signOut) {
-        window.CSTRSync.signOut();
-      }
-      currentView = "home";
-      render();
+    if (action === "logout") showLogoutModal();
+    if (action === "confirm-logout") {
+      if (pendingAutoSaveChanges || isSaving || !isDataLoaded || isStale || !isSyncConfigured()) { refreshLogoutModal(); return; }
+      performLogout();
+    }
+    if (action === "logout-without-save") performLogout();
+    if (action === "save-then-logout") {
+      const logoutModal = document.querySelector("#logoutModal");
+      target.disabled = true;
+      target.textContent = "Saving to cloud…";
+      saveToFirebase().then(saved => {
+        if (document.querySelector("#logoutModal") !== logoutModal) return;
+        if (saved && pendingAutoSaveChanges === 0 && !isSaving && !isStale) performLogout();
+        else refreshLogoutModal();
+      });
     }
     if (action === "go-home") { currentView = "home"; render(); }
     if (action === "go-records") { currentView = "chooser"; render(); }
@@ -4035,6 +4204,7 @@
     if (action === "restore-version") restoreVersion(Number(target.dataset.versionIndex));
     if (action === "choose-photo") choosePhoto();
     if (action === "search-student") searchStudent();
+    if (action === "export-student-png") exportStudentReportPng(target);
   });
 
   // Keydown shortcuts
@@ -4078,6 +4248,7 @@
     if (input.dataset.teacher !== undefined) return `teacher:${input.dataset.teacher}`;
     if (input.dataset.periodName !== undefined) return `periodName:${activeSectionId}:${activePeriodIndex}`;
     if (input.dataset.date) return `date:${activeSectionId}:${activePeriodIndex}:${input.dataset.date}:${input.dataset.index}`;
+    if (input.dataset.activityField) return `activity:${activeSectionId}:${activePeriodIndex}:${input.dataset.activityKind}:${input.dataset.activityIndex}:${input.dataset.activityField}`;
     if (input.dataset.score) return `score:${activeSectionId}:${activePeriodIndex}:${input.dataset.score}:${input.dataset.row}:${input.dataset.index}`;
     if (input.dataset.hps) return `hps:${activeSectionId}:${activePeriodIndex}:${input.dataset.hps}:${input.dataset.index}`;
     return null;
@@ -4091,6 +4262,7 @@
     else wrap.style.height = Math.max(340, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - 18) + "px";
   }
   window.addEventListener("resize", sizeSheetWorkspace, { passive: true });
+  window.addEventListener("resize", fitSectionName, { passive: true });
   function commitHpsField(input) {
     if (!input?.dataset?.hps || !hpsEdits.has(input)) return;
     const previous = hpsEdits.get(input);
@@ -4145,7 +4317,15 @@
     }
     if (input.dataset.teacher !== undefined) { state.teacher[input.dataset.teacher] = input.value; stateChanged = true; }
     if (input.dataset.periodName !== undefined) { currentPeriod().name = input.value; stateChanged = true; }
-    if (input.dataset.date) { currentPeriod()[`${input.dataset.date}Dates`][Number(input.dataset.index)] = input.value; stateChanged = true; }
+    if (input.dataset.date) {
+      currentPeriod()[`${input.dataset.date}Dates`][Number(input.dataset.index)] = input.value;
+      document.querySelectorAll(`[data-date="${input.dataset.date}"][data-index="${input.dataset.index}"]`).forEach(peer => { if (peer !== input) peer.value = input.value; });
+      stateChanged = true;
+    }
+    if (input.dataset.activityField) {
+      currentPeriod().activityMeta[input.dataset.activityKind][Number(input.dataset.activityIndex)][input.dataset.activityField] = input.value;
+      stateChanged = true;
+    }
     if (input.dataset.score) {
       const kind = input.dataset.score; const row = Number(input.dataset.row); const index = Number(input.dataset.index);
       const sanitized = sanitizeScoreValue(input.value);
@@ -4155,6 +4335,7 @@
     if (input.dataset.hps) {
       if (!hpsEdits.has(input)) hpsEdits.set(input, currentPeriod()[input.dataset.hps + "Hps"][Number(input.dataset.index)]);
       currentPeriod()[input.dataset.hps + "Hps"][Number(input.dataset.index)] = input.value;
+      document.querySelectorAll(`[data-hps="${input.dataset.hps}"][data-index="${input.dataset.index}"]`).forEach(peer => { if (peer !== input) peer.value = input.value; });
       input.classList.toggle("invalid", input.value !== "" && (!Number.isFinite(Number(input.value)) || Number(input.value) <= 0));
       input.setAttribute("aria-invalid", String(input.classList.contains("invalid")));
       updateAllSummaries(); stateChanged = true;

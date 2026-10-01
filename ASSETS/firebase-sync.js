@@ -177,6 +177,7 @@
         await auth.signOut();
       } catch (err) {
         console.warn("CSTRSync: signOut error", err);
+        throw err;
       }
     },
 

@@ -1,5 +1,16 @@
 # CSTR Class Record — Live
 
+## October 1 class sheet and learner lookup patch
+
+- Class sheets use a uniform light tint based on each class color. The header now emphasizes grade level and a fitted, single-line section name, with a subject-weight popover.
+- Learner lookup matches the substantive words of a complete name regardless of case, punctuation, spacing, name order, or optional middle initials. It still requires exact spelling of those words.
+- The learner result is a single SVG report shown in the search dialog. **Save as PNG image** rasterizes that same SVG, including the chart, grade values, descriptor, and completeness status. The trimester view labels its untransmuted term grade explicitly.
+- Each period has an activity register below the score sheet. Its title, competency, and topic fields are stored alongside each WW/PT/QA column. Date and HPS use the score sheet's existing values. Older records receive empty metadata fields on load; added and removed score columns add and remove the matching activity rows.
+- Log out now shows cloud status and a short summary of pending changes. Saving before logout waits for a successful cloud write. A failed save or sign-out leaves the teacher signed in. The teacher can explicitly choose to log out without a cloud save; the local recovery copy remains on that browser.
+- The teacher photo prompt was removed; the profile-save hint is smaller and italic.
+
+The saved-data version is 4. It adds optional activity metadata without changing the grading formulas or Firebase database rules. An older deployed copy of the app may drop this new metadata if it later overwrites a record; deploy the complete patch together. A local headless-browser harness verified legacy record loading, date/HPS synchronization, column changes, name matching, PNG rasterization, trimester labels, and logout success/failure/cancel paths. Live Firebase and multi-device behavior still need verification with an approved teacher account before production use.
+
 ## September 26 design and audit revision
 
 The active visual layers are consolidated into `ASSETS/design-system.css`. The

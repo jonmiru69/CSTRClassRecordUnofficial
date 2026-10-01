@@ -3244,3 +3244,105 @@ body:has(.login-screen) #siteBg { background: var(--canvas); }
   .dashboard-hero, .dashboard-panel.recent-panel, .login-card, .welcome-story, .metric-card { animation: none; }
   .metric-card:hover, .owner-intro .photo-frame:hover { transform: none; }
 }
+
+/* October class-sheet and learner-report revision. */
+.record-section {
+  --sheet-tint: color-mix(in srgb, var(--class-color) 9%, var(--surface));
+  --sheet-tint-strong: color-mix(in srgb, var(--class-color) 16%, var(--surface));
+}
+.record-section .class-header-card,
+:root[data-theme="dark"] .record-section .class-header-card {
+  background: var(--sheet-tint-strong);
+  border-color: color-mix(in srgb, var(--class-color) 45%, var(--border));
+}
+.record-section .class-identity,
+.record-section .class-period-area { background: var(--sheet-tint-strong); }
+.record-section .class-identity { padding: 22px 26px 16px; }
+.class-subject-line { display: flex; align-items: center; gap: 10px; position: relative; }
+.class-subject-line .subject-picker summary { font-size: 14px; color: var(--text); }
+.class-weights { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 1px solid var(--class-color); border-radius: 50%; color: var(--text); position: relative; cursor: help; }
+.class-weights .ui-icon { width: 17px; height: 17px; }
+.class-weights-popover { position: absolute; z-index: 80; left: 0; top: calc(100% + 8px); width: 258px; display: grid; gap: 5px; padding: 13px 15px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); box-shadow: var(--shadow-md); font-size: 13px; opacity: 0; visibility: hidden; pointer-events: none; }
+.class-weights-popover strong { margin-bottom: 4px; font-size: 13px; }
+.class-weights:is(:hover,:focus-visible) .class-weights-popover { opacity: 1; visibility: visible; }
+.class-level { margin: 18px 0 0; color: var(--text); font-size: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.record-section .class-name { display: block; box-sizing: border-box; width: 100%; margin: 3px 0 10px; padding-bottom: 13px; border-bottom: 2px solid color-mix(in srgb, var(--class-color) 55%, var(--border)); color: var(--text); font-size: 72px; font-weight: 750; line-height: 1.06; letter-spacing: -.04em; text-transform: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.record-section .class-context-line { color: var(--text); font-size: 13px; }
+.record-section .class-period-area { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 26px 16px; border-top: 0; }
+.record-section .period-tabs { display: flex; flex: 1 1 auto; align-items: stretch; gap: 8px; margin: 0; }
+.record-section .period-tabs .tab { flex: 1 0 auto; justify-content: center; min-height: 36px; font-size: 12px; }
+.record-section .period-settings { flex: 0 0 auto; }
+.record-section .period-toolbar { display: flex; align-items: end; justify-content: flex-start; gap: 12px; }
+.record-section .period-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.record-section .sheet-utilities { justify-content: flex-start; gap: 8px 18px; border-bottom: 1px solid var(--border); padding: 5px 0 9px; }
+.record-section .sheet-caption { margin-left: auto; }
+.owner-footer .teacher-edit-hint { font-size: 10px; font-style: italic; font-weight: 400; opacity: .8; }
+.app-header .save-meta { max-width: 430px; overflow: visible; text-overflow: clip; white-space: normal; }
+
+/* Every learner row uses one quiet class tint. Validation and selection remain explicit. */
+.record-section .record-table tbody tr > :is(th,td),
+:root[data-theme="dark"] .record-section .record-table tbody tr > :is(th,td),
+.record-section .record-table tbody tr:hover > :is(th,td),
+.record-section .record-table tbody tr:focus-within > :is(th,td) {
+  background: var(--sheet-tint) !important;
+  transition: none !important;
+}
+.record-section .record-table tbody :is(input[data-score], input[data-name-row]):not(.invalid):not(:focus) { background: transparent !important; }
+.record-section .record-table tbody input[data-score].invalid,
+.record-section .record-table tbody input[data-score][aria-invalid="true"] { background: var(--danger-soft) !important; }
+.record-section .record-table tbody :is(input[data-score], input[data-name-row]):focus { background: var(--surface) !important; }
+.record-section .record-table tbody input.cell-selected { box-shadow: inset 0 0 0 2px var(--focus); }
+
+.activity-register { margin: 26px 0 34px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.activity-register-heading { display: flex; justify-content: space-between; align-items: end; gap: 12px 24px; padding: 22px 24px 17px; border-top: 5px solid var(--class-color); border-bottom: 1px solid var(--border); }
+.activity-register-heading .eyebrow { margin: 0 0 5px; color: var(--class-color); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+.activity-register-heading h3 { margin: 0; color: var(--text); font-size: clamp(22px,2.2vw,30px); }
+.activity-register-heading > p { max-width: 32ch; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.activity-register-scroll { width: 100%; overflow-x: auto; }
+.activity-register table { width: 100%; min-width: 880px; border-collapse: collapse; color: var(--text); font-size: 13px; }
+.activity-register th, .activity-register td { padding: 9px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+.activity-register thead th { background: var(--sheet-tint-strong); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.activity-register tbody tr:last-child :is(th,td) { border-bottom: 0; }
+.activity-register tbody th { width: 144px; background: var(--sheet-tint); }
+.activity-register tbody th strong { display: block; margin-top: 2px; font-size: 15px; }
+.activity-kind { color: var(--muted); font-size: 11px; }
+.activity-register td:nth-child(2) { min-width: 180px; }
+.activity-register td:nth-child(3), .activity-register td:nth-child(4) { min-width: 220px; }
+.activity-register td:nth-child(5) { min-width: 100px; }
+.activity-register td:nth-child(6) { min-width: 82px; }
+.activity-register input { box-sizing: border-box; width: 100%; min-height: 38px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); font-size: 13px; }
+.activity-register input:disabled { background: var(--stone-100); color: var(--muted); }
+.activity-register input::placeholder { color: var(--muted); opacity: .75; }
+
+.search-result-modal { width: min(100%, 1060px); }
+.student-perf-block { padding: 0; overflow: hidden; border-radius: 12px; }
+.student-report-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 16px; background: var(--surface-subtle); }
+.student-report-actions p { margin: 0; color: var(--text); font-size: 13px; font-weight: 600; }
+.student-report-actions .button { min-height: 36px; font-size: 12px; }
+.student-report-svg { display: block; width: 100%; height: auto; background: #fff; }
+.logout-modal { width: min(100%, 610px); }
+.logout-status { margin: 16px 0; padding: 13px 15px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-subtle); color: var(--text); font-weight: 650; line-height: 1.45; }
+.logout-status.is-current { border-color: var(--success); background: var(--success-soft); }
+.logout-status.is-pending { border-color: var(--warning); background: var(--gold-soft); }
+.logout-changes { max-height: 245px; overflow: auto; padding: 0 4px; font-size: 13px; }
+.logout-changes strong { display: block; margin-bottom: 7px; }
+.logout-changes ul { margin: 0; padding-left: 22px; }
+.logout-changes li { margin: 5px 0; line-height: 1.35; }
+.logout-recovery { margin: 16px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.logout-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 20px; }
+.logout-actions .button, .logout-destructive .button { min-height: 40px; padding: 8px 13px; border-radius: 6px; font-size: 13px; font-weight: 700; text-decoration: none; }
+.logout-actions .button-primary, .logout-actions .button-primary:hover:not(:disabled) { background: var(--crimson-800); border: 1px solid var(--crimson-800); color: var(--on-brand); }
+.logout-actions .button-secondary, .logout-actions .button-secondary:hover:not(:disabled) { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+.logout-destructive { margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--border); }
+.logout-destructive .button-danger, .logout-destructive .button-danger:hover:not(:disabled) { background: var(--danger-soft); border: 1px solid var(--danger); color: var(--danger); }
+@media (max-width: 760px) {
+  .record-section .class-identity { padding: 18px 14px 12px; }
+  .record-section .class-period-area { padding: 8px 14px 13px; }
+  .record-section .class-period-area { flex-wrap: wrap; }
+  .record-section .period-tabs { flex-basis: 100%; }
+  .record-section .class-level { font-size: 13px; }
+  .activity-register-heading { display: block; padding: 16px; }
+  .activity-register-heading > p { margin-top: 7px; }
+  .student-report-actions { align-items: stretch; }
+  .student-report-actions .button { width: 100%; }
+}
