@@ -39,7 +39,7 @@
   let activeSectionId = DEFAULT_REGISTRY[0]?.id || "";
   let activePeriodIndex = 0;
   let sidebarCollapsed = matchMedia("(max-width: 760px)").matches;
-  try { const stored = localStorage.getItem("cstr-sidebar-collapsed"); if (stored !== null) sidebarCollapsed = stored === "true"; } catch (_) {}
+  try { const stored = localStorage.getItem("cstr-sidebar-collapsed"); if (stored !== null) sidebarCollapsed = matchMedia("(max-width: 760px)").matches || stored === "true"; } catch (_) {}
   const hpsEdits = new WeakMap();
   let lastRenderedRecord = "";
   const completionSeen = new WeakMap();
@@ -662,11 +662,7 @@
   }
 
   function getLearnerCategory(name) {
-    if (typeof name !== "string") return null;
-    const clean = name.trim().toLowerCase();
-    if (/^(?:grade\s+\d+\s+)?boys$/.test(clean)) return "boys";
-    if (/^(?:grade\s+\d+\s+)?girls$/.test(clean)) return "girls";
-    return null;
+    return window.CSTRRecordTools.getLearnerCategory(name);
   }
 
   // Keep divider rows out of the record tools, including when their labels
@@ -698,7 +694,7 @@
     const numbering = roster.map((learner) => {
       const name = (learner.name || "").trim();
       if (!name) return ""; 
-      if (getLearnerCategory(name)) return "—"; 
+      if (getLearnerCategory(name)) return ""; 
       count += 1;
       return count;
     });
@@ -2177,7 +2173,7 @@
     return { total, percentage, weighted: `IFERROR(${percentage}*${weight}/100,"")` };
   }
 
-  function exportCurrentSheet() {
+  async function exportCurrentSheet() {
     if (!window.XLSX) {
       setStatus("The Excel exporter is still loading. Please try again in a moment.", "error");
       return;
@@ -2225,7 +2221,7 @@
     matrix[headerRow - 1][descriptorCol] = "Qualitative Descriptor";
 
     [[wwStart, period.wwDates, period.wwHps], [ptStart, period.ptDates, period.ptHps], [qaStart, period.qaDates, period.qaHps]].forEach(([start, dates, hps]) => {
-      dates.forEach((value, index) => { matrix[datesRow - 1][start + index] = value || `Activity ${index + 1}`; });
+      dates.forEach((value, index) => { matrix[datesRow - 1][start + index] = `${start === wwStart ? "WW" : start === ptStart ? "PT" : "QA"} ${index + 1}${value ? "\n" + value : ""}`; });
       hps.forEach((value, index) => { matrix[hpsRow - 1][start + index] = excelValue(value); });
     });
     const { numbering } = computeLearnerNumbering(period.roster);
@@ -2233,12 +2229,14 @@
       const row = firstLearnerRow - 1 + rowIndex;
       matrix[row][0] = numbering[rowIndex] === "—" ? "" : numbering[rowIndex];
       matrix[row][1] = learner.name || "";
+      if (getLearnerCategory(learner.name)) return;
       [[wwStart, learner.ww], [ptStart, learner.pt], [qaStart, learner.qa]].forEach(([start, scores]) => scores.forEach((value, index) => { matrix[row][start + index] = excelValue(value); }));
     });
     const worksheet = XLSX.utils.aoa_to_sheet(matrix);
     const setFormula = (address, formula, value, type = "n") => { worksheet[address] = { t: type, f: formula, v: value }; };
     period.roster.forEach((learner, rowIndex) => {
       const excelRow = firstLearnerRow + rowIndex;
+      if (getLearnerCategory(learner.name)) return;
       const result = learnerResult(learner, period, section.weights);
       const ww = componentExcelFormulas(wwStart, wwLen, excelRow, hpsRow, section.weights[0], false);
       const pt = componentExcelFormulas(ptStart, ptLen, excelRow, hpsRow, section.weights[1], false);
@@ -2294,9 +2292,9 @@
       { s: { r: 4, c: ptStart }, e: { r: 4, c: ptStart + ptLen + 2 } },
       { s: { r: 4, c: qaStart }, e: { r: 4, c: qaStart + qaLen + 2 } }
     ];
-    worksheet["!cols"] = Array.from({ length: lastCol + 1 }, (_, col) => ({ wch: col === 0 ? 5 : col === 1 ? 28 : col === gradeCol ? 12 : col === transmutedCol ? 14 : col === descriptorCol ? 18 : 10 }));
+    worksheet["!cols"] = Array.from({ length: lastCol + 1 }, (_, col) => ({ wch: col === 0 ? 5 : col === 1 ? 28 : col === gradeCol ? 12 : col === transmutedCol ? 14 : col === descriptorCol ? 15 : 6 }));
     worksheet["!rows"] = Array.from({ length: matrix.length }, (_, row) => ({ hpt: row < 4 ? 20 : row < firstLearnerRow - 1 ? 28 : 19 }));
-    worksheet["!pageSetup"] = { orientation: "landscape", paperSize: 9, fitToWidth: 1, fitToHeight: 0, horizontalCentered: true };
+    worksheet["!pageSetup"] = { orientation: "landscape", paperSize: 5, fitToWidth: 1, fitToHeight: 1, horizontalCentered: true };
     worksheet["!margins"] = { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 };
     worksheet["!printArea"] = `A1:${excelColumn(lastCol)}${matrix.length}`;
     worksheet["!sheetViews"] = [{ showGridLines: false }];
@@ -2304,8 +2302,48 @@
     XLSX.utils.book_append_sheet(workbook, worksheet, "Class Record");
     workbook.Workbook = { CalcPr: { calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true } };
     const safeName = `${section.level}-${section.subject}-${section.section || "Section"}-${period.name}`.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
-    XLSX.writeFile(workbook, `${safeName || "class-record"}.xlsx`, { cellStyles: true });
-    setStatus(trimester ? "Print-ready Excel file created with live formulas, Term Grades, and Descriptors." : "Print-ready Excel file created with live formulas, Transmuted Grades, and Descriptors.");
+    period.roster.forEach((learner, index) => {
+      const category = getLearnerCategory(learner.name);
+      if (!category) return;
+      const row = firstLearnerRow - 1 + index;
+      worksheet["!merges"].push({ s: { r: row, c: 1 }, e: { r: row, c: lastCol } });
+      for (let col = 0; col <= lastCol; col++) {
+        worksheet[`${excelColumn(col)}${row + 1}`].s = {
+          ...baseStyle, font: { ...baseStyle.font, bold: true, color: { rgb: category === "boys" ? "173F65" : "65325E" } },
+          fill: { patternType: "solid", fgColor: { rgb: category === "boys" ? "D6E7F7" : "EEDCF0" } },
+          alignment: { ...baseStyle.alignment, horizontal: "left" }
+        };
+      }
+    });
+    worksheet["!merges"].push({ s: { r: 3, c: Math.max(2, lastCol - 3) }, e: { r: 3, c: lastCol } });
+    const activityRows = [
+      ["ACTIVITY REGISTER"],
+      [`${section.level} • ${section.section || ""} • ${section.subject} • ${period.name}`],
+      ["Score column", "Activity title", "Learning competency", "Topic", "Date", "HPS"]
+    ];
+    ["ww", "pt", "qa"].forEach(kind => period[`${kind}Hps`].forEach((hps, index) => {
+      const meta = period.activityMeta?.[kind]?.[index] || {};
+      activityRows.push([`${kind.toUpperCase()} ${index + 1}`, meta.title || "", meta.competency || "", meta.topic || "", period[`${kind}Dates`][index] || "", excelValue(hps)]);
+    }));
+    const activities = XLSX.utils.aoa_to_sheet(activityRows);
+    activities["!merges"] = [0, 1].map(r => ({ s: { r, c: 0 }, e: { r, c: 5 } }));
+    activities["!cols"] = [13, 32, 48, 34, 14, 9].map(wch => ({ wch }));
+    activities["!rows"] = activityRows.map((values, row) => ({ hpt: row < 3 ? 26 : Math.max(30, Math.max(...values.map((value, col) => Math.ceil(String(value).length / [13, 32, 48, 34, 14, 9][col]))) * 13 + 8) }));
+    activityRows.forEach((values, row) => values.forEach((_, col) => {
+      activities[XLSX.utils.encode_cell({ r: row, c: col })].s = {
+        ...baseStyle, font: { ...baseStyle.font, sz: row === 0 ? 14 : 10, bold: row < 3, color: { rgb: row === 0 || row === 2 ? "FFFFFF" : "1E293B" } },
+        alignment: { vertical: "center", horizontal: col === 5 ? "center" : "left", wrapText: true },
+        fill: { patternType: "solid", fgColor: { rgb: row === 0 || row === 2 ? palette.maroon : row % 2 ? "F3F5F7" : "FFFFFF" } }
+      };
+    }));
+    XLSX.utils.book_append_sheet(workbook, activities, "Activities");
+    try {
+      await window.CSTRExcelExport.download(workbook, `${safeName || "class-record"}.xlsx`);
+      setStatus("Excel created: page 1 Class Record; page 2 Activities. Print Entire Workbook on Legal (8.5 × 14 in), landscape.");
+    } catch (error) {
+      console.error("Excel export failed", error);
+      setStatus(`Excel export failed: ${error.message}`, "error");
+    }
   }
 
   function currentSchoolYear() {
@@ -2348,7 +2386,7 @@
       </div>
       <p id="officialExportAccuracy" class="official-export-accuracy">Check these official details before downloading. Blank or incomplete grades stay blank in the export; the exporter never invents missing scores.</p>
       <p id="officialExportMessage" class="official-export-message" role="status" aria-live="polite"></p>
-      <div class="official-export-format-note"><strong>Output:</strong> US Letter portrait, CST-R Form 1 headings, official 1-${periodCount} and F rows, principal and teacher signature area, and the selected class's current computed grades.</div>
+      <div class="official-export-format-note"><strong>Output:</strong> Editable Word tables or searchable vector PDF; US Letter portrait, CST-R Form 1 headings, official 1-${periodCount} and F rows, principal and teacher signature area, and the selected class's current computed grades.</div>
       <div class="stack-actions official-export-actions">
         <button type="button" class="button button-secondary" data-action="export-official-word">Save Word (.docx)</button>
         <button type="button" class="button button-primary" data-action="export-official-pdf">Save PDF (.pdf)</button>
@@ -4261,6 +4299,16 @@
     if (window.innerWidth >= 1000) wrap.style.removeProperty("height");
     else wrap.style.height = Math.max(340, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - 18) + "px";
   }
+  // Enter narrow layouts with navigation retracted, keeping the sheet visible.
+  matchMedia("(max-width: 760px)").addEventListener("change", event => {
+    if (!event.matches || sidebarCollapsed) return;
+    sidebarCollapsed = true;
+    document.querySelector(".app-layout")?.classList.add("sidebar-collapsed");
+    const toggle = document.querySelector('[data-action="toggle-sidebar"]');
+    toggle?.setAttribute("aria-expanded", "false");
+    toggle?.setAttribute("aria-label", "Expand navigation");
+    sizeSheetWorkspace();
+  });
   window.addEventListener("resize", sizeSheetWorkspace, { passive: true });
   window.addEventListener("resize", fitSectionName, { passive: true });
   function commitHpsField(input) {

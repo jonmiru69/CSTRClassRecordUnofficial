@@ -499,55 +499,108 @@
   }
 
   async function createPdf(rawPayload) {
-    if (!root.PDFLib || !root.PDFLib.PDFDocument) throw new Error("The PDF export library is unavailable.");
+    if (!root.PDFLib?.PDFDocument) throw new Error("The PDF export library is unavailable.");
     const payload = normalizePayload(rawPayload || {});
-    const pngs = await pagePngs(payload);
-    const pdf = await root.PDFLib.PDFDocument.create();
+    const api = root.PDFLib;
+    const pdf = await api.PDFDocument.create();
+    if (!root.fontkit) throw new Error("The PDF font library is unavailable. Refresh and retry.");
+    pdf.registerFontkit(root.fontkit);
+    const fonts = await Promise.all(['NimbusSans-Regular', 'NimbusSans-Bold', 'NimbusRoman-Regular', 'NimbusRoman-Bold', 'NimbusRoman-Italic'].map(async name => {
+      const response = await fetch(new URL(`ASSETS/fonts/${name}.otf`, document.baseURI));
+      if (!response.ok) throw new Error(`Could not load PDF font ${name}.`);
+      return pdf.embedFont(await response.arrayBuffer(), { subset: true });
+    }));
+    const color = hex => { const value = hex.replace('#', ''); return api.rgb(parseInt(value.slice(0,2),16)/255, parseInt(value.slice(2,4),16)/255, parseInt(value.slice(4,6),16)/255); };
+    const pages = renderPages(payload);
     pdf.setTitle(`Official E-Gradesheet - ${payload.subject}`);
-    pdf.setSubject(`${payload.level} ${payload.section} - ${payload.schoolYear}`);
-    pdf.setAuthor(payload.teacherName || "Colegio de Sto. Tomas-Recoletos, Inc.");
-    pdf.setCreator("CSTR Class Record");
-    for (const png of pngs) {
+    pdf.setAuthor(payload.teacherName || "CSTR Class Record");
+    for (const svg of pages) {
       const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-      const image = await pdf.embedPng(png);
-      page.drawImage(image, { x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT });
+      const documentSvg = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      for (const node of documentSvg.documentElement.children) {
+        const get = (key, fallback = 0) => Number(node.getAttribute(key) || fallback);
+        if (node.tagName === 'rect') {
+          const fill = node.getAttribute('fill'), stroke = node.getAttribute('stroke');
+          page.drawRectangle({ x: get('x'), y: PAGE_HEIGHT-get('y')-get('height'), width: get('width'), height: get('height'),
+            ...(fill && fill !== 'none' ? { color: color(fill) } : { opacity: 0 }),
+            ...(stroke && stroke !== 'none' ? { borderColor: color(stroke), borderWidth: get('stroke-width', .55), borderOpacity: 1 } : { borderWidth: 0 }) });
+        } else if (node.tagName === 'line') {
+          page.drawLine({ start: { x: get('x1'), y: PAGE_HEIGHT-get('y1') }, end: { x: get('x2'), y: PAGE_HEIGHT-get('y2') }, thickness: get('stroke-width', .55), color: color(node.getAttribute('stroke') || '#000000') });
+        } else if (node.tagName === 'text') {
+          const serif = (node.getAttribute('font-family') || '').includes('Times');
+          const bold = get('font-weight', 400) >= 600, italic = node.getAttribute('font-style') === 'italic';
+          const font = fonts[serif ? italic ? 4 : bold ? 3 : 2 : bold ? 1 : 0];
+          const text = node.textContent;
+          let size = get('font-size', 9), x = get('x');
+          const anchor = node.getAttribute('text-anchor');
+          // Fit metadata into its actual allotted space; retain selectable text.
+          let maxWidth = anchor === 'middle' ? Math.min(x - 35, PAGE_WIDTH - 35 - x) * 2 : PAGE_WIDTH - 45 - x;
+          if (x === 200) maxWidth = 167;
+          if (x === 421.5) maxWidth = 98;
+          const measured = font.widthOfTextAtSize(text, size);
+          if (measured > maxWidth) size *= maxWidth / measured;
+          const width = font.widthOfTextAtSize(text, size);
+          if (anchor === 'middle') x -= width / 2;
+          else if (anchor === 'end') x -= width;
+          page.drawText(text, { x, y: PAGE_HEIGHT-get('y'), font, size, color: color(node.getAttribute('fill') || '#000000') });
+        }
+      }
     }
     const bytes = await pdf.save({ useObjectStreams: false });
-    const filename = officialFilename(payload, "pdf");
-    const blob = new Blob([bytes], { type: "application/pdf" });
-    return { filename, pages: pngs.length, bytes, blob };
+    return { filename: officialFilename(payload, 'pdf'), pages: pages.length, bytes, blob: new Blob([bytes], { type: 'application/pdf' }) };
   }
 
   async function createWord(rawPayload) {
-    if (!root.docx || !root.docx.Document || !root.docx.Packer) throw new Error("The Word export library is unavailable.");
-    const payload = normalizePayload(rawPayload || {});
-    const pngs = await pagePngs(payload);
-    const docxApi = root.docx;
-    const sections = pngs.map((png, index) => ({
-      properties: {
-        type: index === 0 ? undefined : docxApi.SectionType.NEXT_PAGE,
-        page: {
-          size: { width: 12240, height: 15840, orientation: docxApi.PageOrientation.PORTRAIT },
-          margin: { top: 0, right: 0, bottom: 0, left: 0, header: 0, footer: 0, gutter: 0 }
-        }
-      },
-      children: [new docxApi.Paragraph({
-        spacing: { before: 0, after: 0 },
-        children: [new docxApi.ImageRun({
-          data: png,
-          type: "png",
-          transformation: { width: 815, height: 1054 }
-        })]
-      })]
-    }));
-    const documentFile = new docxApi.Document({
-      creator: payload.teacherName || "CSTR Class Record",
-      title: `Official E-Gradesheet - ${payload.subject}`,
-      subject: `${payload.level} ${payload.section} - ${payload.schoolYear}`,
-      sections
+    if (!root.docx?.Document || !root.docx?.Packer) throw new Error("The Word export library is unavailable.");
+    const payload = normalizePayload(rawPayload || {}), d = root.docx;
+    const students = payload.students.map(student => normalizeStudent(student, payload.periodCount));
+    while (students.length < MINIMUM_OFFICIAL_ROWS) students.push(normalizeStudent({}, payload.periodCount));
+    const paragraph = (text, options = {}) => new d.Paragraph({
+      spacing: { before: 0, after: 0 }, ...options,
+      children: [new d.TextRun({ text: String(text), font: 'Arial', size: 17, ...(options.run || {}) })]
     });
-    const blob = await docxApi.Packer.toBlob(documentFile);
-    return { filename: officialFilename(payload, "docx"), pages: pngs.length, blob };
+    const widths = [2820, 720, 1260, 1260, 1260, 1140, 1140];
+    const cell = (text, col, options = {}) => new d.TableCell({
+      width: { size: widths[col], type: d.WidthType.DXA },
+      verticalAlign: d.VerticalAlign.CENTER,
+      margins: { top: 20, bottom: 20, left: 65, right: 65 }, ...options,
+      children: [paragraph(text, { alignment: col ? d.AlignmentType.CENTER : d.AlignmentType.LEFT, run: options.run || {} })]
+    });
+    const headers = ['Learner name', payload.periodCount === 3 ? 'Term' : 'Period', `Written Works (${payload.weights[0]}%)`, `Performance Tasks (${payload.weights[1]}%)`, `${payload.periodCount === 3 ? 'Term' : 'Quarterly'} Assessment (${payload.weights[2]}%)`, 'Initial Grade', 'Periodical / Final Grade'];
+    const sections = [];
+    for (let offset = 0; offset < students.length; offset += 7) {
+      const group = students.slice(offset, offset + 7);
+      const rows = [new d.TableRow({ tableHeader: true, cantSplit: true, children: headers.map((text, col) => cell(text, col, { shading: { fill: 'E8EDF2' }, run: { bold: true, size: 16 } })) })];
+      group.forEach((student, index) => {
+        for (let term = 0; term <= payload.periodCount; term++) {
+          const final = term === payload.periodCount, grade = student.periods[term] || {};
+          const values = [term === 0 ? `${offset + index + 1}. ${student.name}` : '', final ? 'F' : String(term + 1), final ? '' : fixedOrBlank(grade.ww,2), final ? '' : fixedOrBlank(grade.pt,2), final ? '' : fixedOrBlank(grade.qa,2), final ? '' : fixedOrBlank(grade.initial,2), integerOrBlank(final ? student.finalGrade : grade.periodical)];
+          rows.push(new d.TableRow({ cantSplit: true, height: { value: 250, rule: d.HeightRule.ATLEAST }, children: values.map((text, col) => cell(text, col, {
+            ...(col === 0 ? { verticalMerge: term === 0 ? d.VerticalMergeType.RESTART : d.VerticalMergeType.CONTINUE } : {}),
+            ...(final ? { shading: { fill: 'F2F4F6' }, run: { bold: true } } : {})
+          })) }));
+        }
+      });
+      const children = [
+        paragraph('CST-R FORM 1', { run: { size: 14 } }),
+        paragraph('COLEGIO DE STO. TOMAS-RECOLETOS, INC.', { alignment: d.AlignmentType.CENTER, run: { bold: true, size: 23 } }),
+        paragraph('Azcona St., San Carlos City, Negros Occidental', { alignment: d.AlignmentType.CENTER, run: { size: 16 } }),
+        paragraph(`REPORT ON RATINGS — S.Y. ${payload.schoolYear}`, { alignment: d.AlignmentType.CENTER, spacing: { before: 100, after: 100 }, run: { bold: true, size: 20 } }),
+        paragraph(`YEAR & SECTION: ${gradeAndSection(payload)}`, { run: { bold: true } }),
+        paragraph(`SUBJECT: ${payload.subject}`, { spacing: { after: 100 }, run: { bold: true } }),
+        new d.Table({ width: { size: 9600, type: d.WidthType.DXA }, columnWidths: widths, layout: d.TableLayoutType.FIXED, rows })
+      ];
+      if (offset + 7 >= students.length) children.push(
+        paragraph('SUBMITTED TO / CHECKED BY:', { spacing: { before: 160, after: 160 }, run: { bold: true } }),
+        paragraph(`${payload.principalName} — School Principal`),
+        paragraph(`${payload.teacherName} — Subject Teacher`, { spacing: { before: 160, after: 100 } }),
+        paragraph(Array.from({ length: payload.periodCount }, (_, i) => `${i + 1}: ____________`).join('    '))
+      );
+      sections.push({ properties: { type: d.SectionType.NEXT_PAGE, page: { size: { width: 12240, height: 15840 }, margin: { top: 720, bottom: 720, left: 1320, right: 1320, header: 300, footer: 300 } } }, children });
+    }
+    const file = new d.Document({ creator: payload.teacherName || 'CSTR Class Record', title: `Official E-Gradesheet - ${payload.subject}`, sections });
+    const blob = await d.Packer.toBlob(file);
+    return { filename: officialFilename(payload, 'docx'), pages: sections.length, blob };
   }
 
   async function exportPdf(rawPayload) {

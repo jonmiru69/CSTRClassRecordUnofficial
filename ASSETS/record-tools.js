@@ -10,7 +10,17 @@
   const present = v => v !== '' && v !== null && v !== undefined && String(v).trim() !== '';
   const numeric = v => present(v) && Number.isFinite(Number(v)) && Number(v) >= 0;
   // Only explicit roster dividers are categories. Names such as Boysen are learners.
-  const category = name => /^(?:boys|girls)\s*:?$/i.test(String(name || '').trim());
+  function getLearnerCategory(name) {
+    // Match whole-word heading labels, including strand/section prefixes.
+    // Comma-separated personal names and partial words never become headings.
+    const label = String(name || '').normalize('NFKC').trim();
+    if (!label || label.includes(',')) return null;
+    const match = label.match(/(?:^|[\s:–—\-([/])(boys|girls)(?=$|[\s:–—\-)\]/.!])/gi);
+    if (!match) return null;
+    const categories = [...new Set(match.map(value => value.match(/boys|girls/i)[0].toLowerCase()))];
+    return categories.length === 1 ? categories[0] : null;
+  }
+  const category = name => getLearnerCategory(name) !== null;
 
   function setScore(learner, kind, index, value) {
     if (!kinds.includes(kind)) throw new Error('Unknown assessment component');
@@ -99,5 +109,5 @@
     const quarter = period.quarter || index % 2 + 1;
     return `${period.name || 'Period'} · Quarter ${quarter}, Semester ${semester}`;
   }
-  return { setScore, adjustHps, normalizeOrigins, completion, periodLabel };
+  return { getLearnerCategory, setScore, adjustHps, normalizeOrigins, completion, periodLabel };
 });

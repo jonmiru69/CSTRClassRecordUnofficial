@@ -8,7 +8,7 @@
     <title>CST-R Digital Class Record</title>
     <link rel="icon" type="image/png" href="ASSETS/cstr-logo.png">
     <script src="ASSETS/theme.js?v=2"></script>
-    <link rel="stylesheet" href="ASSETS/design-system.css?v=4">
+    <link rel="stylesheet" href="ASSETS/design-system.css?v=5">
   </head>
   <body>
     <div id="siteBg" aria-hidden="true"></div>
@@ -45,10 +45,13 @@
 <h3>Request handling</h3><p>Verify the requester’s identity and authority, record the request, locate the relevant records, assess applicable rights and retention duties, provide a secure response, and document the outcome. No automatic 15–30-day service promise or automated deletion workflow has been verified in this application.</p>
 <h3>Reference sources</h3><ul><li><a href="https://privacy.gov.ph/data-privacy-act/" target="_blank" rel="noopener noreferrer">Republic Act No. 10173</a></li><li><a href="https://privacy.gov.ph/implementing-rules-regulations-data-privacy-act-2012/" target="_blank" rel="noopener noreferrer">DPA Implementing Rules and Regulations</a></li><li><a href="https://privacy.gov.ph/pips-and-pics/breach-reporting/" target="_blank" rel="noopener noreferrer">NPC breach-reporting guidance</a></li><li><a href="https://firebase.google.com/docs/database/locations" target="_blank" rel="noopener noreferrer">Firebase database locations</a></li></ul><p>Version: review-2026-09-20. Replace review status only after the responsible school/operator has confirmed the remaining organizational and legal details.</p></section></div></dialog>
     <script src="ASSETS/grading-engine.js?v=12"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
+    <script src="ASSETS/vendor/xlsx.min.js"></script>
     <script src="ASSETS/vendor/pdf-lib.min.js"></script>
+    <script src="ASSETS/vendor/fontkit.umd.min.js"></script>
     <script src="ASSETS/vendor/docx.iife.js"></script>
-    <script src="ASSETS/official-egradesheet.js?v=3"></script>
+    <script src="ASSETS/vendor/jszip.min.js"></script>
+    <script src="ASSETS/excel-export.js?v=1"></script>
+    <script src="ASSETS/official-egradesheet.js?v=4"></script>
     <!-- Firebase compat SDK, self-hosted (see ASSETS/vendor/firebase-compat.bundle.js
          for what this is and how to rebuild it after a version bump). Used to
          load three separate files from www.gstatic.com; that's now a single
@@ -56,10 +59,10 @@
          where gstatic.com is slow, filtered, or unreachable. -->
     <script src="ASSETS/vendor/firebase-compat.bundle.js"></script>
     <script src="ASSETS/firebase-sync.js?v=26"></script>
-    <script src="ASSETS/record-tools.js?v=27"></script>
+    <script src="ASSETS/record-tools.js?v=28"></script>
     <script src="ASSETS/stable-dom.js?v=25"></script>
     <script src="ASSETS/registration.js?v=25"></script>
-    <script src="ASSETS/app.js?v=36"></script>
+    <script src="ASSETS/app.js?v=37"></script>
     <script src="ASSETS/apple.js?v=1" defer></script>
     <script>
       (() => {

@@ -52,3 +52,9 @@ npx esbuild firebase-compat-entry.js \
 Replace this file with the output, and bump the `?v=` query string on
 the `<script>` tags in `index.html` so browsers/GitHub Pages don't serve
 a cached copy.
+
+October 10 additions:
+- xlsx-js-style 1.2.0: bundled locally for Excel export; Apache-2.0 license included.
+- JSZip 3.10.1: applies OOXML print settings that xlsx-js-style does not write; license included.
+- @pdf-lib/fontkit 1.1.1: embeds local Nimbus fonts into vector PDFs; MIT declaration, package metadata and README included.
+- Nimbus font files and their licensing notice are in ../fonts/.

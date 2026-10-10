@@ -3346,3 +3346,103 @@ body:has(.login-screen) #siteBg { background: var(--canvas); }
   .student-report-actions { align-items: stretch; }
   .student-report-actions .button { width: 100%; }
 }
+
+/* October 10: control geometry, compact records and explicit category hierarchy. */
+.ui-icon { display: block; flex-shrink: 0; }
+:is(.button,.tab,.archive-pill,summary) { min-width: 0; height: auto; line-height: 1.4; }
+:is(.button,.tab,.archive-pill,summary) > span { min-width: 0; overflow-wrap: anywhere; }
+:is(.button,.icon-button,.kebab-btn,.col-btn,.row-delete-btn):not(:disabled):hover { transform: none; }
+:is(.icon-button,.kebab-btn,.col-btn,.row-delete-btn) {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; padding: 4px; line-height: 1; border: 0; box-shadow: none;
+  border-radius: 6px; text-decoration: none;
+}
+:is(.icon-button,.kebab-btn,.col-btn,.row-delete-btn):hover:not(:disabled) {
+  background: var(--surface-subtle); text-decoration: none;
+}
+:is(button,summary,.class-weights):focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.section-card::before, .section-card::after, .level-card::after { content: none; }
+.class-subject-line { min-width: 0; align-items: center; }
+.class-subject-line .subject-picker { flex: 0 1 auto; min-width: 0; max-width: calc(100% - 46px); }
+.class-subject-line .subject-picker > summary {
+  box-sizing: border-box; padding: 8px 10px; min-height: 40px; gap: 8px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface);
+  white-space: normal; line-height: 1.45;
+}
+.class-subject-line .subject-picker > summary > span { overflow-wrap: anywhere; }
+.class-weights { flex: 0 0 36px; width: 36px; height: 36px; border: 0; border-radius: 6px; background: transparent; }
+.class-weights > span { display: flex; align-items: center; justify-content: center; }
+.class-weights .ui-icon { width: 20px; height: 20px; }
+.class-weights-popover { left: auto; right: 0; width: min(258px, calc(100vw - 64px)); line-height: 1.45; }
+.class-weights:focus-within .class-weights-popover { opacity: 1; visibility: visible; }
+.subject-menu { box-sizing: border-box; max-width: calc(100vw - 64px); }
+.weight-preview { position: static; display: block; width: auto; padding: 3px 0 0; border: 0; background: transparent; color: var(--muted); opacity: 1; visibility: visible; font-size: 11px; }
+.record-section { --sheet-tint-strong: color-mix(in srgb, var(--class-color) 28%, var(--surface)); }
+.record-section .class-header-card { border: 1px solid var(--class-color); border-top: 6px solid var(--class-color); }
+.record-section .class-name { font-size: clamp(32px, 5vw, 60px); white-space: normal; overflow-wrap: anywhere; line-height: 1.15; }
+.section-card { border: 0; border-top: 5px solid var(--section-accent); background: color-mix(in srgb, var(--section-accent) 18%, var(--surface)); }
+.section-card strong, .section-card-section { overflow-wrap: anywhere; }
+.record-section .period-tabs { flex-wrap: wrap; }
+.record-section .period-tabs .tab { flex: 0 1 auto; }
+.record-section .period-tabs .tab[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: inset 0 -2px var(--class-color); border-radius: 4px; }
+.record-section .record-table { font-size: 12px; }
+.record-section .record-table thead :is(th,td) { font-size: 11px; }
+.record-section .record-table tbody input[data-name-row] { font-size: 12px; min-height: 30px; }
+.record-section .record-table input:is([data-score],[data-hps]) { font-size: 12px; width: 8ch; min-width: 8ch; min-height: 30px; padding: 4px; }
+.record-section .record-table .activity-date { font-size: 11px; }
+.record-section .record-table .summary-cell { font-size: 12px; min-width: 8ch; }
+.record-section .record-table .descriptor-badge { font-size: 11px; }
+.record-section .record-table tr.row-category { --category-fill: #d6e7f7; --category-ink: #173f65; }
+.record-section .record-table tr.row-category-girls { --category-fill: #eedcf0; --category-ink: #65325e; }
+:root[data-theme="dark"] .record-section .record-table tr.row-category { --category-fill: #203e58; --category-ink: #d5eaff; }
+:root[data-theme="dark"] .record-section .record-table tr.row-category-girls { --category-fill: #50324e; --category-ink: #ffe0fc; }
+/* Higher specificity than the uniform learner tint, including hover/focus. */
+:root .record-section .record-table tbody tr.row-category > :is(th,td),
+:root[data-theme="dark"] .record-section .record-table tbody tr.row-category > :is(th,td) {
+  background: var(--category-fill) !important; color: var(--category-ink); border-top: 2px solid var(--category-ink);
+}
+:root .record-section .record-table tr.row-category input[data-name-row] {
+  color: var(--category-ink); background: transparent !important; border: 0;
+  font-weight: 800; letter-spacing: .035em;
+}
+.record-section .record-table tr.row-category :is(.summary-cell,input[data-score]) { visibility: hidden; }
+@media (pointer: coarse) {
+  .record-section .record-table input:is([data-name-row],[data-score],[data-hps]) { min-height: 40px; }
+}
+.accent-purple { --section-accent: var(--section-purple); --section-accent-color: var(--section-purple); }
+.accent-green { --section-accent: var(--section-green); --section-accent-color: var(--section-green); }
+.accent-blue { --section-accent: var(--section-blue); --section-accent-color: var(--section-blue); }
+.accent-red { --section-accent: var(--section-red); --section-accent-color: var(--section-red); }
+.accent-charcoal { --section-accent: var(--section-charcoal); --section-accent-color: var(--section-charcoal); }
+.accent-baby-blue { --section-accent: var(--section-baby-blue); --section-accent-color: var(--section-baby-blue); }
+.accent-deep-red { --section-accent: var(--section-deep-red); --section-accent-color: var(--section-deep-red); }
+.accent-black { --section-accent: var(--section-black); --section-accent-color: var(--section-black); }
+.accent-brown { --section-accent: var(--section-brown); --section-accent-color: var(--section-brown); }
+.accent-orange { --section-accent: var(--section-orange); --section-accent-color: var(--section-orange); }
+.accent-pink { --section-accent: var(--section-pink); --section-accent-color: var(--section-pink); }
+.accent-gray { --section-accent: var(--section-gray); --section-accent-color: var(--section-gray); }
+.accent-yellow { --section-accent: var(--section-yellow); --section-accent-color: var(--section-yellow); }
+.period-settings > summary { display: flex; align-items: center; gap: 6px; }
+.sheet-help > summary { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.sheet-help > summary:hover { background: var(--surface-subtle); }
+.class-period-area .period-tabs { background: transparent; }
+:root[data-theme="dark"] .record-section .period-tabs .tab[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: inset 0 -2px var(--class-color); }
+@media (max-width: 760px) {
+  .app-layout.sidebar-collapsed, .app-layout.sheet-layout.sidebar-collapsed { --sidebar-width: 56px; grid-template-columns: 56px minmax(0,1fr); }
+  .sidebar-collapsed .app-sidebar, .sheet-layout.sidebar-collapsed .app-sidebar { width: 56px; transition: none; }
+  .app-header-inner, .app-header.header-shrunk .app-header-inner { grid-template-columns: minmax(0,1fr) auto; grid-template-rows: auto auto auto auto; }
+  .app-header .page-context { grid-column: 1 / -1; grid-row: 1; min-width: 0; }
+  .app-header .app-title { white-space: normal; overflow-wrap: normal; }
+  .app-header .theme-toggle { grid-column: 1; grid-row: 2; justify-self: start; }
+  .app-header #saveChanges { grid-column: 2; grid-row: 2; }
+  .app-header .save-feedback { grid-column: 1 / -1; grid-row: 3; }
+  .app-header .policy-note { grid-column: 1 / -1; grid-row: 4; }
+}
+/* Long select options must not establish a wider-than-dialog grid track. */
+.modal :is(form,.settings-grid,.settings-grid > label,.field-label) { min-width: 0; max-width: 100%; }
+.modal .settings-grid { grid-template-columns: minmax(0,1fr); }
+.modal :is(input,select,textarea) { box-sizing: border-box; min-width: 0; max-width: 100%; width: 100%; }
+.settings-account-avatar { border: 0; background: transparent; }
+.settings-modal .settings-section + .settings-section { margin-top: 24px; }
+.record-section .record-table tr.row-category .summary-cell { visibility: visible; color: transparent !important; }
+.record-section .record-table tr.row-category .summary-cell > * { visibility: hidden; }
