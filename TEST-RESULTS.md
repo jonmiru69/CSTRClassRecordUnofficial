@@ -18,7 +18,7 @@ Rendered browser checks succeeded after restoring network access: desktop and 39
 
 The real Firebase Database Emulator v4.11.2 ran successfully using Java 21 and Firebase CLI 15.33.0. All assertions in tests/firebase-emulator.cjs passed: anonymous/pending/cross-account reads denied, verified legacy binding allowed, client approval/ticket/binding writes denied, valid revision accepted, stale revision/deletion/old-client writes denied. This verifies the rule parser and authorization behavior against synthetic data; production acceptance remains separate.
 
-No production Authentication sign-in, password reset, approval, database save, reconnect, rules publication, Hosting deployment or real-user migration was performed. No production test account was created. PDF binary generation and rendered print layouts were not verified. No screen-reader audit, formal accessibility conformance assessment, dependency vulnerability scan, penetration test, legal certification or institutional grading approval is claimed.
+Firebase Hosting, GitHub Pages, and the tested production database rules were published on 14 October 2026. Existing approvals and bindings were preserved. No production teacher Authentication sign-in, password reset, approval change, learner-data save, reconnect scenario or ownership migration was performed. No production test account was created. PDF binary generation and rendered print layouts were not verified. No screen-reader audit, formal accessibility conformance assessment, dependency vulnerability scan, penetration test, legal certification or institutional grading approval is claimed.
 
 ## Required release acceptance checklist
 

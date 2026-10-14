@@ -1,5 +1,7 @@
 # Apply the upgrade safely
 
+**Current status:** this upgrade was deployed on 14 October 2026. Read DEPLOYMENT-STATUS.md first; the installation commands below are retained for future updates and recovery.
+
 Developer/contact: **SANCHEZRAMIL2202@GMAIL.COM**. The commands below are for PowerShell, run from the extracted `CSTR-Reviewed-2026-10-13` folder. Replace placeholders only where stated. Do not paste real passwords, student records, account codes, service-account keys, or database backups into a public repository or chat.
 
 ## 1. Understand the compatibility change
