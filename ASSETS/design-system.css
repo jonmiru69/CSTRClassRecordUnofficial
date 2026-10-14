@@ -156,7 +156,7 @@ body { margin: 0; min-width: 320px; position: relative; overflow-x: hidden; back
 #siteBg,
 #siteBg.bg-login {
   background: linear-gradient(135deg, rgba(255,255,255,.92) 0%, rgba(255,255,255,.62) 42%, rgba(248,227,163,.40) 78%, rgba(240,203,110,.58) 100%),
-    url("campus-bg.png") center 32% / cover no-repeat;
+    url("campus.webp") center 32% / cover no-repeat;
   filter: contrast(1.06) saturate(1.08);
 }
 
@@ -421,7 +421,7 @@ select.teacher-meta-input { cursor: pointer; -webkit-appearance: menulist; appea
 }
 .level-card::after {
   content: ""; position: absolute; right: -20px; bottom: -20px; width: 170px; height: 170px;
-  background-image: url("cstr-logo.png"); background-repeat: no-repeat; background-position: center; background-size: contain;
+  background-image: url("logo-compact.png"); background-repeat: no-repeat; background-position: center; background-size: contain;
   opacity: .07; transform: rotate(-6deg); z-index: 0; pointer-events: none;
 }
 .level-card strong { font-family: var(--font-serif); font-size: clamp(1.35rem, 2.5vw, 1.85rem); line-height: 1.15; font-weight: 700; }
@@ -473,7 +473,7 @@ select.teacher-meta-input { cursor: pointer; -webkit-appearance: menulist; appea
 }
 .section-card::after {
   content: ""; position: absolute; right: -16px; bottom: -16px; width: 120px; height: 120px;
-  background-image: url("cstr-logo.png"); background-repeat: no-repeat; background-position: center; background-size: contain;
+  background-image: url("logo-compact.png"); background-repeat: no-repeat; background-position: center; background-size: contain;
   opacity: .08; transform: rotate(-8deg); z-index: 0; pointer-events: none;
 }
 .section-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-right: 28px; z-index: 1; }
@@ -1326,7 +1326,7 @@ h3 { font-size: 1.04rem; }
 
 #siteBg.bg-login {
   background: linear-gradient(90deg, rgba(52, 6, 16, .93) 0%, rgba(72, 9, 22, .86) 42%, rgba(31, 35, 40, .40) 100%),
-    url("campus-bg.png") center / cover no-repeat;
+    url("campus.webp") center / cover no-repeat;
   filter: none;
 }
 
@@ -2005,7 +2005,7 @@ summary { cursor: pointer; }
 
 .login-screen { grid-template-columns: minmax(320px, 440px) minmax(0, 680px); align-items: center; justify-content: center; gap: clamp(40px, 6vw, 100px); padding: 48px clamp(24px, 5vw, 80px); }
 .login-card { width: 100%; padding: 32px; border-radius: var(--radius-md); }
-body:has(.login-screen) #siteBg { background: linear-gradient(100deg, rgba(44,6,15,.95), rgba(54,10,21,.91)), url('campus-bg.png') center / cover no-repeat; }
+body:has(.login-screen) #siteBg { background: linear-gradient(100deg, rgba(44,6,15,.95), rgba(54,10,21,.91)), url('campus.webp') center / cover no-repeat; }
 .project-about { color: var(--brand-foreground); max-width: 680px; text-align: left; }
 .project-about .project-kicker { color: var(--gold-deep); font-size: .67rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; margin: 0 0 24px; }
 .project-about .project-label { color: var(--gold-deep); font-size: .7rem; margin: 0 0 7px; }
@@ -2062,7 +2062,7 @@ input, select, textarea { transition: border-color var(--duration-fast) ease, ba
   *, *::before, *::after { animation: none; transition: none; scroll-behavior: auto; }
 }
 
-.login-screen { background: linear-gradient(100deg, rgba(44,6,15,.95), rgba(54,10,21,.91)), url('campus-bg.png') center / cover no-repeat; }
+.login-screen { background: linear-gradient(100deg, rgba(44,6,15,.95), rgba(54,10,21,.91)), url('campus.webp') center / cover no-repeat; }
 
 
 /* Consolidated from revisions.css */

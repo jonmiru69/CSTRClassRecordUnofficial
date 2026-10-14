@@ -1,0 +1,8 @@
+node_modules/
+.firebase/
+*-debug.log
+private/
+*.cstrbackup
+*private-backup*.json
+*owner-patch*.json
+verified-owners.json

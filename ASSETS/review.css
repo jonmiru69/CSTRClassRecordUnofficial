@@ -1,0 +1,39 @@
+/* Reviewed component rules. Kept separate for an auditable upgrade. */
+:root { --review-accent:#7b1630; --review-on-accent:#fff; --review-danger:#a51d2d; }
+.button.button-primary {background:var(--review-accent)!important;color:var(--review-on-accent)!important;border:1px solid var(--review-accent)!important;box-shadow:none!important;}
+.button.button-secondary,.button.button-outline {background:var(--surface,#fff)!important;color:var(--text,#231b1e)!important;border:1px solid var(--border,#a79ba0)!important;}
+.button.button-danger {color:var(--review-danger)!important;border:1px solid currentColor!important;background:transparent!important;}
+.button:hover:not(:disabled) {filter:brightness(.93);}
+button:disabled {opacity:.5;cursor:not-allowed;}
+button,a,input,select,summary {touch-action:manipulation;}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible {outline:3px solid #2563eb!important;outline-offset:3px;}
+.button,.icon-button,summary {min-height:44px;}
+.record-table input,.record-table td {font-size:14px!important;}
+.entry-focus-controls {display:flex;align-items:end;gap:12px;flex-wrap:wrap;padding:12px 0;}
+.entry-focus-controls label {display:grid;gap:6px;font-weight:600;}
+.entry-focus-controls p {font-size:13px;line-height:1.5;flex-basis:100%;margin:0;}
+.entry-focus-controls [hidden],.record-table tr[hidden] {display:none!important;}
+.recovery-tools {border-block:1px solid var(--border,#bbb);padding:16px 0;margin:20px 0;}
+.backup-dialog::backdrop {background:rgba(0,0,0,.55);}
+.backup-dialog label {display:grid;gap:6px;margin:12px 0;}
+.modal {max-height:90dvh;overflow:auto;}
+.welcome-brand span {max-width:100%;}
+@media(max-width:760px){.login-screen{display:flex!important;flex-direction:column!important;}.login-card{order:0!important;width:100%!important;max-width:100%!important;}.welcome-story{order:1!important;}.record-table input{min-height:44px!important;}.stack-actions{flex-wrap:wrap!important;}.welcome-brand{font-size:13px!important;}.welcome-brand img{width:40px!important;height:40px!important;}.welcome-nav{flex-wrap:wrap;gap:12px;}.button{white-space:normal!important;} }
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important;}}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--review-accent:#a42a48;--review-danger:#ff9aa9;}}
+[data-theme="dark"] {--review-accent:#a42a48;--review-danger:#ff9aa9;}
+
+.project-about{order:2;}
+.profile-details{margin-top:20px;}
+
+.one-learner {overflow:visible!important;max-height:none!important;}
+.one-learner .record-table {display:block;width:100%!important;min-width:0!important;}
+.one-learner .record-table thead {display:none;}
+.one-learner .record-table tbody {display:block;}
+.one-learner .record-table tbody tr:not([hidden]) {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:12px;}
+.one-learner .record-table .number-cell {display:none;}
+.one-learner .record-table td {position:static!important;display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:10px!important;width:auto!important;min-width:0!important;border:1px solid var(--border)!important;border-radius:8px;}
+.one-learner .record-table td::before {content:attr(data-focus-label);font-size:13px;font-weight:600;white-space:normal;}
+.one-learner .record-table .name-cell {grid-column:1/-1;}
+.one-learner .record-table input {width:100%!important;min-height:44px!important;}
+@media(max-width:760px){.one-learner .record-table tbody tr:not([hidden]){grid-template-columns:1fr;}}

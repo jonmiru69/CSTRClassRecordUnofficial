@@ -1,0 +1,9 @@
+[
+  {
+    "uid": "REPLACE_WITH_VERIFIED_FIREBASE_AUTH_UID",
+    "dataKey": "REPLACE_WITH_EXISTING_RECORD_KEY",
+    "email": "verified-teacher@example.invalid",
+    "name": "Verified teacher name",
+    "ownershipVerified": false
+  }
+]

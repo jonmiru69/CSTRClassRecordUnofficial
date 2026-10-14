@@ -46,6 +46,8 @@
   let archiveFilter = "active"; // "active" | "archived"
   let state = createInitialState();
 
+  let cloudRevision = 0;
+  let pendingRemoteRevision = 0;
   let isDataLoaded = false;
   let isLoading = false;
   let loadRequestId = 0;    // Bumped on every subscribeToSync() call so a slower, older in-flight
@@ -180,7 +182,7 @@
         const period = recoverySections[activeSectionId]?.periods[activePeriodIndex];
         if (period) adjustRecordHps(period, input.dataset.hps, Number(input.dataset.index), hpsEdits.get(input), input.value);
       }
-      localStorage.setItem(localDraftKey(), JSON.stringify({ savedAt: new Date().toISOString(), state: recoveryState }));
+      sessionStorage.setItem(localDraftKey(), JSON.stringify({ savedAt: new Date().toISOString(), state: recoveryState }));
     } catch (error) {
       // Cloud saves remain available even if the browser has no space for a recovery copy.
     }
@@ -188,7 +190,10 @@
 
   function restoreLocalDraft() {
     try {
-      const saved = JSON.parse(localStorage.getItem(localDraftKey()) || "null");
+      const old = localStorage.getItem(localDraftKey());
+      if (old && !sessionStorage.getItem(localDraftKey())) sessionStorage.setItem(localDraftKey(), old);
+      if (old) localStorage.removeItem(localDraftKey());
+      const saved = JSON.parse(sessionStorage.getItem(localDraftKey()) || "null");
       return saved && saved.state ? normalizeState(saved.state) : null;
     } catch (error) {
       return null;
@@ -201,7 +206,10 @@
 
   function loadVersionHistory() {
     try {
-      const raw = JSON.parse(localStorage.getItem(versionHistoryKey()) || "[]");
+      const old = localStorage.getItem(versionHistoryKey());
+      if (old && !sessionStorage.getItem(versionHistoryKey())) sessionStorage.setItem(versionHistoryKey(), old);
+      if (old) localStorage.removeItem(versionHistoryKey());
+      const raw = JSON.parse(sessionStorage.getItem(versionHistoryKey()) || "[]");
       return Array.isArray(raw) ? raw : [];
     } catch (error) {
       return [];
@@ -217,7 +225,7 @@
       const history = loadVersionHistory();
       history.push({ savedAt: new Date().toISOString(), state: snapshotState });
       while (history.length > MAX_HISTORY_VERSIONS) history.shift();
-      localStorage.setItem(versionHistoryKey(), JSON.stringify(history));
+      sessionStorage.setItem(versionHistoryKey(), JSON.stringify(history));
     } catch (error) {
       // Best-effort recovery point only — never block the actual save over this.
     }
@@ -407,11 +415,11 @@
       version: 4,
       photo: "",
       teacher: {
-        name: "Juan Dela Cruz",
-        age: "25",
-        specialization: "Science and Research",
+        name: "",
+        age: "",
+        specialization: "",
         level: "Secondary",
-        bio: "Full-time faculty member and research adviser."
+        bio: ""
       },
       registry: JSON.parse(JSON.stringify(DEFAULT_REGISTRY)),
       sections: Object.fromEntries(DEFAULT_REGISTRY.map((section) => [section.id, { periods: [initialPeriod(section)] }])),
@@ -493,7 +501,7 @@
   function normalizeState(saved) {
     const base = createInitialState();
     if (!saved || typeof saved !== "object") return base;
-    base.photo = typeof saved.photo === "string" ? saved.photo : "";
+    base.photo = typeof saved.photo === "string" && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(saved.photo) && saved.photo.length <= 2000000 ? saved.photo : "";
     base.teacher = saved.teacher && typeof saved.teacher === "object" ? saved.teacher : base.teacher;
     base.calendarMode = saved.calendarMode === "trimester" ? "trimester" : "legacy";
     base.trimesterModeSeen = saved.trimesterModeSeen === true || saved.calendarMode === "trimester" || (Array.isArray(saved.registryTri) && saved.registryTri.length > 0);
@@ -827,120 +835,11 @@
 
   // Authorization is an expiring server-issued ticket; sessionStorage flags
   // and client-side hashes are never accepted as security evidence.
-  function isRegistrationAuthorized() {
-    return Boolean(window.CSTRRegistration?.authorized());
-  }
+  function isRegistrationAuthorized() { return true; }
 
-  async function verifySecretRegistrationCode(code) {
-    const email = document.querySelector("#regEmailInput")?.value.trim();
-    await window.CSTRRegistration.authorize(code, email);
-    return true;
-  }
+  async function verifySecretRegistrationCode() { throw new Error("Approval is managed by the developer. Contact SANCHEZRAMIL2202@GMAIL.COM."); }
 
-  function showRegistrationCodeModal(onAuthorized) {
-    document.querySelector(".regcode-modal-backdrop")?.remove();
-    const backdrop = document.createElement("div");
-    backdrop.className = "regcode-modal-backdrop";
-    backdrop.id = "regCodeBackdrop";
-    backdrop.innerHTML = `<div class="regcode-modal" role="dialog" aria-modal="true" aria-labelledby="regCodeTitle">
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
-        <div>
-          <span class="regcode-badge">${icon("lock")} Teacher registration</span>
-          <h2 id="regCodeTitle">Enter your registration code</h2>
-        </div>
-        <button type="button" class="icon-button" data-action="close-regcode-modal" title="Close" aria-label="Close">${icon("close")}</button>
-      </div>
-      
-      <div class="regcode-formal-box">
-        <strong>Access is limited to authorized teachers.</strong><br>
-        Enter the registration code provided by the operator. If a one-time registration fee applies, arrange it directly with the operator. This is an independent, unofficial class-record tool; account access does not indicate school or DepEd endorsement.
-      </div>
-
-      <form id="regCodeForm">
-        <label class="field-label">Account email<input id="regEmailInput" type="email" autocomplete="email" required placeholder="Email you will use to sign in"></label>
-        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">
-          Secret Admin Registration Code
-          <div class="regcode-input-wrap" style="margin-top: 6px;">
-            <input id="regSecretCodeInput" type="password" autocomplete="off" placeholder="Enter registration secret code..." required autofocus>
-            <button type="button" class="regcode-toggle-pw" data-action="toggle-regcode-pw" title="Toggle visibility" aria-label="Toggle code visibility">${icon("eye")}</button>
-          </div>
-        </label>
-
-        <div class="regcode-actions">
-          <button type="submit" class="button button-primary" data-action="submit-regcode"> Verify Code &amp; Proceed to Registration</button>
-          <button type="button" class="button button-outline" data-action="close-regcode-modal">${icon("back")} Cancel &amp; Back to Sign In</button>
-        </div>
-      </form>
-
-      <p id="regCodeError" class="login-error" role="alert" style="margin-top: 12px;"></p>
-    </div>`;
-
-    document.body.appendChild(backdrop);
-    const input = backdrop.querySelector("#regSecretCodeInput");
-    if (input) input.focus();
-
-    const form = backdrop.querySelector("#regCodeForm");
-    if (form) {
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const codeVal = input ? input.value : "";
-        const errEl = backdrop.querySelector("#regCodeError");
-        if (errEl) { errEl.textContent = ""; errEl.classList.remove("error"); }
-
-        const submitBtn = backdrop.querySelector('button[data-action="submit-regcode"]');
-        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Verifying authorization..."; }
-
-        try {
-          const isValid = await verifySecretRegistrationCode(codeVal);
-          if (isValid) {
-            // The verified ticket remains in memory for this registration only.
-            backdrop.remove();
-            if (typeof onAuthorized === "function") {
-              await onAuthorized();
-            } else {
-              showSignUpPanel();
-            }
-          } else {
-            if (errEl) {
-              errEl.textContent = "Invalid registration secret code. Please verify the code or contact developer Sir Johnmil Sanchez (sanchezramil2202@gmail.com) for official registration authorization.";
-              errEl.classList.add("error");
-            }
-            if (input) {
-              input.select();
-              input.focus();
-            }
-          }
-        } catch (verifyErr) {
-          if (errEl) {
-            errEl.textContent = verifyErr.message || "Authorization could not be verified. Try again.";
-            errEl.classList.add("error");
-          }
-        } finally {
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = " Verify Code & Proceed to Registration"; }
-        }
-      });
-    }
-
-    const toggleBtn = backdrop.querySelector('button[data-action="toggle-regcode-pw"]');
-    if (toggleBtn && input) {
-      toggleBtn.addEventListener("click", () => {
-        if (input.type === "password") {
-          input.type = "text";
-          toggleBtn.innerHTML = icon("eye");
-        } else {
-          input.type = "password";
-          toggleBtn.innerHTML = icon("eye");
-        }
-      });
-    }
-
-    const closeBtns = backdrop.querySelectorAll('button[data-action="close-regcode-modal"]');
-    closeBtns.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        backdrop.remove();
-      });
-    });
-  }
+  function showRegistrationCodeModal() { alert("Contact SANCHEZRAMIL2202@GMAIL.COM for account approval. Do not send passwords or student records by email."); }
 
   function render() {
     updateSiteBackground();
@@ -996,15 +895,15 @@
       : loginPanel === "legacy" ? renderLegacyClaimPanel()
       : renderSignInPanel();
 
-    return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/cstr-logo.png" alt="">Colegio de Sto. Tomas-Recoletos, Incorporated <span>Digital Class Record</span></a><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen">
-      <div class="welcome-story"><p class="eyebrow">CST-R · Digital Class Record</p><h2>Teaching records,<br><span>clearly organized.</span></h2><p>Keep class rosters, assessment scores, and grade reviews together in your teacher workspace.</p><div class="welcome-features"><span>${icon("records")} Class records</span><span>${icon("save")} Visible save status</span><span>${icon("lock")} Teacher access</span></div><figure><img src="ASSETS/campus-bg.png" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Colegio de Sto. Tomás – Recoletos</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
+    return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/logo-compact.png" alt="">Colegio de Sto. Tomas-Recoletos, Incorporated <span>Digital Class Record · Unofficial</span></a><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen">
+      <div class="welcome-story"><p class="eyebrow">CST-R · Digital Class Record</p><h2>Teaching records,<br><span>clearly organized.</span></h2><p>Keep class rosters, assessment scores, and grade reviews together in your teacher workspace.</p><div class="welcome-features"><span>${icon("records")} Class records</span><span>${icon("save")} Visible save status</span><span>${icon("lock")} Teacher access</span></div><figure><img src="ASSETS/campus.webp" width="1400" height="788" loading="lazy" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Colegio de Sto. Tomás – Recoletos</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
       <div class="login-card">
         <div class="login-header-logo">
-          <img src="ASSETS/cstr-logo.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
+          <img src="ASSETS/logo-compact.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
         </div>
         <p class="eyebrow">Colegio de Sto. Tomás – Recoletos</p>
         <h1>${titles[loginPanel]}</h1><p class="login-intro">Access your class record workspace.</p>
-        <p class="muted">Website for Class Record, with respect to DepEd Order No. 15, s. 2026.</p>
+        <p class="muted">Confirm grading settings and assessment rules with your school before use.</p>
 
         ${panelBody}
 
@@ -1018,8 +917,8 @@
         <p class="project-subtitle"><em>Unofficial Digital Grading Platform of Colegio de Sto. Tomás – Recoletos, Incorporated</em></p>
         <section><h3>About the Project</h3><p>This platform is the unofficial class record system of Colegio de Sto. Tomás – Recoletos, Incorporated, built to bring accuracy, consistency, and convenience to everyday classroom grade management.</p></section>
         <section><h3>About the Developer</h3><p>Designed and developed through vibe coding by Sir Ramelito &quot;Johnmil&quot; Jr. C. Sanchez, LPT — a Licensed Professional Teacher, Science and Research educator, and graduate of Science Education — as a personal initiative to give CSTR faculty a faster, more reliable way to handle their records.</p></section>
-        <section><h3>Features &amp; Advantages</h3><p>Configurable grade computation across Written Work, Performance Tasks, and Quarterly Assessments. Color-coded, easy-to-navigate class and section management. Teacher-assisted lookup of an individual learner’s results within the signed-in workspace.</p><p>Real-time sync across devices — log in anywhere and pick up right where you left off. Secure, code-verified account registration. One-click export to Excel for official submission.</p></section>
-        <section class="project-standout"><h3>The Standout Feature</h3><p>What sets this system apart is its live, cross-device synchronization — no spreadsheets to email, no files to lose, no retyping data on a new computer. Your class record simply follows you, available across signed-in devices after a successful cloud save. Check the save status before switching devices.</p></section>
+        <section><h3>Features &amp; Advantages</h3><p>Configurable grade computation across Written Work, Performance Tasks, and Quarterly Assessments. Color-coded, easy-to-navigate class and section management. Teacher-assisted lookup of an individual learner’s results within the signed-in workspace.</p><p>Real-time sync across devices — log in anywhere and pick up right where you left off. Developer-approved account access. Excel, PDF and Word exports for teacher review before submission.</p></section>
+        <section class="project-standout"><h3>The Standout Feature</h3><p>What sets this system apart is its live, cross-device synchronization — access to the latest successfully saved record from another approved sign-in. Your class record simply follows you, available across signed-in devices after a successful cloud save. Check the save status before switching devices.</p></section>
       </article>
     </section>`;
   }
@@ -1051,12 +950,12 @@
 
       <p class="login-alternative"><a href="#" class="legacy-toggle-link" data-action="show-signup">Prefer email? Register here</a></p>
       <p style="text-align: center; margin-top: 6px;">
-        <a href="#" class="legacy-toggle-link" data-action="show-legacy-claim"> Have an account from before this upgrade? Claim it here</a>
+        <a href="#" class="legacy-toggle-link" data-action="show-legacy-claim"> Need your existing records? Request recovery</a>
       </p>`;
   }
 
   function renderSignUpPanel() {
-    return `<p class="legacy-helper-text" style="text-align: left;">Enter your details below to create your CSTR Class Record workspace.</p>
+    return `<p class="legacy-helper-text" style="text-align: left;">Enter your details below to create an account. Developer approval is required before accessing a workspace.</p>
       <form id="signupForm" class="legacy-login-box">
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Full Name
           <input id="signupName" type="text" autocomplete="name" placeholder="e.g. Maria Santos" required>
@@ -1065,28 +964,18 @@
           <input id="signupEmail" type="email" autocomplete="username" placeholder="you@example.com" required>
         </label>
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Password
-          <input id="signupPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters" minlength="6" required>
+          <input id="signupPassword" type="password" autocomplete="new-password" placeholder="At least 12 characters" minlength="12" required>
         </label>
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Confirm Password
-          <input id="signupPasswordConfirm" type="password" autocomplete="new-password" placeholder="Re-enter password" minlength="6" required>
+          <input id="signupPasswordConfirm" type="password" autocomplete="new-password" placeholder="Re-enter password" minlength="12" required>
         </label>
-        <button type="submit" class="button button-primary" data-action="email-signup" style="width: 100%; margin-top: 6px;"> Create My Class Record</button>
+        <button type="submit" class="button button-primary" data-action="email-signup" style="width: 100%; margin-top: 6px;"> Create account</button>
       </form>
       <p style="text-align: center; margin-top: 10px;"><a href="#" class="legacy-toggle-link" data-action="show-signin">← Back to Sign In</a></p>`;
   }
 
   function renderLegacyClaimPanel() {
-    return `<p class="legacy-helper-text" style="text-align: left;">Have class records from before this upgrade? Claim them below to set up a normal email + password login.</p>
-      <form id="legacyClaimForm" class="legacy-login-box">
-        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Your Email
-          <input id="legacyClaimEmail" type="email" autocomplete="username" placeholder="you@example.com" required>
-        </label>
-        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Account Code (becomes your password)
-          <input id="legacyClaimCode" type="password" autocomplete="off" placeholder="Enter your account code..." required>
-        </label>
-        <button type="submit" class="button button-outline" data-action="legacy-claim" style="width: 100%; margin-top: 6px;"> Claim & Set Up Login</button>
-      </form>
-      <p style="text-align: center; margin-top: 10px;"><a href="#" class="legacy-toggle-link" data-action="show-signin">← Back to Sign In</a></p>`;
+    return `<h2>Recover existing records</h2><p>Sign in with your existing approved account. If your records are missing, contact the developer to verify ownership and reconnect your workspace.</p><p><a href="mailto:SANCHEZRAMIL2202@GMAIL.COM?subject=Class%20record%20recovery">SANCHEZRAMIL2202@GMAIL.COM</a></p><p>Send your sign-in email and a brief description. Never email passwords, account codes, learner lists, or grade files.</p><button type="button" class="button button-secondary" data-action="show-signin">Back to sign in</button>`;
   }
 
   function showSignInPanel() { loginPanel = "signin"; render(); }
@@ -1238,125 +1127,26 @@
   }
 
   async function performEmailSignUpRequest() {
-    if (!isRegistrationAuthorized()) { showRegistrationCodeModal(showSignUpPanel); return; }
-    const nameInput = document.querySelector("#signupName");
-    const emailInput = document.querySelector("#signupEmail");
-    const passwordInput = document.querySelector("#signupPassword");
-    const confirmInput = document.querySelector("#signupPasswordConfirm");
-    const name = nameInput ? nameInput.value.trim() : "";
-    const email = emailInput ? emailInput.value.trim() : "";
-    const password = passwordInput ? passwordInput.value : "";
-    const confirmPassword = confirmInput ? confirmInput.value : "";
+    const name = document.querySelector("#signupName")?.value.trim();
+    const email = document.querySelector("#signupEmail")?.value.trim();
+    const password = document.querySelector("#signupPassword")?.value || "";
+    const confirmation = document.querySelector("#signupPasswordConfirm")?.value;
     const error = document.querySelector("#loginError");
-    if (error) { error.textContent = ""; error.classList.remove("error"); }
-
-    if (!name || !email || !password) {
-      if (error) { error.textContent = "Please fill in your name, email, and password."; error.classList.add("error"); }
+    if (!name || !email || password.length < 12 || password !== confirmation) {
+      if (error) error.textContent = "Enter your name, a valid email, and matching passwords of at least 12 characters.";
       return;
     }
-    if (password.length < 6) {
-      if (error) { error.textContent = "Password must be at least 6 characters."; error.classList.add("error"); }
-      return;
-    }
-    if (password !== confirmPassword) {
-      if (error) { error.textContent = "Passwords do not match."; error.classList.add("error"); }
-      return;
-    }
-
-    // Guards against a race with the global onAuthStateChanged listener: it
-    // fires as soon as the new account is created, possibly before
-    // registerNewTeacher() below finishes writing the profile — without this
-    // flag it could briefly show the Google-oriented onboarding modal on top
-    // of this native email signup.
     isLinkingLegacyInProgress = true;
     try {
-      setStatus("Creating your account...", "saving");
-      const user = await window.CSTRSync.signUpWithEmail(email, password);
-      const profile = await window.CSTRSync.registerNewTeacher(user, name);
-      state = createInitialState();
-      state.teacher.name = profile.name;
-      completeSignInSession(profile, user);
-    } catch (err) {
-      console.error("Email sign-up error:", err);
-      if (error) {
-        if (err.code === "auth/email-already-in-use") {
-          error.textContent = "An account with this email already exists. Try signing in instead.";
-        } else if (err.code === "auth/weak-password") {
-          error.textContent = "Password is too weak — please use at least 6 characters.";
-        } else if (err.code === "auth/invalid-email") {
-          error.textContent = "Please enter a valid email address.";
-        } else {
-          error.textContent = friendlyAuthErrorMessage(err, "Account creation failed");
-        }
-        error.classList.add("error");
-      }
-    } finally {
-      isLinkingLegacyInProgress = false;
-    }
+      await window.CSTRSync.signUpWithEmail(email, password);
+      showSignInPanel();
+      const message = document.querySelector("#loginError");
+      if (message) message.textContent = "Account created. Request approval from SANCHEZRAMIL2202@GMAIL.COM using your sign-in email. Do not send your password or student records. Sign in after approval.";
+    } catch (err) { if (error) error.textContent = friendlyAuthErrorMessage(err, "Account creation failed"); }
+    finally { isLinkingLegacyInProgress = false; }
   }
 
-  async function performLegacyClaimRequest() {
-    if (!isRegistrationAuthorized()) { showRegistrationCodeModal(() => {}); return; }
-    const emailInput = document.querySelector("#legacyClaimEmail");
-    const codeInput = document.querySelector("#legacyClaimCode");
-    const email = emailInput ? emailInput.value.trim() : "";
-    const legacyKey = codeInput ? codeInput.value.trim() : "";
-    const error = document.querySelector("#loginError");
-    const success = document.querySelector("#loginSuccess");
-    if (error) { error.textContent = ""; error.classList.remove("error"); }
-    if (success) { success.textContent = ""; success.style.display = "none"; }
-
-    if (!email || !legacyKey) {
-      if (error) { error.textContent = "Please enter your email and your account code."; error.classList.add("error"); }
-      return;
-    }
-    if (legacyKey.length < 6) {
-      if (error) { error.textContent = "That code looks too short to use as a password (Firebase requires 6+ characters). Double-check your exact account code."; error.classList.add("error"); }
-      return;
-    }
-
-    isLinkingLegacyInProgress = true;
-    let createdUser = null;
-    try {
-      setStatus("Setting up your login...", "saving");
-      const user = await window.CSTRSync.signUpWithEmail(email, legacyKey);
-      createdUser = user;
-      const profile = await window.CSTRSync.bindLegacyAccount(legacyKey, user);
-      completeSignInSession(profile, user);
-      alert(`ACCOUNT CLAIMED:\n\nFrom now on you can sign in with:\nEmail: ${email}\nPassword: your account code\n\nYou can change this password anytime from Settings.`);
-    } catch (err) {
-      console.error("Legacy claim error:", err);
-      // If the auth account got created but the bind step failed (wrong code,
-      // already bound elsewhere, etc.), that new auth account is orphaned —
-      // remove it so the person can retry with the same email instead of
-      // hitting "email already in use".
-      // Keep the authorized account if linking fails. A retry must never
-      // delete an existing identity or unrelated teacher's account.
-      if (createdUser) {
-        try { await window.CSTRSync.signOut(); } catch (_) {}
-      }
-      if (error) {
-        if (err.code === "auth/email-already-in-use") {
-          // This email already has SOME account — almost always because the
-          // person (or someone) already used "Sign in with Google" here
-          // before ever claiming a legacy code. Firebase won't let us create
-          // a second, separate password-only account for the same email, so
-          // route them through Google instead: signing in there resolves to
-          // that same account, and — since it has no records bound yet —
-          // lands them on the onboarding modal, which now also sets this
-          // typed code as their password (see completeOnboardLegacyLink).
-          error.innerHTML = `This email is already linked to an account — most likely from signing in with Google before. <button type="button" class="button-link" data-action="legacy-continue-google" style="padding:0; background:none; border:none; color:inherit; font:inherit; text-decoration:underline; cursor:pointer;">Continue with Google</button> to link it, or <a href="#" class="legacy-toggle-link" data-action="show-signin">sign in</a> if you already set a password before.`;
-        } else if (err.code === "auth/weak-password") {
-          error.textContent = "Firebase requires that code/password to be at least 6 characters.";
-        } else {
-          error.textContent = friendlyAuthErrorMessage(err, "Claim failed");
-        }
-        error.classList.add("error");
-      }
-    } finally {
-      isLinkingLegacyInProgress = false;
-    }
-  }
+  async function performLegacyClaimRequest() { showLegacyClaimPanel(); }
 
   async function performForgotPassword() {
     const emailInput = document.querySelector("#signinEmail");
@@ -1385,48 +1175,11 @@
     }
   }
 
-  function showOnboardingModal(user, prefillAccountCode) {
-    document.querySelector(".modal-backdrop.onboarding-modal")?.remove();
-    const backdrop = document.createElement("div");
-    backdrop.className = "modal-backdrop onboarding-modal";
-    backdrop.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="onboardTitle">
-      <h2 id="onboardTitle">Set Up Your Account</h2>
-      <p class="muted">Signed in as <strong>${safeValue(user.email || "")}</strong>. Please select your account type:</p>
-      
-      <div class="onboard-choice-card" style="border: 2px solid var(--blue, #16364a); background: #f0f7fb;">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-          <span style="font-size: 1.2rem;">📂</span>
-          <h3 style="margin: 0; color: #16364a;">Existing CSTR Teacher (Link Your Records)</h3>
-        </div>
-        <p class="muted" style="margin-bottom: 10px; font-size: 0.88rem;"><strong>Safe & Guaranteed:</strong> Enter your previous account code below to connect your existing classes, learners, and grades to this Google Account, and to set that code as your password for normal email sign-in too. <em>None of your data will be changed or deleted.</em></p>
-        <label class="field-label" style="text-align: left; margin: 6px 0;">Account Code
-          <input id="onboardLegacyCode" type="password" placeholder="Enter your account code..." value="${prefillAccountCode ? safeValue(prefillAccountCode) : ""}">
-        </label>
-        <button type="button" class="button button-primary" data-action="complete-link-legacy" style="width: 100%; margin-top: 10px;"> Link & Open My Existing Records</button>
-      </div>
-
-      <div class="onboard-divider"><span>OR IF YOU ARE BRAND NEW</span></div>
-
-      <div class="onboard-choice-card" style="border: 1px dashed var(--border);">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-          <span style="font-size: 1.2rem;"></span>
-          <h3 style="margin: 0;">New User Account (Create Fresh Workspace)</h3>
-        </div>
-        <p class="muted" style="margin-bottom: 10px; font-size: 0.88rem;">Create a fresh, empty workspace for your classes, subjects, and learners.</p>
-        <label class="field-label" style="text-align: left; margin: 6px 0;">Teacher Full Name
-          <input id="onboardTeacherName" type="text" value="${safeValue(user.displayName || '')}" placeholder="e.g. Maria Santos">
-        </label>
-        <button type="button" class="button button-outline" data-action="complete-new-teacher" style="width: 100%; margin-top: 10px;">Create Brand-New Class Record</button>
-      </div>
-
-      <p style="text-align: center; margin-top: 16px;">
-        <a href="#" class="legacy-toggle-link" data-action="onboard-cancel">Wrong Google Account? Sign out and try again</a>
-      </p>
-
-      <p id="onboardError" class="login-error" role="alert" style="margin-top: 15px;"></p>
-    </div>`;
-
-    document.body.appendChild(backdrop);
+  function showOnboardingModal(user) {
+    document.querySelector(".onboarding-modal")?.remove();
+    const backdrop = document.createElement("div"); backdrop.className = "modal-backdrop onboarding-modal";
+    backdrop.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="onboardTitle"><h2 id="onboardTitle">Create your workspace</h2><p>Approved account: ${safeValue(user.email || "")}</p><p>If you have existing records, contact <a href="mailto:SANCHEZRAMIL2202@GMAIL.COM">the developer</a> before creating an empty workspace.</p><label>Teacher name<input id="onboardTeacherName" maxlength="120" value="${safeValue(user.displayName || "")}"></label><div class="stack-actions"><button type="button" class="button button-primary" data-action="complete-new-teacher">Create workspace</button><button type="button" class="button button-secondary" data-action="onboard-cancel">Sign out</button></div><p id="onboardError" role="alert"></p></section>`;
+    document.body.append(backdrop);
   }
 
   async function completeNewTeacherSignup(user) {
@@ -1454,74 +1207,14 @@
     }
   }
 
-  async function completeOnboardLegacyLink(user) {
-    const codeInput = document.querySelector("#onboardLegacyCode");
-    const legacyKey = codeInput ? codeInput.value.trim() : "";
-    const error = document.querySelector("#onboardError");
-
-    if (!legacyKey) {
-      if (error) {
-        error.textContent = "Please enter your account code.";
-        error.classList.add("error");
-      }
-      return;
-    }
-    if (legacyKey.length < 6) {
-      if (error) {
-        error.textContent = "That code looks too short to use as a password (Firebase requires 6+ characters). Double-check your exact account code.";
-        error.classList.add("error");
-      }
-      return;
-    }
-
-    // This account is only signed in with Google so far. Attach the account
-    // code as a real password credential too — the missing piece that used
-    // to leave people unable to sign in later with email + password — before
-    // binding the class-record data itself.
-    // Bind the class records FIRST. Only once that has actually succeeded do
-    // we attach the account code as a password. Doing it the other way round
-    // meant every failed attempt linked a password and then unlinked it again
-    // during rollback, leaving the account Google-only — which is why a failed
-    // claim was always followed by "incorrect password" on the sign-in screen.
-    const alreadyHadPassword = window.CSTRSync.hasPasswordProvider(user);
-    try {
-      const profile = await window.CSTRSync.bindLegacyAccount(legacyKey, user);
-
-      let passwordReady = true;
-      if (!alreadyHadPassword) {
-        try {
-          await window.CSTRSync.setInitialPassword(legacyKey);
-        } catch (pwErr) {
-          // The records are bound and safe at this point; only the optional
-          // email+password convenience failed. Never fail the whole claim here.
-          passwordReady = false;
-          console.warn("Password setup after successful bind failed", pwErr);
-        }
-      }
-
-      document.querySelector(".modal-backdrop")?.remove();
-      completeSignInSession(profile, user);
-      alert(passwordReady
-        ? `SECURITY UPGRADE COMPLETE:\n\nYour account has been linked to ${user.email}.\nFrom now on you can also sign in with:\nEmail: ${user.email}\nPassword: your account code\n\nYou can change this password anytime from Settings.\n\nLoading your existing class records...`
-        : `YOUR RECORDS ARE LINKED to ${user.email}.\n\nWe could not set up email + password sign-in this time, so please keep using "Continue with Google" to sign in. You can set a password anytime from Settings.\n\nLoading your existing class records...`);
-    } catch (err) {
-      if (error) {
-        if (err.code === "auth/credential-already-in-use" || err.code === "auth/email-already-in-use") {
-          error.textContent = "That code is already used as a password by another account. Please double-check your exact account code.";
-        } else {
-          error.textContent = friendlyAuthErrorMessage(err, "Linking failed");
-        }
-        error.classList.add("error");
-      }
-    }
-  }
+  async function completeOnboardLegacyLink() { alert("Record recovery requires developer verification. Contact SANCHEZRAMIL2202@GMAIL.COM."); }
 
   function renderApp() {
     const content = currentView === "home" ? renderHome() : currentView === "chooser" ? renderClassRecord() : renderSectionRecord();
     const viewTitle = currentView === "home" ? "Overview" : currentView === "chooser" ? "Class records" : "Grade sheet";
     return `<div class="aura-bg"><div class="aura-content app-layout ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${currentView === "record" ? "sheet-layout" : ""}" data-calendar-mode="${state.calendarMode}">
       <aside class="app-sidebar" aria-label="Application navigation" id="workspaceSidebar">
-        <div class="sidebar-brand"><span class="sidebar-logo"><img src="ASSETS/cstr-logo.png" alt="CST-R crest"></span><span class="sidebar-brand-copy"><strong>CST-R</strong><small>Digital Class Record</small></span></div>
+        <div class="sidebar-brand"><span class="sidebar-logo"><img src="ASSETS/logo-compact.png" alt="CST-R crest"></span><span class="sidebar-brand-copy"><strong>CST-R</strong><small>Digital Class Record</small></span></div>
         <button type="button" class="sidebar-toggle sidebar-link" data-action="toggle-sidebar" aria-controls="workspaceSidebar" aria-expanded="${!sidebarCollapsed}" aria-label="${sidebarCollapsed ? "Expand navigation" : "Retract navigation"}" title="Expand or retract navigation">${icon("panel")}<span>Retract navigation</span></button>
         <nav class="sidebar-nav" aria-label="Workspace"><p class="sidebar-label">Workspace</p>
           <button class="sidebar-link" type="button" data-action="go-home" aria-current="${currentView === "home" ? "page" : "false"}" title="Overview">${icon("home")}<span>Overview</span></button>
@@ -1557,8 +1250,8 @@
     const periods = activeSections()[section.id] && activeSections()[section.id].periods ? activeSections()[section.id].periods : [];
     const learnerCount = computeLearnerNumbering(currentRosterOf(periods)).totalLearners;
     const locked = periods.filter((period) => recordCompletion(period).complete).length;
-    return `<button type="button" class="recent-class-row" data-action="select-section" data-section="${section.id}">
-      <span class="recent-class-accent accent-${section.accent || section.theme}" aria-hidden="true"></span>
+    return `<button type="button" class="recent-class-row" data-action="select-section" data-section="${safeValue(section.id)}">
+      <span class="recent-class-accent accent-${safeValue(section.accent || section.theme)}" aria-hidden="true"></span>
       <span class="recent-class-main"><strong>${escapeHtml(section.subject)}</strong><small>${escapeHtml(section.level)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</small></span>
       <span class="recent-class-stat"><strong>${learnerCount}</strong><small>Learners</small></span>
       <span class="recent-class-stat"><strong>${locked}/${periods.length}</strong><small>Complete</small></span>
@@ -1589,34 +1282,10 @@
 
   function renderHome() {
     const metrics = dashboardMetrics();
-    const portrait = state.photo ? `<img class="profile-photo" src="${state.photo}" alt="Teacher portrait">` : `<span class="photo-placeholder" aria-hidden="true">${icon("users")}</span><span class="photo-caption">Upload photo</span>`;
+    const portrait = state.photo ? `<img class="profile-photo" src="${safeValue(state.photo)}" alt="Teacher portrait">` : `<span class="photo-placeholder" aria-hidden="true">${icon("users")}</span><span class="photo-caption">Upload photo</span>`;
     const recentClasses = buildActiveClassRows(metrics.activeSections);
 
     return `<section class="dashboard">
-      <section class="dashboard-hero" aria-labelledby="ownerTitle">
-        <div class="owner-intro">
-          <p class="eyebrow">Teacher profile</p>
-          <h2 id="ownerTitle">Class record owner</h2>
-          <p class="owner-context">${state.calendarMode === "trimester" ? "Trimester (Zero-Based)" : "Quarterly / Semestral"} workspace</p>
-          <input id="photoInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" hidden>
-          <button class="photo-frame" type="button" data-action="choose-photo" data-has-photo="${Boolean(state.photo)}" aria-label="${state.photo ? "Change" : "Upload"} teacher photo" title="${state.photo ? "Change" : "Upload"} teacher photo">${portrait}</button>
-        </div>
-        <div class="owner-workspace">
-          <div class="profile-editor">
-            <div class="teacher-block">
-              <label class="profile-field profile-name-field"><span>Full name</span><input type="text" class="teacher-name-input" data-teacher="name" value="${safeValue(state.teacher.name)}" placeholder="Full name"></label>
-              <label class="profile-field"><span>Age</span><input type="number" min="0" class="teacher-meta-input" data-teacher="age" value="${safeValue(state.teacher.age)}" placeholder="Age"></label>
-              <label class="profile-field"><span>School level</span><select class="teacher-meta-input" data-teacher="level"><option value="Elementary" ${state.teacher.level === "Elementary" ? "selected" : ""}>Elementary</option><option value="Secondary" ${state.teacher.level === "Secondary" ? "selected" : ""}>Secondary</option></select></label>
-              <label class="profile-field"><span>Specialization</span><input type="text" class="teacher-meta-input" data-teacher="specialization" value="${safeValue(state.teacher.specialization)}" placeholder="e.g. Science and Research"></label>
-              <label class="profile-field profile-bio-field"><span>Professional bio</span><textarea class="teacher-bio-input" data-teacher="bio" placeholder="Short bio or role description">${safeValue(state.teacher.bio)}</textarea></label>
-            </div>
-          </div>
-          <div class="owner-footer"><p class="teacher-edit-hint">Profile edits are included in your next save.</p><div class="dashboard-hero-actions">
-            ${button(`${icon("records")}<span>Open class records</span>`, "go-records", "button button-primary")}
-            ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-secondary")}
-          </div></div>
-        </div>
-      </section>
 
       <div class="metric-grid" aria-label="Class record overview">
         <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
@@ -1632,6 +1301,31 @@
         </section>
 
       </div>
+      <details class="profile-details"><summary>Teacher profile and optional details</summary>      <section class="dashboard-hero" aria-labelledby="ownerTitle">
+        <div class="owner-intro">
+          <p class="eyebrow">Teacher profile</p>
+          <h2 id="ownerTitle">Class record owner</h2>
+          <p class="owner-context">${state.calendarMode === "trimester" ? "Trimester (Zero-Based)" : "Quarterly / Semestral"} workspace</p>
+          <input id="photoInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" hidden>
+          <button class="photo-frame" type="button" data-action="choose-photo" data-has-photo="${Boolean(state.photo)}" aria-label="${state.photo ? "Change" : "Upload"} teacher photo" title="${state.photo ? "Change" : "Upload"} teacher photo">${portrait}</button>
+        </div>
+        <div class="owner-workspace">
+          <div class="profile-editor">
+            <div class="teacher-block">
+              <label class="profile-field profile-name-field"><span>Full name</span><input type="text" class="teacher-name-input" data-teacher="name" value="${safeValue(state.teacher.name)}" placeholder="Full name"></label>
+              <label class="profile-field"><span>School level</span><select class="teacher-meta-input" data-teacher="level"><option value="Elementary" ${state.teacher.level === "Elementary" ? "selected" : ""}>Elementary</option><option value="Secondary" ${state.teacher.level === "Secondary" ? "selected" : ""}>Secondary</option></select></label>
+              <label class="profile-field"><span>Specialization</span><input type="text" class="teacher-meta-input" data-teacher="specialization" value="${safeValue(state.teacher.specialization)}" placeholder="e.g. Science and Research"></label>
+              <label class="profile-field profile-bio-field"><span>Professional bio</span><textarea class="teacher-bio-input" data-teacher="bio" placeholder="Short bio or role description">${safeValue(state.teacher.bio)}</textarea></label>
+            </div>
+          </div>
+          <div class="owner-footer"><p class="teacher-edit-hint">Profile edits are included in your next save.</p><div class="dashboard-hero-actions">
+            ${button(`${icon("records")}<span>Open class records</span>`, "go-records", "button button-primary")}
+            ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-secondary")}
+          </div></div>
+        </div>
+      </section>
+
+      </details>
     </section>`;
   }
 
@@ -1647,8 +1341,8 @@
 
     const sectionCards = visibleSections.length > 0 ? visibleSections.map((section) => `
       <div class="section-card-wrap">
-        <button type="button" class="kebab-btn" data-action="open-edit-section" data-section="${section.id}" aria-label="Edit or archive class">${icon("more")}</button>
-        <button type="button" class="section-card accent-${section.accent || section.theme}" data-action="select-section" data-section="${section.id}">
+        <button type="button" class="kebab-btn" data-action="open-edit-section" data-section="${safeValue(section.id)}" aria-label="Edit or archive class">${icon("more")}</button>
+        <button type="button" class="section-card accent-${safeValue(section.accent || section.theme)}" data-action="select-section" data-section="${safeValue(section.id)}">
           <div class="section-card-header">
             <span class="card-level-badge">${escapeHtml(section.level)}</span>
             ${section.archived ? `<span class="card-archived-badge">${icon("archive")} Archived</span>` : ""}
@@ -1705,7 +1399,7 @@
     const shade = sectionNameShade(section.accent || section.theme);
     return `<div class="record-section" style="--class-color:${sectionColorHex};--class-surface:${shade.background};--class-ink:${shade.color}">
       <section class="class-header-card" style="--class-color:${sectionColorHex};--class-surface:${shade.background};--class-ink:${shade.color}">
-        ${section.archived ? `<div class="archive-banner"><span>Archived class</span>${button("Restore class", "unarchive-section", "button", `data-section="${section.id}"`)}</div>` : ""}
+        ${section.archived ? `<div class="archive-banner"><span>Archived class</span>${button("Restore class", "unarchive-section", "button", `data-section="${safeValue(section.id)}"`)}</div>` : ""}
         <div class="class-identity">
           <div class="class-subject-line"><details class="subject-picker"><summary aria-label="Change subject"><span>${escapeHtml(section.subject)}</span>${icon("chevron")}</summary>
             <div class="subject-menu" aria-label="Subject choices">
@@ -1995,7 +1689,7 @@
     modal.className = "modal-backdrop";
     modal.innerHTML = `<section class="modal delete-confirmation" role="dialog" aria-modal="true" aria-labelledby="deletePeriodTitle">
       <div class="section-heading"><div><p class="eyebrow">Grading period</p><h2 id="deletePeriodTitle">Delete this quarter?</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
-      <p>This permanently removes <strong>${escapeHtml(period.name)}</strong>, including every learner name and score entered under it. This cannot be undone.</p>
+      <p>This permanently removes <strong>${escapeHtml(period.name)}</strong>, including every learner name and score entered under it. A session checkpoint is kept; download a backup first for durable recovery.</p>
       <label class="delete-confirmation-label">Type <strong>DELETE</strong> to confirm
         <input id="deletePeriodConfirmation" autocomplete="off" spellcheck="false" aria-label="Type DELETE to confirm quarter deletion">
       </label>
@@ -2084,8 +1778,8 @@
     const rowHasData = learnerName || [...learner.ww, ...learner.pt, ...learner.qa].some((value) => String(value).trim() !== "");
     if (rowHasData) {
       const confirmMsg = learnerName
-        ? `Remove "${learnerName}" from ${period.name}? Only this grading period is affected — the same learner in your other grading periods stays as it is. This cannot be undone.`
-        : `This row has scores entered in ${period.name}. Remove it from this grading period only? This cannot be undone.`;
+        ? `Remove "${learnerName}" from ${period.name}? Only this grading period is affected — the same learner in your other grading periods stays as it is. A session checkpoint is kept; download a backup first for durable recovery.`
+        : `This row has scores entered in ${period.name}. Remove it from this grading period only? A session checkpoint is kept; download a backup first for durable recovery.`;
       if (!confirm(confirmMsg)) return;
     }
 
@@ -2174,6 +1868,7 @@
   }
 
   async function exportCurrentSheet() {
+    try { await window.CSTRAssets.ensure("excel"); } catch (error) { setStatus(error.message, "error"); return; }
     if (!window.XLSX) {
       setStatus("The Excel exporter is still loading. Please try again in a moment.", "error");
       return;
@@ -2360,7 +2055,7 @@
       setStatus("Open a class grade sheet before exporting the official e-gradesheet.", "error");
       return;
     }
-    if (!window.CSTROfficialGradesheet || !window.PDFLib || !window.docx) {
+    if (!window.CSTROfficialGradesheet) {
       setStatus("The official e-gradesheet exporter did not load. Refresh the page and try again.", "error");
       return;
     }
@@ -2378,7 +2073,7 @@
           <input id="officialSchoolYear" value="${safeValue(currentSchoolYear())}" inputmode="numeric" placeholder="2026-2027" aria-describedby="officialExportAccuracy">
         </label>
         <label>School principal
-          <input id="officialPrincipalName" value="MARINELL T. OCAMPO, PhD, LPT" placeholder="Principal's full name and credentials" aria-describedby="officialExportAccuracy">
+          <input id="officialPrincipalName" value="" placeholder="Principal's full name and credentials" aria-describedby="officialExportAccuracy">
         </label>
         <label>Subject teacher
           <input id="officialTeacherName" value="${safeValue(state.teacher.name || currentUserName() || "")}" placeholder="Teacher's full name" aria-describedby="officialExportAccuracy">
@@ -2553,6 +2248,7 @@
       }
       trigger.textContent = formatName === "pdf" ? "Preparing PDF..." : "Preparing Word file...";
       setOfficialExportMessage(`Preparing the official ${formatLabel} from the current class record. Please keep this page open.`, "working");
+      await window.CSTRAssets.ensure(formatName === "pdf" ? "pdf" : "word");
       const artifact = formatName === "pdf"
         ? await exporter.createPdf(payload)
         : await exporter.createWord(payload);
@@ -2945,10 +2641,10 @@
         <div class="stack-actions" style="margin-top:24px; justify-content:space-between; align-items:center;">
           <div>
             ${section.archived 
-              ? `<button type="button" class="button button-secondary" data-action="unarchive-section" data-section="${section.id}">${icon("archive")} Restore Class</button> <button type="button" class="button button-danger" data-action="request-delete-section" data-section="${section.id}">${icon("trash")} Delete Permanently</button>`
-              : `<button type="button" class="button button-secondary" data-action="archive-section" data-section="${section.id}">${icon("archive")} Archive Class</button>`}
+              ? `<button type="button" class="button button-secondary" data-action="unarchive-section" data-section="${safeValue(section.id)}">${icon("archive")} Restore Class</button> <button type="button" class="button button-danger" data-action="request-delete-section" data-section="${safeValue(section.id)}">${icon("trash")} Delete Permanently</button>`
+              : `<button type="button" class="button button-secondary" data-action="archive-section" data-section="${safeValue(section.id)}">${icon("archive")} Archive Class</button>`}
           </div>
-          <button type="button" class="button button-primary" data-action="save-section-edit" data-section="${section.id}">Save Changes</button>
+          <button type="button" class="button button-primary" data-action="save-section-edit" data-section="${safeValue(section.id)}">Save Changes</button>
         </div>
       </section>
     `;
@@ -2974,11 +2670,11 @@
     modal.className = "modal-backdrop";
     modal.innerHTML = `<section class="modal delete-confirmation" role="dialog" aria-modal="true" aria-labelledby="deleteClassTitle">
       <div class="section-heading"><div><p class="eyebrow">Archived class</p><h2 id="deleteClassTitle">Delete permanently?</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
-      <p>This permanently removes <strong>${escapeHtml(className)}</strong>, including every grading period and learner record in this class. This cannot be undone.</p>
+      <p>This permanently removes <strong>${escapeHtml(className)}</strong>, including every grading period and learner record in this class. A session checkpoint is kept; download a backup first for durable recovery.</p>
       <label class="delete-confirmation-label">Type <strong>DELETE PERMANENTLY</strong> to confirm
         <input id="deleteClassConfirmation" autocomplete="off" spellcheck="false" aria-label="Type DELETE PERMANENTLY to confirm permanent deletion">
       </label>
-      <div class="stack-actions delete-confirmation-actions">${button("Cancel", "close-modal", "button button-secondary")} ${button("Delete Permanently", "confirm-delete-section", "button button-danger", `data-section="${section.id}"`)}</div>
+      <div class="stack-actions delete-confirmation-actions">${button("Cancel", "close-modal", "button button-secondary")} ${button("Delete Permanently", "confirm-delete-section", "button button-danger", `data-section="${safeValue(section.id)}"`)}</div>
     </section>`;
     document.body.append(modal);
     modal.querySelector("#deleteClassConfirmation")?.focus();
@@ -3157,12 +2853,12 @@
     setStatus(automatic ? "Autosaving..." : "Saving...", "saving");
     try {
       await window.CSTRSync.ready;
-      await window.CSTRSync.save(currentUser, stateSnapshot);
+      cloudRevision = await window.CSTRSync.save(currentUser, stateSnapshot, cloudRevision);
       lastCloudSavedAt = new Date();
       lastCloudVerifiedAt = lastCloudSavedAt;
       lastSavedRevision = Math.max(lastSavedRevision, savedRevision);
       if (stateRevision === savedRevision) {
-        localStorage.removeItem(localDraftKey());
+        sessionStorage.removeItem(localDraftKey());
         finalizeSavedBatch();
       } else {
         // Edits made during this network request belong to the NEXT save.
@@ -3179,7 +2875,11 @@
       showSaveToast(newerEditsPending ? "Earlier edits saved to cloud; newer edits still need saving." : automatic ? "All changes autosaved — live on every device." : "Changes saved — live on every device.");
       return true;
     } catch (error) {
-      setStatus(`Error - check your connection: ${error.message}`, "error");
+      if (error.code === "sync/conflict") {
+        isStale = true; pendingRemoteState = error.remoteState; pendingRemoteRevision = error.revision;
+        pendingRemoteAt = error.savedAt;
+      }
+      setStatus(error.code === "sync/conflict" ? "Newer cloud changes detected. Open Settings to review both versions." : `Save failed: ${error.message}`, "error");
       if (automatic) showSaveToast("Autosave could not reach the live database. Your recovery copy remains on this device.", "error");
       return false;
     } finally {
@@ -3230,11 +2930,11 @@
       if (firstUpdateHandled || requestId !== loadRequestId) return;
       firstUpdateHandled = true;
       if (localDraft) state = localDraft;
-      isDataLoaded = false; isLoading = false; pendingAutoSaveChanges = 0;
+      isDataLoaded = false; isLoading = false; pendingAutoSaveChanges = localDraft ? 1 : 0;
       commitActiveFieldEdit(); establishCleanBaseline(); updateSaveIndicators();
       lastLoadError = "Could not reach the live database (offline?). Working from this device's last saved copy.";
       setStatus(` ${lastLoadError}`, "error");
-      if (localDraft) showSaveToast("Offline — restored the latest local copy. Will sync once back online.", "info");
+      if (localDraft) showSaveToast("Offline — restored this tab's draft. Reconnect and review the cloud version before saving.", "info");
       render();
     }, 6000);
 
@@ -3245,7 +2945,9 @@
         clearTimeout(offlineFallbackTimer);
         if (!firstUpdateHandled) {
           firstUpdateHandled = true;
-          state = normalizeState(remoteState || localDraft || {});
+          cloudRevision = meta.revision || 0;
+          if (localDraft) pushVersionSnapshot(localDraft);
+      state = normalizeState(remoteState || {});
           activePeriodIndex = 0;
           isDataLoaded = true; isLoading = false; lastLoadError = "";
           lastCloudVerifiedAt = new Date();
@@ -3257,7 +2959,7 @@
           startSaveIndicatorTicker();
           try {
             render();
-            setStatus("Live sync connected ✓");
+            setStatus(localDraft ? "Cloud loaded. A recovered draft is available in Settings > Restore a previous version." : "Live sync connected ✓");
           } catch (renderError) {
             console.error("Render after initial sync failed:", renderError);
             setStatus("Data loaded, but the screen didn't refresh. Try switching views (Home / Class Record).", "error");
@@ -3272,7 +2974,7 @@
         if (firstUpdateHandled) return;
         firstUpdateHandled = true;
         if (localDraft) state = localDraft;
-        isDataLoaded = false; isLoading = false; pendingAutoSaveChanges = 0;
+        isDataLoaded = false; isLoading = false; pendingAutoSaveChanges = localDraft ? 1 : 0;
         commitActiveFieldEdit(); establishCleanBaseline(); updateSaveIndicators();
         lastLoadError = error.message;
         setStatus(` Live sync error: ${error.message}. Working from this device's last saved copy.`, "error");
@@ -3289,6 +2991,7 @@
     lastCloudVerifiedAt = new Date();
     if (pendingAutoSaveChanges === 0 && !isSaving && !isStale) {
       // Nothing unsaved on this device — safe to take the newer copy immediately.
+      cloudRevision = meta.revision || 0;
       state = normalizeState(remoteState || {});
       isDataLoaded = true;
       establishCleanBaseline();
@@ -3301,6 +3004,7 @@
       isStale = true;
       pendingRemoteState = remoteState;
       pendingRemoteAt = meta.savedAt;
+      pendingRemoteRevision = meta.revision || 0;
       setStatus(" Another device just saved changes here. Open Settings to review before your next save.", "error");
       showSaveToast("Heads up: another device saved changes while you were editing.", "error");
     }
@@ -3309,6 +3013,9 @@
   // Settings action: keep what's on THIS screen and overwrite the other
   // device's save on the next Save Changes.
   function keepLocalOverRemote() {
+    if (!confirm("Replace the reviewed cloud version with this device's entire record? Export backups of both versions first. Newer intervening saves will still be blocked.")) return;
+    pushVersionSnapshot(pendingRemoteState);
+    cloudRevision = pendingRemoteRevision;
     isStale = false;
     pendingRemoteState = null;
     pendingRemoteAt = null;
@@ -3321,8 +3028,11 @@
   // device's saved version instead.
   function takeRemoteOverLocal() {
     if (!pendingRemoteState) return;
-    const confirmed = confirm("Discard your unsaved edits on THIS device and load the version saved from the other device instead?\n\nThis cannot be undone.");
+    const confirmed = confirm("Discard your unsaved edits on THIS device and load the version saved from the other device instead?\n\nA session checkpoint is kept; download a backup first for durable recovery.");
     if (!confirmed) return;
+    pushVersionSnapshot(cloneState(state));
+    sessionStorage.removeItem(localDraftKey());
+    cloudRevision = pendingRemoteRevision;
     state = normalizeState(pendingRemoteState);
     activePeriodIndex = 0;
     isStale = false;
@@ -3372,7 +3082,7 @@
             <input id="currentPassword" type="password" autocomplete="current-password">
           </label>
           <label class="field-label" style="text-align: left; margin-top: 8px;">New Password
-            <input id="newPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+            <input id="newPassword" type="password" autocomplete="new-password" placeholder="At least 12 characters">
           </label>
           <label class="field-label" style="text-align: left; margin-top: 8px;">Confirm New Password
             <input id="newPasswordConfirm" type="password" autocomplete="new-password">
@@ -3383,7 +3093,7 @@
         <p class="settings-note">This account currently only signs in through Google. Set a password below to also be able to type in your email and password directly, like a typical login.</p>
         <form id="setPasswordForm" class="legacy-login-box" style="margin-top: 10px;">
           <label class="field-label" style="text-align: left;">New Password
-            <input id="setPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+            <input id="setPassword" type="password" autocomplete="new-password" placeholder="At least 12 characters">
           </label>
           <label class="field-label" style="text-align: left; margin-top: 8px;">Confirm Password
             <input id="setPasswordConfirm" type="password" autocomplete="new-password">
@@ -3408,8 +3118,8 @@
       if (msg) { msg.textContent = "Please fill in both password fields."; msg.classList.add("error"); }
       return;
     }
-    if (next.length < 6) {
-      if (msg) { msg.textContent = "New password must be at least 6 characters."; msg.classList.add("error"); }
+    if (next.length < 12) {
+      if (msg) { msg.textContent = "New password must be at least 12 characters."; msg.classList.add("error"); }
       return;
     }
     if (next !== confirmValue) {
@@ -3441,8 +3151,8 @@
     const confirmValue = confirmInput ? confirmInput.value : "";
     if (msg) { msg.textContent = ""; msg.classList.remove("error"); msg.style.color = ""; }
 
-    if (!next || next.length < 6) {
-      if (msg) { msg.textContent = "Password must be at least 6 characters."; msg.classList.add("error"); }
+    if (!next || next.length < 12) {
+      if (msg) { msg.textContent = "Password must be at least 12 characters."; msg.classList.add("error"); }
       return;
     }
     if (next !== confirmValue) {
@@ -3475,8 +3185,9 @@
       ${syncStatusLine}
       ${lastLoadError ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> ${safeValue(lastLoadError)}</p>` : ""}
       ${renderAccountSection()}
+      <section class="recovery-tools"><h3>Private recovery</h3><p>Drafts and up to eight checkpoints stay in this tab only. Logout clears them. Download an encrypted backup for durable recovery; keep the passphrase separately.</p><div class="stack-actions"><button type="button" class="button button-secondary" data-review-action="backup">Download encrypted backup</button><button type="button" class="button button-secondary" data-review-action="import">Restore encrypted backup</button><button type="button" class="button button-secondary" data-review-action="backup-cloud" ${!pendingRemoteState ? "disabled" : ""}>Back up conflicting cloud version</button><button type="button" class="button button-danger" data-review-action="clear">Clear local recovery</button></div><p><a href="mailto:SANCHEZRAMIL2202@GMAIL.COM">Developer support and privacy requests</a>. Do not email passwords or student records.</p></section>
       <div class="section-heading" style="margin-top: 22px;"><div><p class="eyebrow">Recovery</p><h2 style="font-size: 1.1rem;">Restore a previous version</h2></div></div>
-      <p class="settings-note">Every time changes are saved, the state just before that save is kept here on this device — use this if a value was cleared or deleted by accident. Restoring loads that version into the app; you'll still need to save it to sync the rollback to every device.</p>
+      <p class="settings-note">Every time changes are saved, the state just before that save is kept here on this device — use this if a value was cleared or deleted by accident. Restoring loads and saves that version when connected. Recovery checkpoints stay in this tab and are cleared on logout. Download an encrypted backup before closing the tab if you need durable recovery.</p>
       ${renderVersionHistoryList()}
       </section>`;
     document.body.append(modal);
@@ -3508,8 +3219,8 @@
     if (isSyncConfigured() && isDataLoaded && !isStale) {
       saveToFirebase();
     } else {
-      finalizeSavedBatch();
-      showSaveToast("Previous version restored on this device.", "info");
+      persistLocalDraft();
+      showSaveToast("Previous version restored in this tab. Reconnect and resolve conflicts before cloud saving.", "info");
     }
   }
 
@@ -3899,10 +3610,10 @@
     return `<div class="section-heading"><div><p class="eyebrow">Before you leave</p><h2 id="logoutTitle">Log out of your class record?</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
       <p class="logout-status ${current ? "is-current" : "is-pending"}" role="status">${escapeHtml(status)}</p>
       ${summary.length ? `<div class="logout-changes"><strong>${dirty ? "Changes since the last save" : "Local copy to check"}</strong><ul>${summary.slice(0, 6).map(item => `<li>${escapeHtml(item)}</li>`).join("")}${summary.length > 6 ? `<li>And ${summary.length - 6} more changed areas</li>` : ""}</ul></div>` : ""}
-      ${!current ? '<p class="logout-recovery">Logging out without a cloud save keeps a recovery copy only in this browser. It may not appear on another device.</p>' : ""}
-      <div class="logout-actions">${current ? button("Cloud copy current — log out", "confirm-logout", "button button-primary") : cloudReady && dirty && !isSaving ? button("Save to cloud, then log out", "save-then-logout", "button button-primary") : ""}
+      ${!current ? '<p class="logout-recovery">Logging out clears local recovery for this account. Unsaved changes will be lost unless you first download an encrypted backup.</p>' : ""}
+      <div class="logout-actions"><button type="button" class="button button-secondary" data-review-action="backup">Download encrypted backup</button>${current ? button("Cloud copy current — log out", "confirm-logout", "button button-primary") : cloudReady && dirty && !isSaving ? button("Save to cloud, then log out", "save-then-logout", "button button-primary") : ""}
         ${button("Double-check changes · cancel", "close-modal", "button button-secondary")}</div>
-      ${!current && !isSaving ? `<div class="logout-destructive">${button("Log out without cloud saving", "logout-without-save", "button button-danger")}</div>` : ""}`;
+      ${!current && !isSaving ? `<div class="logout-destructive">${button("Discard unsaved changes and log out", "logout-without-save", "button button-danger")}</div>` : ""}`;
   }
 
   function showLogoutModal() {
@@ -3923,6 +3634,7 @@
   }
 
   async function performLogout() {
+    const recoveryKeys = [localDraftKey(), versionHistoryKey()];
     persistLocalDraft();
     try {
       if (window.CSTRSync?.signOut) await window.CSTRSync.signOut();
@@ -3940,6 +3652,7 @@
     pendingAutoSaveChanges = 0; stateRevision = 0; lastSavedRevision = 0; preBatchSnapshot = null;
     state = createInitialState();
     ["cstr-class-record-login", "cstr-class-record-user", "cstr-class-record-email", "cstr-class-record-name"].forEach(key => sessionStorage.removeItem(key));
+    recoveryKeys.forEach(key => { sessionStorage.removeItem(key); localStorage.removeItem(key); });
     window.CSTRRegistration?.clear();
     document.querySelector("#logoutModal")?.remove();
     currentView = "home";
@@ -4503,6 +4216,7 @@
   }
 
   function initApp() {
+    sessionStorage.removeItem("cstr-class-record-login");
     render();
     if (window.CSTRSync && window.CSTRSync.onAuthStateChanged) {
       window.CSTRSync.onAuthStateChanged(async (firebaseUser) => {
@@ -4541,6 +4255,11 @@
             console.error("Auth state restore error:", err);
           }
         } else {
+          if (unsubscribeSync) { unsubscribeSync(); unsubscribeSync = null; }
+          ++loadRequestId; isDataLoaded = false; isLoading = false;
+          if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+          if (autoSaveMaxWaitTimer) { clearTimeout(autoSaveMaxWaitTimer); autoSaveMaxWaitTimer = null; }
+          state = createInitialState(); pendingAutoSaveChanges = 0;
           if (sessionStorage.getItem("cstr-class-record-login") === "true") {
             sessionStorage.removeItem("cstr-class-record-login");
             sessionStorage.removeItem("cstr-class-record-user");
@@ -4556,5 +4275,26 @@
     }
   }
 
+
+  document.addEventListener("click", async event => {
+    const action = event.target.closest("[data-review-action]")?.dataset.reviewAction;
+    if (!action) return;
+    try {
+      if (action === "backup" || action === "backup-cloud") {
+        await CSTRBackup.download(action === "backup-cloud" ? pendingRemoteState : cloneState(state));
+      } else if (action === "import") {
+        if (!isDataLoaded || isStale || isSaving) throw new Error("Connect and resolve pending saves or conflicts before importing.");
+        const imported = await CSTRBackup.importFile();
+        if (!imported || !confirm("Replace this workspace with the selected backup? Its grades and learners will replace the current record and autosave. Download a backup of the current workspace first.")) return;
+        pushVersionSnapshot(cloneState(state)); state = normalizeState(imported); markStateDirty(); render();
+      } else if (action === "clear" && confirm("Clear recovery drafts and checkpoints for this account on this browser? Cloud records and downloaded backups remain available.")) {
+        for (const key of [localDraftKey(), versionHistoryKey()]) { sessionStorage.removeItem(key); localStorage.removeItem(key); }
+        document.querySelector(".settings-modal")?.parentElement.remove(); renderSettings();
+      }
+    } catch (error) { alert(error.message); }
+  });
+
   initApp();
 })();
+
+

@@ -1,0 +1,32 @@
+PASS All application JavaScript parses
+PASS Worked grading example remains 85.8 / 88
+PASS Blank score is missing, numeric zero is included
+PASS A and M count zero; E and L are excluded
+PASS Zero HPS does not create Infinity
+PASS QA three-slot weights and exclusion normalization
+PASS Transmutation monotonic and bounded across 0–100
+PASS HPS reduction caps and reversal restores original precision
+PASS Explicit edit wins over HPS recovery; locked period is unchanged
+PASS Names containing Boys are not automatically group headers
+PASS AES-GCM encrypted backup round trip
+PASS Incorrect backup passphrase rejected
+PASS Tampered encrypted backup rejected
+PASS Prototype pollution and malformed registry rejected
+PASS Matching cloud revision commits exactly once
+PASS Second device saving stale revision is rejected without overwrite
+PASS Retry against explicitly reviewed cloud revision succeeds
+PASS Client legacy binding is disabled
+PASS Invalid revision cannot save
+PASS Rule expressions deny unauthenticated and unapproved access
+PASS Rule expressions isolate teachers and preserve verified legacy owner
+PASS Approvals, registration tickets, and bindings deny client writes
+PASS Rule validation rejects old clients and stale revision; allows next protocol revision
+PASS Profile dataKey cannot be reassigned by a client
+PASS No export vendor bundles loaded at sign-in
+PASS All sensitive recovery writes use session storage
+
+26 checks passed. Rule expression tests use test doubles; they do NOT replace the Firebase Emulator Suite or deployed acceptance tests.
+PASS: Sign-in, registration, recovery, task-first dashboard, and synthetic grade-sheet templates render without exceptions.
+PASS Excel vendor serialization preserves numeric zero and treats text beginning with = as text.
+PASS Official Word exporter generates a valid ZIP containing document.xml and supplied metadata.
+PASS Official SVG page generation. PDF binary generation and visual export layout still require browser acceptance.

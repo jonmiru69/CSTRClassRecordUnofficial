@@ -63,6 +63,7 @@
 
   const auth = firebase.auth();
   const db = firebase.database();
+  const authPersistence = auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
 
   function ensureReady() {
     if (auth.currentUser) return Promise.resolve(auth.currentUser);
@@ -97,7 +98,7 @@
 
     // Signs in with Google using OAuth popup
     async signInWithGoogle() {
-      window.CSTRRegistration.requireGrant();
+      await authPersistence;
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
       const result = await auth.signInWithPopup(provider);
@@ -106,15 +107,15 @@
       return result.user;
     },
 
-    // Creates a brand-new email/password account. Used both for brand-new
-    // teachers signing up directly, and for the legacy-claim flow (where the
-    // password passed in is the teacher's legacy account code).
+    // Creates a pending identity. Developer approval is required for database access.
     async signUpWithEmail(email, password) {
+      await authPersistence;
       return window.CSTRRegistration.createEmail(String(email || "").trim(), password);
     },
 
     // Typical email + password sign-in — no popup, no redirect.
     async signInWithEmail(email, password) {
+      await authPersistence;
       const result = await auth.signInWithEmailAndPassword(String(email || "").trim(), password);
       if (!await window.CSTRRegistration.isApproved(result.user)) {
         await auth.signOut();
@@ -184,13 +185,8 @@
     // Look up teacher profile mapped to this Google UID
     async getUserProfile(uid) {
       if (!uid) return null;
-      try {
-        const snap = await db.ref(`${USERS_PATH}/${uid}`).once("value");
-        return snap.val();
-      } catch (err) {
-        console.warn("CSTRSync: getUserProfile failed", err);
-        return null;
-      }
+      const snap = await db.ref(`${USERS_PATH}/${uid}`).once("value");
+      return snap.val();
     },
 
     // Check if a legacy account is already bound to a Google Account
@@ -207,92 +203,8 @@
     },
 
     // Bind a legacy account identifier (e.g. legacyAccountCode) to an authenticated Google User
-    async bindLegacyAccount(legacyKey, user) {
-      const sanitized = sanitizeKey(legacyKey);
-      if (!sanitized) throw new Error("Invalid account identifier");
-      if (!user || !user.uid) throw new Error("Authenticated Google user required");
-
-      const existingBinding = await this.getLegacyBinding(sanitized);
-      if (existingBinding && existingBinding.boundUid) {
-        if (existingBinding.boundUid === user.uid) {
-          // Already bound to THIS Google user! Return existing or refreshed profile without error
-          const existingProfile = await this.getUserProfile(user.uid);
-          if (existingProfile && existingProfile.dataKey) {
-            return existingProfile;
-          }
-        } else {
-          const emailHint = existingBinding.boundEmail ? ` (${existingBinding.boundEmail})` : "";
-          throw new Error(`This legacy account is already bound to Google Account${emailHint}. Please sign in using that Google Account.`);
-        }
-      }
-
-      if (!await window.CSTRRegistration.isApproved(user)) throw new Error("Administrator registration approval required.");
-      const now = Date.now();
-      const bindingPayload = {
-        boundUid: user.uid,
-        boundEmail: user.email || "",
-        boundName: user.displayName || "",
-        boundAt: now
-      };
-
-      const userProfilePayload = {
-        dataKey: sanitized,
-        email: user.email || "",
-        name: user.displayName || "",
-        boundAt: now,
-        isLegacy: true
-      };
-
-      // Atomically write the binding and user profile
-      const updates = {};
-      updates[`${BINDINGS_PATH}/${sanitized}`] = bindingPayload;
-      updates[`${USERS_PATH}/${user.uid}`] = userProfilePayload;
-
-      try {
-        await db.ref().update(updates);
-      } catch (error) {
-        // A protected existing binding should not disclose another teacher's
-        // name or email. Give the claimant a usable, privacy-preserving error.
-        // Two different situations both surface as PERMISSION_DENIED here, and
-        // the rules deliberately don't tell us which (so we can't leak another
-        // teacher's ownership). Name both, and show the exact key we looked
-        // under so a capitalization/spacing mismatch is obvious.
-        if (error && error.code === "PERMISSION_DENIED") {
-          throw new Error(
-            `Could not claim "${legacyKey}". Most often this means no class records exist under that exact code — ` +
-            `it is case-sensitive, so "Abc123" and "abc123" are different accounts (we looked under "${sanitized}"). ` +
-            `Less often, the code is already claimed by a different account. ` +
-            `Your sign-in has NOT been changed.`
-          );
-        }
-        throw error;
-      }
-
-      // Safety check: verify that real class record data actually exists at this legacy key.
-      // We can read it now because the binding we just wrote grants us access.
-      // If data is null it means the code was mistyped — roll back immediately to protect the account.
-      try {
-        const dataSnap = await db.ref(`${DATA_PATH}/${sanitized}`).once("value");
-        if (!dataSnap.exists()) {
-          // Rollback: remove the binding and user profile we just created
-          const rollback = {};
-          rollback[`${BINDINGS_PATH}/${sanitized}`] = null;
-          rollback[`${USERS_PATH}/${user.uid}`] = null;
-          await db.ref().update(rollback);
-          throw new Error(
-            `No class records were found for the code "${legacyKey}". ` +
-            `Please double-check your exact legacy account code (spelling, capitalization). ` +
-            `Your account has NOT been modified.`
-          );
-        }
-      } catch (verifyErr) {
-        // Re-throw our own rollback error as-is; wrap any unexpected Firebase error.
-        if (verifyErr.message && verifyErr.message.startsWith("No class records")) throw verifyErr;
-        console.warn("CSTRSync: data verification after bind failed unexpectedly", verifyErr);
-        // Allow the bind to stand — network issue, not a wrong code.
-      }
-
-      return userProfilePayload;
+    async bindLegacyAccount() {
+      throw new Error("Legacy recovery requires verified developer approval. Contact SANCHEZRAMIL2202@GMAIL.COM.");
     },
 
     // Auto-provision a new teacher profile using their Google account (zero manual code edits needed!)
@@ -325,13 +237,14 @@
         (snapshot) => {
           const raw = snapshot.val();
           if (!raw) {
-            onData(null, { isOwnEcho: false, savedAt: null, clientId: null });
+            onData(null, { isOwnEcho: false, savedAt: null, clientId: null, revision: 0 });
             return;
           }
-          const { _syncClientId, _syncSavedAt, ...state } = raw;
+          const { _syncClientId, _syncSavedAt, _syncRevision, _syncProtocol, ...state } = raw;
           onData(state, {
             isOwnEcho: _syncClientId === CLIENT_ID,
             savedAt: _syncSavedAt || null,
+            revision: _syncRevision || 0,
             clientId: _syncClientId || null
           });
         },
@@ -345,10 +258,24 @@
 
     // Writes one account's full state. Every other tab/device subscribed to
     // this same account sees it within a second or two, automatically.
-    async save(userKey, state) {
+    async save(userKey, state, expectedRevision) {
       const sanitized = sanitizeKey(userKey);
-      const payload = { ...state, _syncClientId: CLIENT_ID, _syncSavedAt: Date.now() };
-      await db.ref(`${DATA_PATH}/${sanitized}`).set(payload);
+      if (!sanitized || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new Error("Invalid record revision.");
+      const ref = db.ref(`${DATA_PATH}/${sanitized}`);
+      const result = await ref.transaction(current => {
+        const revision = current?._syncRevision || 0;
+        if (revision !== expectedRevision) return;
+        return { ...state, _syncProtocol: 2, _syncRevision: revision + 1, _syncClientId: CLIENT_ID, _syncSavedAt: firebase.database.ServerValue.TIMESTAMP };
+      }, undefined, false);
+      if (!result.committed) {
+        // A fresh read supplies the actual conflict, including when the transaction's first cache was empty.
+        const raw = (await ref.once("value")).val() || {};
+        const { _syncRevision, _syncSavedAt, _syncClientId, _syncProtocol, ...remoteState } = raw;
+        const error = new Error("The cloud record changed. Review both versions in Settings before saving.");
+        Object.assign(error, { code: "sync/conflict", remoteState, revision: _syncRevision || 0, savedAt: _syncSavedAt });
+        throw error;
+      }
+      return result.snapshot.val()._syncRevision;
     }
   };
 })();
