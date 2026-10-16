@@ -671,7 +671,7 @@ tr.row-category input[data-score] {
   background-color: transparent; border-color: transparent;
   color: transparent; pointer-events: none;
 }
-tr.row-category .summary-cell { color: var(--muted); font-style: italic; opacity: 0.4; }
+tr.row-category .summary-cell { color: transparent; opacity: 1; }
 
 input.cell-selected {
   background-color: var(--info-soft);
@@ -3405,7 +3405,7 @@ body:has(.login-screen) #siteBg { background: var(--canvas); }
   color: var(--category-ink); background: transparent !important; border: 0;
   font-weight: 800; letter-spacing: .035em;
 }
-.record-section .record-table tr.row-category :is(.summary-cell,input[data-score]) { visibility: hidden; }
+.record-section .record-table tr.row-category input[data-score] { visibility: hidden; }
 @media (pointer: coarse) {
   .record-section .record-table input:is([data-name-row],[data-score],[data-hps]) { min-height: 40px; }
 }

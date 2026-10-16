@@ -1,8 +1,8 @@
 /* Reviewed component rules. Kept separate for an auditable upgrade. */
 :root { --review-accent:#7b1630; --review-on-accent:#fff; --review-danger:#a51d2d; }
-.button.button-primary {background:var(--review-accent)!important;color:var(--review-on-accent)!important;border:1px solid var(--review-accent)!important;}
-.button.button-secondary,.button.button-outline {background:var(--surface,#fff)!important;color:var(--text,#231b1e)!important;border:1px solid var(--border,#a79ba0)!important;}
-.button.button-danger {color:var(--review-danger)!important;border:1px solid currentColor!important;background:transparent!important;}
+.button.button-primary {background:transparent!important;color:var(--action-ink,var(--review-accent))!important;border:0!important;}
+.button.button-secondary,.button.button-outline {background:transparent!important;color:var(--text,#231b1e)!important;border:0!important;}
+.button.button-danger {color:var(--review-danger)!important;border:0!important;background:transparent!important;}
 .button:hover:not(:disabled) {filter:brightness(.93);}
 button:disabled {opacity:.5;cursor:not-allowed;}
 button,a,input,select,summary {touch-action:manipulation;}
@@ -83,20 +83,21 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
   .record-section .roster-options .bulk-column-tools label { grid-column:1/-1; }
 }
 
-/* Solid class color belongs on identity and headings. Data remains white. */
-.record-section .class-header-card,.record-section .class-identity,.record-section .class-period-area { background:var(--class-color)!important; color:var(--class-on)!important; }
-.record-section .class-header-card { border-color:var(--class-color)!important; box-shadow:0 9px 24px rgba(18,26,38,.14); }
+/* Class identity uses its full shade as a border; the card remains calm. */
+.record-section .class-header-card,.record-section .class-identity,.record-section .class-period-area { background:var(--surface)!important; color:var(--text)!important; }
+.record-section .class-header-card { position:relative; border:2px solid var(--class-color)!important; border-top-width:5px!important; box-shadow:0 9px 24px rgba(18,26,38,.08); }
+.record-section .class-header-card:has(.subject-picker[open]) { z-index:200; }
 .record-section .class-identity :is(.class-level,.class-name,.class-context-line),
 .record-section .class-subject-line .subject-picker > summary,
 .record-section .class-weights,
 .record-section .period-settings > summary,
 .record-section .period-tabs .tab:not([aria-pressed="true"]),
-.record-section .period-completion-dot { color:var(--class-on)!important; }
+.record-section .period-completion-dot { color:var(--text)!important; }
 .record-section .class-name { border-bottom-color:currentColor!important; }
-.record-section .class-period-area .period-tabs .tab:not([aria-pressed="true"]) { background:color-mix(in srgb, var(--class-on) 12%, transparent); }
-.record-section .class-period-area .period-tabs .tab[aria-pressed="true"] { background:#fff!important; color:#202833!important; box-shadow:inset 0 -3px var(--class-color)!important; }
-.record-section .class-subject-line .subject-picker > summary { background:#fff!important; color:#202833!important; }
-.record-section .period-settings[open] > summary { color:#202833!important; }
+.record-section .class-period-area .period-tabs .tab:not([aria-pressed="true"]) { background:transparent!important; }
+.record-section .class-period-area .period-tabs .tab[aria-pressed="true"] { background:transparent!important; color:var(--class-color)!important; box-shadow:none!important; text-decoration:underline; text-decoration-color:var(--class-color); text-decoration-thickness:3px; text-underline-offset:5px; }
+.record-section .class-subject-line .subject-picker > summary { background:transparent!important; color:var(--text)!important; }
+.record-section .period-settings[open] > summary { color:var(--text)!important; }
 .record-section .activity-register-heading,.record-section .activity-register thead th,
 .record-section .activity-register tbody th { background:var(--class-color)!important; color:var(--class-on)!important; }
 .record-section .activity-register-heading :is(.eyebrow,h3,p),
@@ -128,7 +129,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
   border-left:0!important; border-right:0!important;
   box-shadow:none!important; background-image:none!important;
 }
-.record-section .record-table tbody tr.row-category .summary-cell { color:transparent!important; }
+.record-section .record-table tbody tr.row-category .summary-cell { color:transparent!important; visibility:visible!important; opacity:1!important; }
 .record-section .record-table tbody tr.row-category input[data-name-row] { background:transparent!important; color:var(--category-ink)!important; }
 .record-section .record-table tbody tr.row-category .row-delete-btn { background:transparent!important; border:0!important; box-shadow:none!important; color:var(--category-ink)!important; }
 .record-section .table-wrap[hidden],.sheet-scroll-hint[hidden] { display:none!important; }
@@ -220,4 +221,53 @@ button:not(:disabled):active { transform:translateY(0)!important; box-shadow:0 1
 }
 @media(max-width:440px) { .report-activity-row { grid-template-columns:minmax(0,1fr); } .report-activity-name { grid-column:auto; } }
 @media(prefers-reduced-motion:reduce) { button:not(:disabled) { transition:none!important; } }
-.record-section .class-subject-line .subject-picker > summary { color:#202833!important; }
+.record-section .class-subject-line .subject-picker > summary { color:var(--text)!important; }
+.record-section .subject-menu { max-height:min(240px,45dvh); overflow:auto; overscroll-behavior:contain; }
+
+/* All actions are unboxed. Input fields, popups, and the class card retain their boundaries. */
+:root body :is(button,#saveChanges),
+:root body summary {
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+}
+:root body :is(button,#saveChanges):not(:disabled):hover,
+:root body summary:hover {
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  transform:translateY(-1px)!important;
+  text-decoration:underline;
+  text-underline-offset:3px;
+}
+:root body :is(button,#saveChanges):not(:disabled):active { box-shadow:none!important; transform:translateY(0)!important; }
+:root body button:focus-visible,
+:root body summary:focus-visible { outline:3px solid #2563eb!important; outline-offset:3px; }
+.record-section .record-table .component-header .col-btn { color:inherit!important; }
+.record-section .record-table .component-header .col-btn:hover { color:inherit!important; }
+.record-section .roster-options[open] > summary,
+.record-section .column-options[open] > summary,
+.record-section .period-settings[open] > summary { background:transparent!important; box-shadow:none!important; }
+
+/* The theme control is an icon and label, without a switch-shaped container. */
+.theme-toggle,.welcome-tools .theme-toggle,.policy-header-tools .theme-toggle {
+  width:auto; min-width:44px; padding:5px 6px; gap:8px;
+}
+.theme-toggle-label { position:static; width:auto; height:auto; overflow:visible; clip-path:none; white-space:nowrap; }
+.theme-switch-track,.theme-toggle[aria-pressed="true"] .theme-switch-track,
+.welcome-tools .theme-switch-track,.policy-header-tools .theme-switch-track {
+  width:20px; height:20px; padding:0; border-radius:0;
+  background:transparent!important; box-shadow:none!important; color:inherit!important;
+}
+.theme-switch-thumb { display:none!important; }
+.theme-switch-track svg { display:none; width:20px; height:20px; }
+.theme-toggle[aria-pressed="true"] .theme-sun,
+.theme-toggle[aria-pressed="false"] .theme-moon { display:block; }
+.theme-toggle:hover .theme-switch-track { transform:none!important; }
+.welcome-tools .theme-toggle,.policy-header-tools .theme-toggle { color:var(--on-brand)!important; }
+@media (max-width:760px) {
+  .theme-toggle { width:44px!important; min-width:44px; }
+  .theme-toggle-label { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+}
