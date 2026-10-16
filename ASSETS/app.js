@@ -38,6 +38,8 @@
   let activeGroup = "JHS";
   let activeSectionId = DEFAULT_REGISTRY[0]?.id || "";
   let activePeriodIndex = 0;
+  let sheetEntryView = "sheet";
+  let activeOneLearnerRowIndex = null;
   let sidebarCollapsed = matchMedia("(max-width: 760px)").matches;
   try { const stored = localStorage.getItem("cstr-sidebar-collapsed"); if (stored !== null) sidebarCollapsed = matchMedia("(max-width: 760px)").matches || stored === "true"; } catch (_) {}
   const hpsEdits = new WeakMap();
@@ -652,8 +654,12 @@
   }
 
   function themeColorHex(name) {
-    const allowed = ["purple", "green", "blue", "red", "charcoal", "baby-blue", "deep-red", "black", "brown", "orange", "pink", "gray", "yellow"];
-    return `var(--section-${allowed.includes(name) ? name : "blue"})`;
+    const colors = { purple: "#7042a6", green: "#157347", blue: "#11629a", red: "#b3263e", charcoal: "#3f4d59", "baby-blue": "#159ed1", "deep-red": "#7d1732", black: "#1c2025", brown: "#80502a", orange: "#a4490c", pink: "#a52269", gray: "#52616d", yellow: "#f4c430" };
+    return colors[name] || colors.blue;
+  }
+
+  function themeColorInk(name) {
+    return ["baby-blue", "yellow"].includes(name) ? "#17232d" : "#ffffff";
   }
 
   function renderDescriptorBadge(descriptor) {
@@ -864,6 +870,7 @@
       updateHeaderScroll();
     }
     updateCompletionIndicators();
+    document.querySelectorAll('.activity-register textarea[data-activity-field]').forEach(sizeActivityTextarea);
     sizeSheetWorkspace();
     requestAnimationFrame(fitSectionName);
     restoreTableScroll(scrollLeft);
@@ -888,6 +895,12 @@
     }
     name.style.fontSize = `${Math.floor(low)}px`;
   }
+
+  function sizeActivityTextarea(input) {
+    input.style.height = 'auto';
+    input.style.height = `${Math.max(52, input.scrollHeight + 2)}px`;
+  }
+  window.addEventListener('resize', () => document.querySelectorAll('.activity-register textarea[data-activity-field]').forEach(sizeActivityTextarea), { passive: true });
 
   function renderLogin() {
     const titles = { signin: "Sign in to your records", signup: "Create your teacher account", legacy: "Claim your existing records" };
@@ -1286,22 +1299,7 @@
     const recentClasses = buildActiveClassRows(metrics.activeSections);
 
     return `<section class="dashboard">
-
-      <div class="metric-grid" aria-label="Class record overview">
-        <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
-        <article class="metric-card"><span class="metric-icon">${icon("users")}</span><div><p>Total learners</p><strong>${metrics.learners}</strong><small>Across active class rosters</small></div></article>
-        <article class="metric-card"><span class="metric-icon">${icon("chart")}</span><div><p>Complete periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>All required entries present</small></div></article>
-        <article class="metric-card metric-progress"><span class="metric-icon">${icon("chart")}</span><div><p>Entry completion</p><strong>${metrics.completion}%</strong><div class="progress-track" aria-label="${metrics.completion}% of periods complete"><span style="width:${metrics.completion}%"></span></div></div></article>
-      </div>
-
-      <div class="dashboard-grid">
-        <section class="dashboard-panel recent-panel">
-          <div class="panel-heading"><div><p class="eyebrow">Your workspace</p><h3>Active class records${metrics.activeSections.length ? ` <span class="panel-count">${metrics.activeSections.length}</span>` : ""}</h3></div>${button(`View all ${icon("arrow")}`, "go-records", "button button-ghost button-small")}</div>
-          <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4><p>Create your first class to begin building a roster and entering scores.</p>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
-        </section>
-
-      </div>
-      <details class="profile-details"><summary>Teacher profile and optional details</summary>      <section class="dashboard-hero" aria-labelledby="ownerTitle">
+      <section class="dashboard-hero" aria-labelledby="ownerTitle">
         <div class="owner-intro">
           <p class="eyebrow">Teacher profile</p>
           <h2 id="ownerTitle">Class record owner</h2>
@@ -1325,7 +1323,19 @@
         </div>
       </section>
 
-      </details>
+      <div class="metric-grid" aria-label="Class record overview">
+        <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
+        <article class="metric-card"><span class="metric-icon">${icon("users")}</span><div><p>Total learners</p><strong>${metrics.learners}</strong><small>Across active class rosters</small></div></article>
+        <article class="metric-card"><span class="metric-icon">${icon("chart")}</span><div><p>Complete periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>All required entries present</small></div></article>
+        <article class="metric-card metric-progress"><span class="metric-icon">${icon("chart")}</span><div><p>Entry completion</p><strong>${metrics.completion}%</strong><div class="progress-track" aria-label="${metrics.completion}% of periods complete"><span style="width:${metrics.completion}%"></span></div></div></article>
+      </div>
+
+      <div class="dashboard-grid">
+        <section class="dashboard-panel recent-panel">
+          <div class="panel-heading"><div><p class="eyebrow">Your workspace</p><h3>Active class records${metrics.activeSections.length ? ` <span class="panel-count">${metrics.activeSections.length}</span>` : ""}</h3></div>${button(`View all ${icon("arrow")}`, "go-records", "button button-ghost button-small")}</div>
+          <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4><p>Create your first class to begin building a roster and entering scores.</p>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
+        </section>
+      </div>
     </section>`;
   }
 
@@ -1397,8 +1407,9 @@
       : "";
 
     const shade = sectionNameShade(section.accent || section.theme);
-    return `<div class="record-section" style="--class-color:${sectionColorHex};--class-surface:${shade.background};--class-ink:${shade.color}">
-      <section class="class-header-card" style="--class-color:${sectionColorHex};--class-surface:${shade.background};--class-ink:${shade.color}">
+    const sectionColorInk = themeColorInk(section.accent || section.theme);
+    return `<div class="record-section" style="--class-color:${sectionColorHex};--class-on:${sectionColorInk};--class-surface:${shade.background};--class-ink:${shade.color}">
+      <section class="class-header-card" style="--class-color:${sectionColorHex};--class-on:${sectionColorInk};--class-surface:${shade.background};--class-ink:${shade.color}">
         ${section.archived ? `<div class="archive-banner"><span>Archived class</span>${button("Restore class", "unarchive-section", "button", `data-section="${safeValue(section.id)}"`)}</div>` : ""}
         <div class="class-identity">
           <div class="class-subject-line"><details class="subject-picker"><summary aria-label="Change subject"><span>${escapeHtml(section.subject)}</span>${icon("chevron")}</summary>
@@ -1443,8 +1454,10 @@
           <p>Lowering HPS caps scores above it when you leave the field. Restoring the original HPS restores those original scores unless you explicitly edited them afterward.</p>
         </div></details>
       </div>
-      <p class="sheet-scroll-hint" id="sheetScrollHint">Grade sheet: scroll sideways to reach all assessments. Select the sheet to use keyboard scrolling.</p>
-      ${renderRecordTable(section, period)}
+      ${renderEntryViewControls(period)}
+      <p class="sheet-scroll-hint" id="sheetScrollHint" ${sheetEntryView === "one" ? "hidden" : ""}>Grade sheet: scroll sideways to reach all assessments. Select the sheet to use keyboard scrolling.</p>
+      ${sheetEntryView === "one" ? renderEditableStudentReport(section, periods, period) : ""}
+      ${renderRecordTable(section, period, sheetEntryView === "one")}
       ${renderActivityRegister(section, period)}
 
     </div>`;
@@ -1454,6 +1467,88 @@
     const result = recordCompletion(period);
     const label = escapeHtml(window.CSTRRecordTools.periodLabel(period, section.group, index, state.calendarMode));
     return `<span class="${result.complete ? "is-complete" : "is-incomplete"}">${result.complete ? "Complete" : "In progress"} · ${label}</span><small>${result.filled} / ${result.expected} score entries</small>`;
+  }
+
+  function entryLearnerRows(period) {
+    return period.roster.map((learner, index) => ({ learner, index }))
+      .filter(({ learner }) => !getLearnerCategory(learner.name));
+  }
+
+  function selectedEntryRow(period) {
+    const rows = entryLearnerRows(period);
+    if (!rows.some(({ index }) => index === activeOneLearnerRowIndex)) activeOneLearnerRowIndex = rows[0]?.index ?? null;
+    return activeOneLearnerRowIndex;
+  }
+
+  function renderEntryViewControls(period) {
+    const rows = entryLearnerRows(period), selected = selectedEntryRow(period);
+    return `<div class="entry-focus-controls" role="group" aria-label="Grade sheet view">
+      <label>Entry view<select data-entry-view aria-label="Entry view"><option value="sheet" ${sheetEntryView === "sheet" ? "selected" : ""}>Full grade sheet</option><option value="one" ${sheetEntryView === "one" ? "selected" : ""}>One learner</option></select></label>
+      ${sheetEntryView === "one" ? `<label>Learner<select data-entry-row aria-label="Learner to display">${rows.map(({ learner, index }) => `<option value="${index}" ${index === selected ? "selected" : ""}>${escapeHtml(learner.name.trim() || `Learner ${index + 1}`)}</option>`).join("")}</select></label><p>Scores in the selected period are editable below. Select another period to edit its scores. Dates and HPS remain in the full grade sheet.</p>` : ""}
+    </div>`;
+  }
+
+  function reportEntriesForLearner(periods, rowIndex) {
+    const active = periods[activePeriodIndex], learner = active.roster[rowIndex];
+    if (!learner) return [];
+    const name = String(learner.name || "").trim(), key = searchNameKey(name);
+    const occurrence = key ? active.roster.slice(0, rowIndex + 1).filter(item => !getLearnerCategory(item.name) && searchNameKey(item.name) === key).length - 1 : 0;
+    return periods.flatMap((period, periodIndex) => {
+      const found = periodIndex === activePeriodIndex ? learner : key ? period.roster.filter(item => !getLearnerCategory(item.name) && searchNameKey(item.name) === key)[occurrence] : null;
+      return found ? [{ period, periodIndex, learner: found, result: learnerResult(found, period, currentSection().weights), complete: isLearnerAssessmentComplete(found, period) }] : [];
+    });
+  }
+
+  function renderEditableStudentReport(section, periods, period) {
+    const rowIndex = selectedEntryRow(period);
+    if (rowIndex === null) return `<section class="editable-student-report empty-state"><h3>No learner rows</h3><p>Add a learner row to use this view.</p></section>`;
+    const learner = period.roster[rowIndex], entries = reportEntriesForLearner(periods, rowIndex);
+    const categories = [
+      { key: "ww", label: "Written Works", weight: section.weights[0] },
+      { key: "pt", label: "Performance Tasks", weight: section.weights[1] },
+      { key: "qa", label: state.calendarMode === "trimester" ? "Term Assessment" : "Quarterly Assessment", weight: section.weights[2] }
+    ];
+    const pct = value => Number.isFinite(value) ? `${format(value, 1)}%` : "—";
+    const chart = `<div class="report-chart" role="img" aria-label="Assessment percentages by component and grading period">${entries.map(({ period: entryPeriod, periodIndex, result }) => `<div class="report-chart-group"><div class="report-bars">${categories.map(cat => `<span class="report-bar report-${cat.key}" style="height:${Number.isFinite(result[cat.key].percentage) ? Math.max(0, Math.min(100, result[cat.key].percentage)) : 0}%" title="${escapeHtml(cat.label)}: ${pct(result[cat.key].percentage)}"></span>`).join("")}</div><span>${escapeHtml(shortenPeriodLabel(entryPeriod.name))}</span></div>`).join("")}</div>`;
+    const means = categories.map(cat => {
+      const values = entries.map(({ result }) => result[cat.key].percentage).filter(Number.isFinite);
+      return `<div class="report-mean report-${cat.key}"><span>${escapeHtml(cat.label)}</span><strong>${pct(values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null)}</strong><small>${values.length} period${values.length === 1 ? "" : "s"}</small></div>`;
+    }).join("");
+    const rankedMeans = categories.map(cat => {
+      const values = entries.map(({ result }) => result[cat.key].percentage).filter(Number.isFinite);
+      return { label: cat.label, average: values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null };
+    }).filter(item => Number.isFinite(item.average)).sort((a, b) => b.average - a.average);
+    const interpretation = rankedMeans.length > 1
+      ? `Highest recorded component mean: ${rankedMeans[0].label} (${pct(rankedMeans[0].average)}); lowest: ${rankedMeans[rankedMeans.length - 1].label} (${pct(rankedMeans[rankedMeans.length - 1].average)}).`
+      : rankedMeans.length ? `Only ${rankedMeans[0].label} has a recorded component percentage so far.` : "No component percentages are available yet.";
+    const cards = entries.map(({ period: entryPeriod, periodIndex, result, complete }) => {
+      const active = periodIndex === activePeriodIndex;
+      const gradeLabel = state.calendarMode === "trimester" ? "Term grade" : "Initial grade";
+      const components = categories.map(cat => `<div class="report-component report-${cat.key}"><strong>${escapeHtml(cat.label)}</strong><span>${pct(result[cat.key].percentage)} · ${Number.isFinite(result[cat.key].weighted) ? `${format(result[cat.key].weighted, 2)} weighted` : "— weighted"}</span><small>${scoreTotal(result[cat.key])} raw / HPS</small></div>`).join("");
+      const inputs = active ? `<div class="report-edit-scores"><h4>Edit ${escapeHtml(entryPeriod.name)} scores</h4><p>Enter a number or A, M, E, L. An empty score remains missing.</p><div class="report-score-groups">${categories.map(cat => `<fieldset class="report-score-group report-${cat.key}"><legend>${escapeHtml(cat.label)}</legend><div class="report-score-grid">${learner[cat.key].map((value, index) => {
+        const invalid = hasRawAboveHps(value, entryPeriod[cat.key + "Hps"][index]) || (value !== "" && !isAttendanceCode(value) && (!Number.isFinite(Number(value)) || Number(value) < 0));
+        const hps = entryPeriod[cat.key + "Hps"][index];
+        return `<label>${cat.key.toUpperCase()} ${index + 1}<small>HPS ${escapeHtml(hps === "" || hps === null || hps === undefined ? "—" : String(hps))}</small><input type="text" inputmode="text" autocomplete="off" maxlength="6" data-score="${cat.key}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(value)}" aria-invalid="${invalid}" class="${invalid ? "invalid" : ""}" ${entryPeriod.locked ? "disabled" : ""}></label>`;
+      }).join("")}</div></fieldset>`).join("")}</div></div>` : `<button type="button" class="button button-secondary report-switch-period" data-action="select-period" data-period="${periodIndex}">Open this period to edit</button>`;
+      return `<article class="report-period-card ${active ? "is-current" : ""}"><div data-report-live="period-${periodIndex}"><div class="report-period-heading"><h3>${escapeHtml(entryPeriod.name)}</h3><span class="report-status ${complete ? "is-complete" : ""}">${complete ? "Complete requirements" : "Provisional · incomplete requirements"}</span></div><div class="report-grades"><div><small>${gradeLabel}</small><strong>${format(result.initial.rounded, 3)}</strong></div><div><small>${state.calendarMode === "trimester" ? "Transmutation" : "Final transmuted"}</small><strong>${state.calendarMode === "trimester" ? "Not used" : format(result.initial.transmuted, 0)}</strong></div><div><small>Qualitative descriptor</small><strong>${escapeHtml(result.initial.descriptor)}</strong></div></div><div class="report-components">${components}</div></div>${inputs}</article>`;
+    }).join("");
+    return `<section class="editable-student-report" aria-label="Editable individual grade report"><div class="report-heading"><p>Individual grade report</p><label>Learner name<input data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}></label><span>${escapeHtml(section.level)} · ${escapeHtml(section.subject)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</span></div><div data-report-live="overview"><h3>Assessment performance</h3><p>Percentage scored by component and grading period</p><div class="report-legend">${categories.map(cat => `<span class="report-${cat.key}">${escapeHtml(cat.label)} (${cat.weight}%)</span>`).join("")}</div>${chart}<h3>Component means across recorded periods</h3><div class="report-means">${means}</div><p class="report-interpretation">${escapeHtml(interpretation)}</p></div><div class="report-periods">${cards}</div><p class="report-footnote">Component means are unweighted averages of available period percentages; they are not final grades. A/M count as zero. E/L are excluded. Grades are provisional when requirements are incomplete.</p></section>`;
+  }
+
+  function refreshEditableStudentReport() {
+    const report = document.querySelector(".editable-student-report");
+    if (!report || !currentPeriod()) return;
+    const template = document.createElement("template");
+    template.innerHTML = renderEditableStudentReport(currentSection(), activeSections()[currentSection().id].periods, currentPeriod());
+    template.content.querySelectorAll("[data-report-live]").forEach(fresh => {
+      const old = report.querySelector(`[data-report-live="${fresh.dataset.reportLive}"]`);
+      if (old) old.innerHTML = fresh.innerHTML;
+    });
+    template.content.querySelectorAll('.report-score-group label').forEach(fresh => {
+      const input = fresh.querySelector('input[data-score]');
+      const current = input && report.querySelector(`.report-score-group input[data-score="${input.dataset.score}"][data-index="${input.dataset.index}"]`);
+      if (current) current.closest('label').querySelector('small').textContent = fresh.querySelector('small').textContent;
+    });
   }
 
   function updateCompletionIndicators() {
@@ -1478,7 +1573,7 @@
     return `<div class="bulk-column-control"><strong>${label}</strong><label class="sr-only" for="${kind}ColumnCount">Number of ${label} columns</label><input id="${kind}ColumnCount" type="number" min="1" max="50" value="1" data-column-count="${kind}" aria-label="Number of ${label} columns" ${locked ? "disabled" : ""}><button type="button" class="col-btn col-btn-wide" data-action="bulk-add-col" data-kind="${kind}" title="Add columns" ${locked ? "disabled" : ""}>Add</button><button type="button" class="col-btn col-btn-wide" data-action="bulk-remove-col" data-kind="${kind}" title="Remove last columns" ${locked ? "disabled" : ""}>Remove</button><small>${count} active</small></div>`;
   }
 
-  function renderRecordTable(section, period) {
+  function renderRecordTable(section, period, concealed = false) {
     const dateHeaders = (kind, values, labels = []) => values.map((value, index) => {
       const label = labels[index] ? `<span>${labels[index]}</span>` : "";
       const borderClass = (index === 0 && kind === "pt") ? "border-start-pt" : (index === 0 && kind === "qa") ? "border-start-qa" : "";
@@ -1498,7 +1593,7 @@
     const sectionLocked = sectionHasLockedPeriod(section);
     const rows = period.roster.map((learner, rowIndex) => renderLearnerRow(learner, rowIndex, period, section, numbering[rowIndex], period.locked)).join("");
     
-    return `<div class="table-wrap" role="region" aria-label="Scrollable grade sheet" aria-describedby="sheetScrollHint" tabindex="0"><table class="record-table compact-record"><caption class="sr-only">Scores, highest possible scores, and calculated grades for ${escapeHtml(section.subject)}. Attendance codes and editing guidance are in Grade sheet help.</caption><thead>
+    return `<div class="table-wrap" role="region" aria-label="Scrollable grade sheet" aria-describedby="sheetScrollHint" tabindex="${concealed ? "-1" : "0"}" ${concealed ? "hidden" : ""}><table class="record-table compact-record"><caption class="sr-only">Scores, highest possible scores, and calculated grades for ${escapeHtml(section.subject)}. Attendance codes and editing guidance are in Grade sheet help.</caption><thead>
       <tr class="component-row">
         <th class="number-cell" scope="col" rowspan="3">#</th>
         <th class="name-cell" scope="col" rowspan="3">Learner name</th>
@@ -1551,9 +1646,9 @@
       const number = `${kind.toUpperCase()} ${index + 1}`;
       const disabled = period.locked ? "disabled" : "";
       return `<tr><th scope="row"><span class="activity-kind">${escapeHtml(label)}</span><strong>${number}</strong></th>
-        <td><input data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" maxlength="120" value="${safeValue(info.title)}" placeholder="Activity title" aria-label="${number} title" ${disabled}></td>
-        <td><input data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="competency" maxlength="240" value="${safeValue(info.competency)}" placeholder="Learning competency" aria-label="${number} competency" ${disabled}></td>
-        <td><input data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="topic" maxlength="160" value="${safeValue(info.topic)}" placeholder="Topic" aria-label="${number} topic" ${disabled}></td>
+        <td><textarea rows="2" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" placeholder="Activity title" aria-label="${number} title" ${disabled}>${safeValue(info.title)}</textarea></td>
+        <td><textarea rows="2" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="competency" placeholder="Learning competency" aria-label="${number} competency" ${disabled}>${safeValue(info.competency)}</textarea></td>
+        <td><textarea rows="2" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="topic" placeholder="Topic" aria-label="${number} topic" ${disabled}>${safeValue(info.topic)}</textarea></td>
         <td><input data-date="${kind}" data-index="${index}" maxlength="12" value="${safeValue(period[`${kind}Dates`][index])}" placeholder="Date" aria-label="${number} date" ${disabled}></td>
         <td><input type="number" min="0" step="any" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(hps)}" aria-label="${number} highest possible score" ${disabled}></td></tr>`;
     })).join("");
@@ -4007,7 +4102,7 @@
 
   function sizeSheetWorkspace() {
     const wrap = document.querySelector(".table-wrap");
-    if (!wrap) return;
+    if (!wrap || wrap.hidden) return;
     // Desktop uses a viewport-height flex workspace; DOM edits cannot collapse it.
     if (window.innerWidth >= 1000) wrap.style.removeProperty("height");
     else wrap.style.height = Math.max(340, window.innerHeight - (wrap.getBoundingClientRect().top + window.scrollY) - 18) + "px";
@@ -4043,6 +4138,17 @@
     if (input.dataset?.hps) hpsEdits.set(input, currentPeriod()[input.dataset.hps + "Hps"][Number(input.dataset.index)]);
   });
   app.addEventListener("change", event => commitHpsField(event.target));
+  app.addEventListener("change", event => {
+    if (event.target.matches('[data-entry-view]')) {
+      sheetEntryView = event.target.value === 'one' ? 'one' : 'sheet';
+      render();
+    }
+    if (event.target.matches('[data-entry-row]')) {
+      activeOneLearnerRowIndex = Number(event.target.value);
+      render();
+    }
+    if (event.target.matches('.editable-student-report [data-name-row]')) render();
+  });
   document.addEventListener("click", event => {
     document.querySelectorAll(".subject-picker[open],.sheet-help[open],.column-options[open],.period-settings[open],.roster-options[open]").forEach(node => {
       if (!node.contains(event.target)) node.removeAttribute("open");
@@ -4085,13 +4191,21 @@
     }
     if (input.dataset.activityField) {
       currentPeriod().activityMeta[input.dataset.activityKind][Number(input.dataset.activityIndex)][input.dataset.activityField] = input.value;
+      sizeActivityTextarea(input);
       stateChanged = true;
     }
     if (input.dataset.score) {
       const kind = input.dataset.score; const row = Number(input.dataset.row); const index = Number(input.dataset.index);
       const sanitized = sanitizeScoreValue(input.value);
       if (sanitized !== input.value) input.value = sanitized;
-      window.CSTRRecordTools.setScore(currentPeriod().roster[row], kind, index, sanitized); updateLiveSummary(row); stateChanged = true;
+      window.CSTRRecordTools.setScore(currentPeriod().roster[row], kind, index, sanitized); updateLiveSummary(row);
+      if (input.closest('.editable-student-report')) {
+        const hps = currentPeriod()[kind + 'Hps'][index];
+        const bad = hasRawAboveHps(sanitized, hps) || (sanitized !== '' && !isAttendanceCode(sanitized) && (!Number.isFinite(Number(sanitized)) || Number(sanitized) < 0));
+        input.classList.toggle('invalid', bad);
+        input.setAttribute('aria-invalid', String(bad));
+      }
+      refreshEditableStudentReport(); stateChanged = true;
     }
     if (input.dataset.hps) {
       if (!hpsEdits.has(input)) hpsEdits.set(input, currentPeriod()[input.dataset.hps + "Hps"][Number(input.dataset.index)]);
@@ -4099,7 +4213,7 @@
       document.querySelectorAll(`[data-hps="${input.dataset.hps}"][data-index="${input.dataset.index}"]`).forEach(peer => { if (peer !== input) peer.value = input.value; });
       input.classList.toggle("invalid", input.value !== "" && (!Number.isFinite(Number(input.value)) || Number(input.value) <= 0));
       input.setAttribute("aria-invalid", String(input.classList.contains("invalid")));
-      updateAllSummaries(); stateChanged = true;
+      updateAllSummaries(); refreshEditableStudentReport(); stateChanged = true;
     }
     if (stateChanged) {
       const fieldKey = getFieldKeyForInput(input);

@@ -22,29 +22,33 @@
     if(e.key==='Tab'){const list=focusable(active);const first=list[0]||active,last=list.at(-1)||active;if(e.shiftKey&&(document.activeElement===first||!active.contains(document.activeElement))){e.preventDefault();last.focus();}else if(!e.shiftKey&&(document.activeElement===last||!active.contains(document.activeElement))){e.preventDefault();first.focus();}e.stopImmediatePropagation();}
     if(e.key==='Escape'){const close=active.querySelector('[data-action="close-modal"],[data-action="onboard-cancel"],[data-action="cancel-logout"]');if(close){e.preventDefault();e.stopImmediatePropagation();close.click();}}
   },true);
-  // Compact entry keeps existing score inputs and their validation/event handlers.
-  function focusControls(){
-    const wrap=document.querySelector('.table-wrap');if(!wrap||wrap.previousElementSibling?.classList.contains('entry-focus-controls'))return;
-    const panel=document.createElement('div');panel.className='entry-focus-controls';
-    panel.innerHTML='<label>Entry view <select aria-label="Entry view"><option value="all">Full grade sheet</option><option value="one">One learner</option></select></label><label hidden>Learner <select aria-label="Learner to display"></select></label><p>WW: Written work · PT: Performance tasks · QA: Assessment · HPS: Highest possible score. Use the full sheet to edit dates and HPS.</p>';
-    const [mode,learner]=panel.querySelectorAll('select');
-    const rows=[...wrap.querySelectorAll('tbody tr')].filter(r=>r.querySelector('[data-score]'));
-    rows.forEach((r,i)=>{const option=document.createElement('option');option.value=i;option.textContent=r.querySelector('[data-name-row]')?.value||r.querySelector('input:not([data-score])')?.value||'Learner '+(i+1);learner.append(option);});
-    const update=()=>{
-      const focused=mode.value==='one';learner.parentElement.hidden=!focused;wrap.classList.toggle('one-learner',focused);
-      rows.forEach((r,i)=>{r.hidden=focused&&i!==Number(learner.value);
-        learner.options[i].textContent=r.querySelector('[data-name-row]')?.value||r.querySelector('input:not([data-score])')?.value||'Learner '+(i+1);
-        for(const cell of r.querySelectorAll('td')){
-          const input=cell.querySelector('[data-score]');
-          if(input){const kind=input.dataset.score,index=input.dataset.index;const hps=wrap.querySelector('[data-hps="'+kind+'"][data-index="'+index+'"]')?.value||'not set';cell.dataset.focusLabel=kind.toUpperCase()+' '+(Number(index)+1)+' · HPS '+hps;}
-          else if(cell.classList.contains('name-cell'))cell.dataset.focusLabel='Learner name';
-          else {const label=[...cell.classList].find(c=>/^summary-(ww|pt|qa)-(total|ps|ws)$/.test(c));cell.dataset.focusLabel=label?label.replace('summary-','').replaceAll('-',' ').replace('ps','percentage').replace('ws','weighted'):cell.classList.contains('initial-cell')?'Initial grade':cell.classList.contains('transmuted-cell')?'Transmuted grade':cell.classList.contains('descriptor-cell')?'Descriptor':'';}
-        }
-      });
-    };
-    mode.onchange=update;learner.onchange=update;
-    wrap.addEventListener('input',e=>{if(e.target.matches('[data-name-row],[data-hps]'))update();});
-    wrap.before(panel);
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Escape'||active)return;
+    const open=[...document.querySelectorAll('.period-settings[open],.roster-options[open],.column-options[open]')];
+    const panel=open.at(-1);
+    if(panel){e.preventDefault();panel.removeAttribute('open');panel.querySelector('summary')?.focus();}
+  });
+  const popupSelector='.period-settings,.roster-options,.column-options';
+  function placePopup(details){
+    if(!details?.open)return;
+    const panel=details.querySelector('.period-toolbar,.bulk-column-tools');
+    if(!panel)return;
+    panel.style.top='';panel.style.bottom='';panel.style.maxHeight='';
+    panel.style.translate='0';
+    const margin=12,anchor=details.querySelector('summary').getBoundingClientRect();
+    if(details.matches('.column-options,.period-settings')){
+      const before=panel.getBoundingClientRect();
+      const above=Math.max(180,anchor.top-margin-8),below=Math.max(180,innerHeight-anchor.bottom-margin-8);
+      if(before.bottom>innerHeight-margin&&above>below){panel.style.top='auto';panel.style.bottom='calc(100% + 8px)';panel.style.maxHeight=`${above}px`;}
+      else if(before.bottom>innerHeight-margin)panel.style.maxHeight=`${below}px`;
+    }
+    const rect=panel.getBoundingClientRect();
+    const appLeft=document.querySelector('.app-main')?.getBoundingClientRect().left||0;
+    const leftEdge=Math.max(margin,Math.min(appLeft+margin,innerWidth-80));
+    const shift=rect.left<leftEdge ? leftEdge-rect.left : rect.right>innerWidth-margin ? innerWidth-margin-rect.right : 0;
+    panel.style.translate=`${shift}px 0`;
   }
-  new MutationObserver(focusControls).observe(document.getElementById('app'),{childList:true,subtree:true});focusControls();sync();
+  document.addEventListener('toggle',e=>{if(e.target.matches(popupSelector))requestAnimationFrame(()=>placePopup(e.target));},true);
+  window.addEventListener('resize',()=>document.querySelectorAll(`${popupSelector.split(',').map(x=>x+'[open]').join(',')}`).forEach(placePopup),{passive:true});
+  sync();
 })();
