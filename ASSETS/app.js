@@ -654,12 +654,12 @@
   }
 
   function themeColorHex(name) {
-    const colors = { purple: "#7042a6", green: "#157347", blue: "#11629a", red: "#b3263e", charcoal: "#3f4d59", "baby-blue": "#159ed1", "deep-red": "#7d1732", black: "#1c2025", brown: "#80502a", orange: "#a4490c", pink: "#a52269", gray: "#52616d", yellow: "#f4c430" };
+    const colors = { purple: "#6a1b9a", green: "#1b5e20", blue: "#0d47a1", red: "#c62828", charcoal: "#263238", "baby-blue": "#0277bd", "deep-red": "#880e4f", black: "#111827", brown: "#4e342e", orange: "#d13f14", pink: "#ad1457", gray: "#374151", yellow: "#b45309" };
     return colors[name] || colors.blue;
   }
 
   function themeColorInk(name) {
-    return ["baby-blue", "yellow"].includes(name) ? "#17232d" : "#ffffff";
+    return "#ffffff";
   }
 
   function renderDescriptorBadge(descriptor) {
@@ -870,7 +870,7 @@
       updateHeaderScroll();
     }
     updateCompletionIndicators();
-    document.querySelectorAll('.activity-register textarea[data-activity-field]').forEach(sizeActivityTextarea);
+    document.querySelectorAll('.record-section textarea[data-activity-field]').forEach(sizeActivityTextarea);
     sizeSheetWorkspace();
     requestAnimationFrame(fitSectionName);
     restoreTableScroll(scrollLeft);
@@ -898,9 +898,9 @@
 
   function sizeActivityTextarea(input) {
     input.style.height = 'auto';
-    input.style.height = `${Math.max(52, input.scrollHeight + 2)}px`;
+    input.style.height = `${Math.max(44, input.scrollHeight + 2)}px`;
   }
-  window.addEventListener('resize', () => document.querySelectorAll('.activity-register textarea[data-activity-field]').forEach(sizeActivityTextarea), { passive: true });
+  window.addEventListener('resize', () => document.querySelectorAll('.record-section textarea[data-activity-field]').forEach(sizeActivityTextarea), { passive: true });
 
   function renderLogin() {
     const titles = { signin: "Sign in to your records", signup: "Create your teacher account", legacy: "Claim your existing records" };
@@ -1484,7 +1484,7 @@
     const rows = entryLearnerRows(period), selected = selectedEntryRow(period);
     return `<div class="entry-focus-controls" role="group" aria-label="Grade sheet view">
       <label>Entry view<select data-entry-view aria-label="Entry view"><option value="sheet" ${sheetEntryView === "sheet" ? "selected" : ""}>Full grade sheet</option><option value="one" ${sheetEntryView === "one" ? "selected" : ""}>One learner</option></select></label>
-      ${sheetEntryView === "one" ? `<label>Learner<select data-entry-row aria-label="Learner to display">${rows.map(({ learner, index }) => `<option value="${index}" ${index === selected ? "selected" : ""}>${escapeHtml(learner.name.trim() || `Learner ${index + 1}`)}</option>`).join("")}</select></label><p>Scores in the selected period are editable below. Select another period to edit its scores. Dates and HPS remain in the full grade sheet.</p>` : ""}
+      ${sheetEntryView === "one" ? `<label>Learner<select data-entry-row aria-label="Learner to display">${rows.map(({ learner, index }) => `<option value="${index}" ${index === selected ? "selected" : ""}>${escapeHtml(learner.name.trim() || `Learner ${index + 1}`)}</option>`).join("")}</select></label><p>Activity titles, dates, HPS, and scores in the selected period are editable below. Competencies and topics remain in the activity register.</p>` : ""}
     </div>`;
   }
 
@@ -1525,12 +1525,22 @@
       const active = periodIndex === activePeriodIndex;
       const gradeLabel = state.calendarMode === "trimester" ? "Term grade" : "Initial grade";
       const components = categories.map(cat => `<div class="report-component report-${cat.key}"><strong>${escapeHtml(cat.label)}</strong><span>${pct(result[cat.key].percentage)} · ${Number.isFinite(result[cat.key].weighted) ? `${format(result[cat.key].weighted, 2)} weighted` : "— weighted"}</span><small>${scoreTotal(result[cat.key])} raw / HPS</small></div>`).join("");
-      const inputs = active ? `<div class="report-edit-scores"><h4>Edit ${escapeHtml(entryPeriod.name)} scores</h4><p>Enter a number or A, M, E, L. An empty score remains missing.</p><div class="report-score-groups">${categories.map(cat => `<fieldset class="report-score-group report-${cat.key}"><legend>${escapeHtml(cat.label)}</legend><div class="report-score-grid">${learner[cat.key].map((value, index) => {
-        const invalid = hasRawAboveHps(value, entryPeriod[cat.key + "Hps"][index]) || (value !== "" && !isAttendanceCode(value) && (!Number.isFinite(Number(value)) || Number(value) < 0));
+      const inputs = active ? `<div class="report-edit-scores"><h4>Edit ${escapeHtml(entryPeriod.name)} activities and scores</h4><p>Enter a number or A, M, E, L for each score. An empty score remains missing. Changing HPS also updates the full sheet.</p><div class="report-score-groups">${categories.map(cat => `<fieldset class="report-score-group report-${cat.key}"><legend>${escapeHtml(cat.label)}</legend><div class="report-score-grid">${learner[cat.key].map((value, index) => {
         const hps = entryPeriod[cat.key + "Hps"][index];
-        return `<label>${cat.key.toUpperCase()} ${index + 1}<small>HPS ${escapeHtml(hps === "" || hps === null || hps === undefined ? "—" : String(hps))}</small><input type="text" inputmode="text" autocomplete="off" maxlength="6" data-score="${cat.key}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(value)}" aria-invalid="${invalid}" class="${invalid ? "invalid" : ""}" ${entryPeriod.locked ? "disabled" : ""}></label>`;
+        const info = entryPeriod.activityMeta[cat.key][index];
+        const date = entryPeriod[cat.key + "Dates"][index];
+        const slot = `${cat.key.toUpperCase()} ${index + 1}`;
+        const invalid = hasRawAboveHps(value, hps) || (value !== "" && !isAttendanceCode(value) && (!Number.isFinite(Number(value)) || Number(value) < 0));
+        const locked = entryPeriod.locked ? "disabled" : "";
+        const hpsLabel = hps === "" || hps === null || hps === undefined ? "—" : String(hps);
+        return `<div class="report-activity-row" data-report-kind="${cat.key}" data-report-index="${index}">
+          <div class="report-activity-name"><strong>${slot}</strong><label>Activity title<textarea class="activity-register-input" rows="1" data-activity-kind="${cat.key}" data-activity-index="${index}" data-activity-field="title" aria-label="${slot} activity title" placeholder="Activity title" ${locked}>${safeValue(info.title)}</textarea></label></div>
+          <label>Date<input type="text" maxlength="12" data-date="${cat.key}" data-index="${index}" value="${safeValue(date)}" aria-label="${slot} date" placeholder="Date" ${locked}></label>
+          <label>HPS<input type="number" min="0" step="any" inputmode="decimal" data-hps="${cat.key}" data-index="${index}" value="${safeValue(hps)}" aria-label="${slot} highest possible score" ${locked}></label>
+          <label>Score <small class="score-hps">/ ${escapeHtml(hpsLabel)}</small><input type="text" inputmode="text" autocomplete="off" maxlength="6" data-score="${cat.key}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(value)}" aria-label="${slot} score for ${escapeHtml(learner.name.trim() || `Learner ${rowIndex + 1}`)}" aria-invalid="${invalid}" class="${invalid ? "invalid" : ""}" ${locked}></label>
+        </div>`;
       }).join("")}</div></fieldset>`).join("")}</div></div>` : `<button type="button" class="button button-secondary report-switch-period" data-action="select-period" data-period="${periodIndex}">Open this period to edit</button>`;
-      return `<article class="report-period-card ${active ? "is-current" : ""}"><div data-report-live="period-${periodIndex}"><div class="report-period-heading"><h3>${escapeHtml(entryPeriod.name)}</h3><span class="report-status ${complete ? "is-complete" : ""}">${complete ? "Complete requirements" : "Provisional · incomplete requirements"}</span></div><div class="report-grades"><div><small>${gradeLabel}</small><strong>${format(result.initial.rounded, 3)}</strong></div><div><small>${state.calendarMode === "trimester" ? "Transmutation" : "Final transmuted"}</small><strong>${state.calendarMode === "trimester" ? "Not used" : format(result.initial.transmuted, 0)}</strong></div><div><small>Qualitative descriptor</small><strong>${escapeHtml(result.initial.descriptor)}</strong></div></div><div class="report-components">${components}</div></div>${inputs}</article>`;
+      return `<article class="report-period-card ${active ? "is-current" : ""}"><div data-report-live="period-${periodIndex}"><div class="report-period-heading"><h3>${escapeHtml(entryPeriod.name)}</h3><span class="report-status ${complete ? "is-complete" : ""}">${complete ? "Complete requirements" : "Provisional · incomplete requirements"}</span></div><div class="report-grades"><div><small>${gradeLabel}</small><strong>${format(result.initial.rounded, 3)}</strong></div><div><small>${state.calendarMode === "trimester" ? "Transmutation" : "Final transmuted"}</small><strong>${state.calendarMode === "trimester" ? "Not used" : format(result.initial.transmuted, 0)}</strong></div><div><small>Qualitative descriptor</small><strong>${renderDescriptorBadge(result.initial.descriptor)}</strong></div></div><div class="report-components">${components}</div></div>${inputs}</article>`;
     }).join("");
     return `<section class="editable-student-report" aria-label="Editable individual grade report"><div class="report-heading"><p>Individual grade report</p><label>Learner name<input data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}></label><span>${escapeHtml(section.level)} · ${escapeHtml(section.subject)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</span></div><div data-report-live="overview"><h3>Assessment performance</h3><p>Percentage scored by component and grading period</p><div class="report-legend">${categories.map(cat => `<span class="report-${cat.key}">${escapeHtml(cat.label)} (${cat.weight}%)</span>`).join("")}</div>${chart}<h3>Component means across recorded periods</h3><div class="report-means">${means}</div><p class="report-interpretation">${escapeHtml(interpretation)}</p></div><div class="report-periods">${cards}</div><p class="report-footnote">Component means are unweighted averages of available period percentages; they are not final grades. A/M count as zero. E/L are excluded. Grades are provisional when requirements are incomplete.</p></section>`;
   }
@@ -1544,10 +1554,14 @@
       const old = report.querySelector(`[data-report-live="${fresh.dataset.reportLive}"]`);
       if (old) old.innerHTML = fresh.innerHTML;
     });
-    template.content.querySelectorAll('.report-score-group label').forEach(fresh => {
+    template.content.querySelectorAll('.report-activity-row').forEach(fresh => {
       const input = fresh.querySelector('input[data-score]');
       const current = input && report.querySelector(`.report-score-group input[data-score="${input.dataset.score}"][data-index="${input.dataset.index}"]`);
-      if (current) current.closest('label').querySelector('small').textContent = fresh.querySelector('small').textContent;
+      if (current) {
+        current.closest('.report-activity-row').querySelector('.score-hps').textContent = fresh.querySelector('.score-hps').textContent;
+        current.classList.toggle('invalid', input.classList.contains('invalid'));
+        current.setAttribute('aria-invalid', input.getAttribute('aria-invalid'));
+      }
     });
   }
 
@@ -1646,9 +1660,9 @@
       const number = `${kind.toUpperCase()} ${index + 1}`;
       const disabled = period.locked ? "disabled" : "";
       return `<tr><th scope="row"><span class="activity-kind">${escapeHtml(label)}</span><strong>${number}</strong></th>
-        <td><textarea rows="2" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" placeholder="Activity title" aria-label="${number} title" ${disabled}>${safeValue(info.title)}</textarea></td>
-        <td><textarea rows="2" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="competency" placeholder="Learning competency" aria-label="${number} competency" ${disabled}>${safeValue(info.competency)}</textarea></td>
-        <td><textarea rows="2" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="topic" placeholder="Topic" aria-label="${number} topic" ${disabled}>${safeValue(info.topic)}</textarea></td>
+        <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" placeholder="Activity title" aria-label="${number} title" ${disabled}>${safeValue(info.title)}</textarea></td>
+        <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="competency" placeholder="Learning competency" aria-label="${number} competency" ${disabled}>${safeValue(info.competency)}</textarea></td>
+        <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="topic" placeholder="Topic" aria-label="${number} topic" ${disabled}>${safeValue(info.topic)}</textarea></td>
         <td><input data-date="${kind}" data-index="${index}" maxlength="12" value="${safeValue(period[`${kind}Dates`][index])}" placeholder="Date" aria-label="${number} date" ${disabled}></td>
         <td><input type="number" min="0" step="any" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(hps)}" aria-label="${number} highest possible score" ${disabled}></td></tr>`;
     })).join("");
@@ -4130,6 +4144,7 @@
       cell.value = period.roster[Number(cell.dataset.row)][input.dataset.hps][Number(input.dataset.index)];
     });
     updateAllSummaries();
+    refreshEditableStudentReport();
     markFieldEditDirty(getFieldKeyForInput(input));
     if (result.capped || result.restored) showSaveToast(`${result.capped} score(s) capped; ${result.restored} restored. Original scores retained unless explicitly edited.`, "info");
   }
@@ -4191,7 +4206,10 @@
     }
     if (input.dataset.activityField) {
       currentPeriod().activityMeta[input.dataset.activityKind][Number(input.dataset.activityIndex)][input.dataset.activityField] = input.value;
-      sizeActivityTextarea(input);
+      document.querySelectorAll(`textarea[data-activity-kind="${input.dataset.activityKind}"][data-activity-index="${input.dataset.activityIndex}"][data-activity-field="${input.dataset.activityField}"]`).forEach(peer => {
+        if (peer !== input) peer.value = input.value;
+        sizeActivityTextarea(peer);
+      });
       stateChanged = true;
     }
     if (input.dataset.score) {

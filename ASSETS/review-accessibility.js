@@ -28,27 +28,32 @@
     const panel=open.at(-1);
     if(panel){e.preventDefault();panel.removeAttribute('open');panel.querySelector('summary')?.focus();}
   });
-  const popupSelector='.period-settings,.roster-options,.column-options';
+  const popupSelector='.roster-options,.column-options';
   function placePopup(details){
     if(!details?.open)return;
-    const panel=details.querySelector('.period-toolbar,.bulk-column-tools');
+    const panel=details.querySelector('.bulk-column-tools');
     if(!panel)return;
     panel.style.top='';panel.style.bottom='';panel.style.maxHeight='';
     panel.style.translate='0';
     const margin=12,anchor=details.querySelector('summary').getBoundingClientRect();
-    if(details.matches('.column-options,.period-settings')){
-      const before=panel.getBoundingClientRect();
-      const above=Math.max(180,anchor.top-margin-8),below=Math.max(180,innerHeight-anchor.bottom-margin-8);
-      if(before.bottom>innerHeight-margin&&above>below){panel.style.top='auto';panel.style.bottom='calc(100% + 8px)';panel.style.maxHeight=`${above}px`;}
-      else if(before.bottom>innerHeight-margin)panel.style.maxHeight=`${below}px`;
-    }
+    const before=panel.getBoundingClientRect();
+    const above=Math.max(80,anchor.top-margin-8),below=Math.max(80,innerHeight-anchor.bottom-margin-8);
+    if(details.matches('.column-options')&&before.bottom>innerHeight-margin&&above>below){
+      panel.style.top='auto';panel.style.bottom='calc(100% + 8px)';panel.style.maxHeight=`${above}px`;
+    }else if(details.matches('.roster-options')&&before.top<margin){
+      panel.style.bottom='auto';panel.style.top='calc(100% + 8px)';panel.style.maxHeight=`${below}px`;
+    }else if(before.bottom>innerHeight-margin)panel.style.maxHeight=`${below}px`;
     const rect=panel.getBoundingClientRect();
     const appLeft=document.querySelector('.app-main')?.getBoundingClientRect().left||0;
     const leftEdge=Math.max(margin,Math.min(appLeft+margin,innerWidth-80));
     const shift=rect.left<leftEdge ? leftEdge-rect.left : rect.right>innerWidth-margin ? innerWidth-margin-rect.right : 0;
     panel.style.translate=`${shift}px 0`;
   }
-  document.addEventListener('toggle',e=>{if(e.target.matches(popupSelector))requestAnimationFrame(()=>placePopup(e.target));},true);
+  document.addEventListener('toggle',e=>{
+    if(!e.target.matches(popupSelector)||!e.target.open)return;
+    document.querySelectorAll(`${popupSelector.split(',').map(x=>x+'[open]').join(',')}`).forEach(other=>{if(other!==e.target)other.removeAttribute('open');});
+    requestAnimationFrame(()=>placePopup(e.target));
+  },true);
   window.addEventListener('resize',()=>document.querySelectorAll(`${popupSelector.split(',').map(x=>x+'[open]').join(',')}`).forEach(placePopup),{passive:true});
   sync();
 })();
