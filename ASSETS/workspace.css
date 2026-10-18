@@ -247,7 +247,7 @@
   :root body .entry-focus-controls label {display:flex;align-items:center;gap:12px;font-size:14px;min-width:0}
   :root body .entry-focus-controls select {min-width:180px;font-size:14px}
   :root body .sheet-scroll-hint {font-size:13px;line-height:1.5;margin:0 0 12px;color:var(--muted)}
-  :root body .record-section .table-wrap {display:block;position:relative;flex:none;height:clamp(340px,56vh,720px)!important;min-height:340px;max-height:none;max-width:100%;width:100%;overflow:auto;border:1px solid var(--border);border-radius:6px;background:var(--surface);box-shadow:none;overscroll-behavior:contain;scrollbar-width:auto;scrollbar-color:#9aa5ae var(--surface-subtle)} /* taste-skill-ignore: The boundary belongs to the real scrollable grade table. */
+  :root body .record-section .table-wrap {display:block;position:relative;flex:none;height:auto!important;min-height:0;max-height:none;max-width:100%;width:100%;overflow:auto;border:1px solid var(--border);border-radius:6px;background:var(--surface);box-shadow:none;overscroll-behavior:contain;scrollbar-width:auto;scrollbar-color:#9aa5ae var(--surface-subtle)} /* taste-skill-ignore: The boundary belongs to the real scrollable grade table. */
   :root body .record-section .table-wrap[hidden] {display:none!important}
   :root body .record-section .record-table {font-family:var(--font-sans);font-variant-numeric:tabular-nums;background:#fff;color:#24292e}
   :root body .record-section .record-table thead :is(th,td) {font-size:13px}
@@ -445,7 +445,7 @@
     :root body .record-section :is(.roster-options,.column-options)>summary {padding:8px;font-size:13px}
     :root body .entry-focus-controls label {display:grid;width:100%;gap:6px}
     :root body .entry-focus-controls select {width:100%;min-width:0;font-size:16px}
-    :root body .record-section .table-wrap {height:440px!important;max-height:70dvh;min-height:340px}
+    :root body .record-section .table-wrap {height:auto!important;max-height:none;min-height:0}
     :root body .record-section .record-table input:is([data-score],[data-hps],[data-name-row]) {min-height:44px}
     :root body .record-section .record-table .name-cell {width:150px!important;min-width:150px!important;max-width:150px!important}
     :root body .record-section .record-table .name-cell input {min-width:0!important;width:100%!important}
