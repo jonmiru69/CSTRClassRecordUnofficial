@@ -1,0 +1,463 @@
+/* CST-R / Academic ledger, October 2026.
+   Presentation only. Screen-scoped to preserve the existing printed reports.
+   Loaded after the legacy styles; explicit specificity resolves their !important rules. */
+@font-face{font-family:CSTR Sans;src:url("fonts/NimbusSans-Regular.otf") format("opentype");font-style:normal;font-weight:400;font-display:swap}
+@font-face{font-family:CSTR Sans;src:url("fonts/NimbusSans-Bold.otf") format("opentype");font-style:normal;font-weight:600 900;font-display:swap}
+@font-face{font-family:CSTR Serif;src:url("fonts/NimbusRoman-Regular.otf") format("opentype");font-style:normal;font-weight:400;font-display:swap}
+
+@media screen {
+  :root, :root[data-theme="light"] {
+    --canvas:#f1f3f4;--surface:#fff;--surface-subtle:#f4f5f6;--base:#f1f3f4;
+    --text:#24292e;--muted:#59636b;--border:#c9d0d5;--border-light:#e3e7ea;
+    --brand:#731c32;--brand-hover:#541025;--brand-soft:#f3e8ec;--action-ink:#731c32;
+    --action-hover:#541025;--focus:#0b6b88;--on-brand:#fff;--section-surface:#f4f5f6;
+    --font-sans:"CSTR Sans",Arial,sans-serif;--font-body:var(--font-sans);--font-heading:var(--font-sans);
+    --font-serif:"CSTR Serif",Georgia,serif;--font-mono:var(--font-sans); /* taste-skill-ignore: Map the legacy mono token to the sans face; no monospace is used. */
+    --shadow:none;--shadow-sm:none;--shadow-md:none;--quiet-depth:none;
+    --sidebar-ink:#fff;--sidebar-muted:#d4bdc5;--sidebar-gold:#fff;
+    --sidebar-field:#432630;--sidebar-field-border:#79616b;--ink-surface:#301e27;
+    --review-accent:var(--brand);--review-danger:#a62138;--danger:#a62138;
+    --radius-sm:5px;--radius-md:7px;--radius-lg:10px;--radius-xl:12px;
+    color-scheme:light;
+  }
+  :root[data-theme="dark"] {
+    --canvas:#171b20;--surface:#22272e;--surface-subtle:#2b323a;--base:#171b20;
+    --text:#edf1f4;--muted:#b4c0c8;--border:#53616d;--border-light:#37424c;
+    --brand:#e9aabc;--brand-hover:#f6c8d4;--brand-soft:#49313d;--action-ink:#e9aabc;
+    --action-hover:#f6c8d4;--on-brand:#30121f;--focus:#8cd8ee;--section-surface:#2b323a;
+    --review-danger:#ffabb6;--danger:#ffabb6;--success:#8bd4ac;--warning:#e9c47e;
+    color-scheme:dark;
+  }
+  html {background:var(--canvas);scroll-padding-top:24px}
+  :root body {margin:0;background:var(--canvas);color:var(--text);font:16px/1.5 var(--font-sans);-webkit-font-smoothing:antialiased}
+  :root body #siteBg,:root body .aura-bg::before,:root body .aura-bg::after {display:none!important}
+  :root body :is(.aura-bg,.aura-content) {background:none!important;backdrop-filter:none!important} /* taste-skill-ignore: Disable the legacy backdrop blur. */
+  :root body :is(h1,h2,h3,h4) {font-family:var(--font-heading);color:var(--text);letter-spacing:-.025em;line-height:1.2}
+  :root body :is(p,small,label,summary) {letter-spacing:normal}
+  :root body :is(.eyebrow,.project-kicker,.project-label) {display:none} /* taste-skill-ignore: Remove the legacy labels; this rule hides them. */
+  :root body :is(button,input,select,textarea) {font-family:var(--font-sans)}
+  :root body :is(.button,.button-google,.icon-button,.tab,.archive-pill,.theme-toggle,summary) {font-size:14px;font-weight:600;letter-spacing:0;text-transform:none;min-height:44px}
+  :root body :is(button,#saveChanges):not(:disabled) {box-shadow:none!important;transition:background-color .16s,color .16s,transform .16s;}
+  :root body :is(button,#saveChanges):not(:disabled):hover {transform:none!important;text-decoration:none;filter:none}
+  :root body :is(button,#saveChanges):not(:disabled):active {transform:translateY(1px)!important}
+  :root body :is(button,a,summary,input,select,textarea):focus-visible {outline:3px solid var(--focus)!important;outline-offset:3px}
+  :root body :is(.button,.button-google) {gap:8px;padding:11px 17px;border-radius:6px!important;line-height:1.4;text-align:center}
+  :root body :is(button.button-primary,button#saveChanges) {background:var(--brand)!important;color:var(--on-brand)!important;border:0!important}
+  :root body :is(button.button-primary,button#saveChanges):hover:not(:disabled) {background:var(--brand-hover)!important;color:var(--on-brand)!important}
+  :root body :is(button.button-secondary,button.button-outline,button.button-google) {background:var(--surface-subtle)!important;color:var(--text)!important}
+  :root body :is(button.button-secondary,button.button-outline,button.button-google):hover:not(:disabled) {background:var(--border-light)!important}
+  :root body button.button-danger {background:var(--danger-soft,#f8e9ec)!important;color:#9b2138!important}
+  :root body button.button-ghost {color:var(--brand)!important}
+  :root body button.button-ghost:hover {background:var(--brand-soft)!important}
+  :root body button:disabled {opacity:.48;cursor:not-allowed}
+  :root body .ui-icon {width:19px;height:19px;stroke-width:1.7;flex-shrink:0}
+  :root body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),select,textarea) {border-radius:5px;background:var(--surface);color:var(--text);border:1px solid var(--border);font-size:16px;box-shadow:none}
+  :root body :is(input,textarea)::placeholder {color:var(--muted);opacity:1;font-weight:400}
+  :root body :is(.muted,.form-note,.settings-note,.teacher-edit-hint) {color:var(--muted);font-size:14px;line-height:1.6}
+  :root body .skip-link {background:var(--surface);color:var(--text)}
+
+  /* Entrance: the actual campus and the school's burgundy form a record cover. */
+  :root body .welcome-nav {position:relative;background:var(--surface);color:var(--text);box-shadow:none;border:0;padding:22px max(28px,calc((100vw - 1240px)/2));gap:24px;min-height:92px}
+  :root body .welcome-brand {display:flex;align-items:center;gap:14px;color:var(--text);font-size:16px;line-height:1.4;white-space:normal}
+  :root body .welcome-brand img {width:43px;height:50px;object-fit:contain}
+  :root body .welcome-brand-copy {display:grid;gap:3px;padding:0;border:0;max-width:none}
+  :root body .welcome-brand-copy strong {font-size:18px;letter-spacing:-.02em}
+  :root body .welcome-brand-copy small {font-size:13px;color:var(--muted)}
+  :root body .welcome-tools {gap:18px;flex-shrink:0}
+  :root body .welcome-tools :is(.theme-toggle,.welcome-policy) {color:var(--text)!important;font-size:14px}
+  :root body .login-screen {display:grid!important;grid-template-columns:minmax(0,1.12fr) minmax(350px,.88fr);max-width:1240px;margin:36px auto 0;padding:0 28px 64px;gap:0 64px;align-items:start;background:none}
+  :root body .welcome-story {display:flex;flex-direction:column;gap:0;padding:40px 40px 0;margin:0;background:#651a30;border-radius:0;box-shadow:none;overflow:hidden;animation:ledger-arrive .4s ease-out both}
+  :root body .welcome-story h2 {font:400 clamp(42px,4.7vw,68px)/1.03 var(--font-serif);letter-spacing:-.035em;color:#fff;margin:0 0 22px;max-width:100%}
+  :root body .welcome-story > p:not(.eyebrow):not(.welcome-unofficial) {font-size:16px;line-height:1.6;color:#f4e4e9;max-width:42ch;margin:0 0 22px}
+  :root body .welcome-features {display:flex;flex-wrap:wrap;gap:10px 18px;margin:0 0 30px;color:#f4e4e9;font-size:13px}
+  :root body .welcome-features .ui-icon {color:#e6c98b;width:16px;height:16px}
+  :root body .welcome-story figure {position:relative;order:3;margin:0 -40px;width:calc(100% + 80px);background:#471322}
+  :root body .welcome-story figure img {display:block;width:100%;height:270px;object-fit:cover;object-position:50% 60%;border:0;border-radius:0;box-shadow:none;filter:none;opacity:1}
+  :root body .welcome-story figcaption {background:#481326;color:#f4e4e9;padding:12px 20px;font-size:13px}
+  :root body .welcome-story .welcome-unofficial {order:4;margin:0 -40px;padding:12px 20px;width:calc(100% + 80px);background:#481326;color:#e6cbd4;font-size:13px}
+  :root body .login-card {order:initial;align-self:center;width:100%;max-width:none;margin:0;padding:24px 0;background:transparent;border:0;border-radius:0;box-shadow:none;text-align:left;animation:ledger-arrive .45s .08s ease-out both}
+  :root body .login-header-logo {display:none}
+  :root body .login-card h1 {font-size:34px;font-weight:600;line-height:1.15;margin:0 0 12px;max-width:100%}
+  :root body .login-card .login-intro {font-size:16px;color:var(--text);margin:0 0 8px}
+  :root body .login-card > .muted {font-size:14px;margin:0 0 24px;line-height:1.5;max-width:46ch}
+  :root body .legacy-login-box {padding:0;border:0;background:none;box-shadow:none}
+  :root body .login-card .field-label {font-size:14px;font-weight:600;margin:0 0 18px!important}
+  :root body .login-card input {min-height:49px;padding:12px 14px;margin:7px 0 0;font-size:16px;background:var(--surface);color:var(--text)}
+  :root body .login-card :is(.button,.button-google) {min-height:48px;font-size:15px;padding:12px 18px}
+  :root body .login-card :is(.legacy-toggle-link,.login-policy-note,.login-policy-note button,.legacy-helper-text) {font-size:14px;line-height:1.5;color:var(--brand)}
+  :root body .login-card .legacy-helper-text {color:var(--text)}
+  :root body .login-divider {margin:22px 0 18px;gap:14px;font-size:13px;color:var(--muted)}
+  :root body .login-divider::before,:root body .login-divider::after {display:none}
+  :root body .login-divider span {background:none;font-size:13px;letter-spacing:0;text-transform:lowercase}
+  :root body .login-policy-note {padding:0;margin:24px 0 0;border:0;color:var(--muted);font-size:13px}
+  :root body .login-policy-note button {min-height:0;padding:0;text-decoration:underline}
+  :root body .login-card :is(.login-error,.login-success):empty {display:none!important}
+  :root body .project-about {grid-column:1/-1;margin:64px 0 0;padding:40px;background:var(--surface);border:0;border-radius:0;display:grid;grid-template-columns:1fr 1fr;gap:20px 48px;box-shadow:none}
+  :root body .project-about h2 {font:400 36px/1.1 var(--font-serif);margin:0}
+  :root body .project-subtitle {margin:0;align-self:end;font-size:16px;color:var(--muted)}
+  :root body .project-about section {padding:12px 0;margin:0;background:none;border:0;box-shadow:none}
+  :root body .project-about h3 {font-size:18px;margin:0 0 12px}
+  :root body .project-about p {font-size:16px;line-height:1.65;color:var(--text)}
+
+  /* Workspace: a fixed directory and a quiet, paper-like working surface. */
+  :root body :is(.app-layout,.app-layout.sheet-layout) {--sidebar-width:246px;display:grid;grid-template-columns:var(--sidebar-width) minmax(0,1fr);min-height:100dvh;height:auto;max-width:none;padding:0;gap:0}
+  :root body :is(.app-layout.sidebar-collapsed,.app-layout.sheet-layout.sidebar-collapsed) {--sidebar-width:70px;grid-template-columns:70px minmax(0,1fr)}
+  :root body .app-sidebar {position:fixed;inset:0 auto 0 0;width:var(--sidebar-width);height:100dvh;padding:22px 16px;display:flex;flex-direction:column;gap:15px;background:#301e27!important;color:#fff;border:0;border-radius:0;box-shadow:none;overflow-y:auto;overflow-x:hidden;z-index:80;transition:width .18s}
+  :root body .sidebar-brand {display:flex;gap:12px;align-items:center;min-height:52px;padding:0 7px;margin:0;border:0}
+  :root body .sidebar-logo {width:36px;height:44px;flex:none;background:none;box-shadow:none}
+  :root body .sidebar-logo img {width:36px;height:44px;object-fit:contain}
+  :root body .sidebar-brand-copy strong {font-size:21px;letter-spacing:-.02em;color:#fff}
+  :root body .sidebar-brand-copy small {font-size:13px;color:#d4bdc5}
+  :root body .sidebar-label {font-size:13px!important;letter-spacing:0!important;text-transform:none!important;font-weight:400;color:#c6adb8!important;margin:16px 12px 6px}
+  :root body .sidebar-link {min-height:44px;padding:11px 12px;gap:12px;border-radius:6px!important;font-size:14px;line-height:1.4;text-align:left;color:#e7dce1!important;background:transparent!important;white-space:normal}
+  :root body .app-sidebar .sidebar-link:hover:not(:disabled) {background:#49303d!important;color:#fff!important}
+  :root body .app-sidebar .sidebar-link[aria-current="page"] {background:#fff!important;color:#562137!important;font-weight:600}
+  :root body .app-sidebar .sidebar-link[aria-current="page"] .ui-icon {color:#731c32!important}
+  :root body .app-sidebar .sidebar-mode-option[aria-pressed="true"] {background:#553342!important;color:#fff!important}
+  :root body .sidebar-mode-switch {padding:0;margin:14px 0 0;border:0;background:none}
+  :root body .sidebar-search-block {margin:2px 0 0;padding:0;border:0;order:initial}
+  :root body .sidebar-search {display:grid;grid-template-columns:minmax(0,1fr) 38px;gap:5px;padding:0}
+  :root body .sidebar-search label {grid-column:1/-1;font-size:13px;color:#d4bdc5;line-height:1.5}
+  :root body .sidebar-search input {width:100%;min-width:0;min-height:42px;padding:10px;font-size:14px;background:#432630;color:#fff;border:1px solid #79616b}
+  :root body .sidebar-search input::placeholder {color:#d4bdc5}
+  :root body .sidebar-search button.button {min-width:38px;padding:8px;background:#5c3949!important;color:#fff!important;border-radius:5px!important}
+  :root body .sidebar-search button span {display:none}
+  :root body .sidebar-toggle {align-self:flex-end;width:40px;min-height:36px;padding:8px;margin:0;color:#d4bdc5!important}
+  :root body .sidebar-account-tools {margin-top:auto;padding-top:8px;border:0}
+  :root body .sidebar-owner {font-size:13px;line-height:1.45;color:#d4bdc5;margin:16px 12px 0;overflow-wrap:anywhere}
+  :root body .sidebar-collapsed .app-sidebar {padding:20px 10px;width:70px}
+  :root body .sidebar-collapsed .sidebar-brand {padding:0;justify-content:center}
+  :root body .sidebar-collapsed .sidebar-link {justify-content:center;min-height:44px;padding:10px}
+  :root body .sidebar-collapsed .sidebar-toggle {align-self:center}
+  :root body .sidebar-collapsed :is(.sidebar-brand-copy,.sidebar-label,.sidebar-owner,.sidebar-search) {display:none!important}
+  :root body .sidebar-collapsed .sidebar-link>span {display:none!important}
+  :root body .app-main {grid-column:2;min-width:0;width:100%;padding:0;background:var(--canvas);height:auto;min-height:100dvh;overflow:visible}
+  :root body :is(.app-header,.app-header.header-shrunk) {position:relative;top:0;width:100%;margin:0;background:var(--surface);border:0;box-shadow:none;backdrop-filter:none;z-index:40} /* taste-skill-ignore: Disable the legacy backdrop blur. */
+  :root body :is(.app-header-inner,.app-header.header-shrunk .app-header-inner) {display:grid;grid-template-columns:minmax(160px,1fr) auto;grid-template-rows:auto auto;gap:6px 24px;align-items:center;max-width:none;min-height:102px;padding:20px 32px}
+  :root body .app-header .page-context {grid-column:1;grid-row:1;min-width:0;display:block}
+  :root body .app-header .app-title {font-size:24px!important;font-weight:600;margin:0;white-space:normal;line-height:1.2}
+  :root body .app-header .policy-note {grid-column:1;grid-row:2;display:block;padding:0;margin:0;border:0;background:none;color:var(--muted);font-size:13px;line-height:1.45}
+  :root body .policy-note strong {font-weight:400;color:var(--muted);display:inline}
+  :root body .policy-note span {display:block}
+  :root body .header-actions-wrap {grid-column:2;grid-row:1/3;display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+  :root body .save-feedback {order:3;flex-basis:100%;max-width:500px;text-align:right;min-height:0;margin:0}
+  :root body .save-status {font-size:13px;margin:0;line-height:1.4;min-height:0}
+  :root body .save-meta {font-size:13px;margin:0;line-height:1.4;color:var(--muted)}
+  :root body .save-meta.has-unsaved {color:var(--brand)}
+  :root body .app-header .theme-toggle {color:var(--text);grid-area:auto}
+  :root body .app-header #saveChanges {min-height:44px;font-size:14px;grid-area:auto}
+  :root body .app-shell {width:100%;max-width:1440px;padding:32px;margin:0 auto;min-width:0}
+  :root body .dashboard {display:flex;flex-direction:column;gap:28px;padding:0;margin:0}
+  :root body .workspace-intro {display:flex;justify-content:space-between;align-items:center;gap:24px}
+  :root body .workspace-intro h2 {font-size:34px;margin:0 0 8px;font-weight:600}
+  :root body .workspace-intro p {margin:0;color:var(--muted);font-size:16px}
+  :root body .workspace-intro>.button {flex-shrink:0}
+  :root body .metric-grid {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;background:var(--surface);padding:24px 8px;border-radius:10px}
+  :root body .metric-card {display:block;background:none!important;border:0!important;border-radius:0;box-shadow:none;padding:0 24px;color:var(--text);min-height:0}
+  :root body .metric-icon {display:none}
+  :root body .metric-card p {font-size:14px;color:var(--muted);margin:0 0 10px;font-weight:400}
+  :root body .metric-card strong {font-size:34px;line-height:1.1;color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+  :root body .metric-card strong span {font-size:18px;color:var(--muted)}
+  :root body .metric-card small {display:block;font-size:13px;line-height:1.4;margin-top:10px;color:var(--muted)}
+  :root body .progress-track {height:5px;margin-top:18px;background:var(--border-light);border-radius:0}
+  :root body .progress-track span {background:var(--brand);border-radius:0}
+  :root body .dashboard-grid {display:block}
+  :root body .dashboard-panel.recent-panel {background:var(--surface);padding:24px;border:0;border-radius:10px;box-shadow:none;animation:none}
+  :root body .panel-heading {padding:0;margin:0 0 18px;align-items:center;gap:16px}
+  :root body .panel-heading h3 {font-size:22px;margin:0}
+  :root body .panel-count {background:var(--brand-soft);color:var(--brand);font-size:14px;min-width:24px;padding:3px 7px;border-radius:4px;vertical-align:middle}
+  :root body .recent-class-group-heading {font-size:14px;text-transform:none;letter-spacing:0;font-weight:600;color:var(--muted);background:var(--surface-subtle);padding:11px 14px;margin:18px 0 3px}
+  :root body button.recent-class-row {display:grid;grid-template-columns:4px minmax(0,1fr) 80px 90px 20px;gap:20px;align-items:center;width:100%;padding:18px 14px;border-radius:5px!important;border:0;background:var(--surface)!important;text-align:left;box-shadow:none}
+  :root body button.recent-class-row:hover {background:var(--surface-subtle)!important}
+  :root body .recent-class-accent {width:4px;height:38px;border-radius:0}
+  :root body .recent-class-main strong {font-size:17px;color:var(--text);font-weight:600;line-height:1.35}
+  :root body .recent-class-main small {font-size:14px;color:var(--muted);margin-top:5px}
+  :root body .recent-class-stat strong {font-size:18px;font-variant-numeric:tabular-nums;color:var(--text)}
+  :root body .recent-class-stat small {font-size:13px;color:var(--muted)}
+  :root body .row-arrow {color:var(--brand)}
+  :root body .profile-details {padding:0;margin:0;background:var(--surface);border-radius:10px}
+  :root body .profile-details>summary {display:flex;justify-content:space-between;align-items:center;padding:20px 24px;gap:16px;color:var(--text);cursor:pointer;list-style:none;font-size:16px}
+  :root body .profile-details>summary::-webkit-details-marker {display:none}
+  :root body .profile-details[open]>summary>.ui-icon {transform:rotate(180deg)}
+  :root body .dashboard-hero {display:grid;grid-template-columns:200px minmax(0,1fr);padding:12px 24px 28px;gap:32px;background:var(--surface);border:0;box-shadow:none;animation:none;margin:0}
+  :root body .dashboard-hero h2 {font-size:22px}
+  :root body .dashboard-hero .owner-context {font-size:14px}
+  :root body .photo-frame {border-radius:8px!important;background:var(--surface-subtle)!important;width:96px;height:112px;min-height:0;margin-top:20px}
+  :root body .photo-caption {font-size:13px;color:var(--muted)}
+  :root body .profile-editor .teacher-block {grid-template-columns:repeat(2,minmax(0,1fr))}
+  :root body .profile-name-field {grid-column:1/-1}
+  :root body .profile-field>span {font-size:14px!important;color:var(--text)!important}
+  :root body .owner-footer {border:0;gap:14px;flex-wrap:wrap}
+
+  /* Class directory: color is identification, with subject and section leading. */
+  :root body .section-heading {align-items:center;gap:24px;margin-bottom:24px}
+  :root body .section-heading h2 {font-size:30px;margin:0 0 8px}
+  :root body .section-heading p {font-size:16px;max-width:62ch}
+  :root body .level-grid {display:flex;gap:12px;margin:28px 0}
+  :root body button.level-card {flex:1;padding:20px 24px;min-height:100px;background:var(--surface)!important;border:0;border-radius:8px!important;text-align:left;box-shadow:none}
+  :root body button.level-card.is-active {background:var(--brand)!important;color:var(--on-brand)!important}
+  :root body .level-edge,:root body .level-card-kicker {display:none}
+  :root body .level-card strong {font-size:20px;color:inherit}
+  :root body .level-card small {font-size:14px;margin-top:8px;color:var(--muted)}
+  :root body .level-card.is-active small {color:inherit;opacity:.85}
+  :root body .archive-toggle-bar {padding:0;margin:24px 0 16px;gap:16px}
+  :root body .archive-pills {gap:6px;flex-wrap:wrap}
+  :root body button.archive-pill {padding:10px 14px;border-radius:5px!important;color:var(--muted)}
+  :root body button.archive-pill[aria-pressed="true"] {background:var(--surface)!important;color:var(--text)!important}
+  :root body .chooser-divider {border:0;margin:24px 0 16px;font-size:14px;color:var(--muted);letter-spacing:0;text-transform:none}
+  :root body .chooser-divider::before,:root body .chooser-divider::after {display:none}
+  :root body .section-card-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+  :root body .section-card-wrap {min-width:0;background:var(--surface);border-radius:8px}
+  :root body button.section-card {width:100%;height:100%;min-height:215px;display:flex;flex-direction:column;align-items:flex-start;padding:24px;text-align:left;background:var(--surface)!important;color:var(--text)!important;border:0!important;border-top:4px solid var(--section-accent)!important;border-radius:8px!important;box-shadow:none}
+  :root body button.section-card:hover {background:var(--surface-subtle)!important}
+  :root body .section-card strong {font-size:24px;color:var(--text);margin:15px 0 5px;line-height:1.2}
+  :root body .section-card-section {font-size:16px;color:var(--text);line-height:1.5}
+  :root body .card-level-badge {padding:0;background:none;color:var(--muted);font-size:14px;font-weight:400;border:0;letter-spacing:0}
+  :root body .section-card-weights {gap:12px;flex-wrap:wrap;margin:16px 0 20px}
+  :root body .weight-pill {padding:0;background:none;border:0;color:var(--muted);font-size:13px}
+  :root body .section-card-link {font-size:14px;color:var(--brand);margin-top:auto}
+  :root body .kebab-btn {top:14px;right:12px;width:36px;height:36px;color:var(--muted);border-radius:5px!important}
+  :root body .empty-state {padding:40px 20px;background:none;border:0;box-shadow:none}
+  :root body .empty-state p {font-size:16px;max-width:46ch;color:var(--muted)}
+
+  /* Grade sheet: retain cell geometry, sticky columns and all interaction states. */
+  :root body .sheet-layout .app-main {height:auto;overflow:visible}
+  :root body .sheet-layout .app-shell {display:block;height:auto;overflow:visible;padding:24px;max-width:none}
+  :root body .record-section {display:block;height:auto;overflow:visible;min-width:0}
+  :root body .record-section .class-header-card {display:block;padding:24px;margin:0 0 16px;background:var(--surface)!important;border:0!important;border-left:5px solid var(--class-color)!important;border-radius:8px;box-shadow:none;overflow:visible}
+  :root body .record-section .class-identity {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 20px;padding:0 0 20px;margin:0;border:0;background:none!important}
+  :root body .class-subject-line {grid-column:1;grid-row:1;display:flex;gap:8px}
+  :root body .record-section .class-subject-line .subject-picker>summary {padding:0 8px 0 0;min-height:40px;font-size:16px;background:none!important;border:0!important;color:var(--text)!important}
+  :root body .class-level {grid-column:2;grid-row:1;margin:0;align-self:center;font-size:14px;color:var(--muted)}
+  :root body .record-section .class-name {grid-column:1/-1;grid-row:2;font-size:clamp(26px,3vw,40px)!important;line-height:1.15;white-space:normal;overflow:visible;overflow-wrap:anywhere;margin:4px 0;color:var(--text)!important;background:none!important;padding:0;max-width:none;min-height:0}
+  :root body .class-context-line {grid-column:1/-1;grid-row:3;font-size:14px;color:var(--muted);margin:6px 0 0;gap:18px}
+  :root body .record-section .class-period-area {display:flex;gap:12px;padding:0;background:none!important}
+  :root body .record-section .period-tabs {display:flex;flex-wrap:wrap;gap:6px;padding:0;background:none;border:0;margin:0}
+  :root body .record-section .period-tabs button.tab {padding:10px 14px;min-height:44px;font-size:14px;color:var(--muted);border-radius:5px!important;background:var(--surface-subtle)!important;box-shadow:none!important}
+  :root body .record-section .period-tabs button.tab[aria-pressed="true"] {background:var(--brand)!important;color:var(--on-brand)!important}
+  :root body .period-completion-dot {color:inherit}
+  :root body .record-section :is(.period-settings,.roster-options,.column-options)>summary {font-size:14px;color:var(--text);padding:9px 12px;border-radius:5px!important;background:var(--surface-subtle)!important}
+  :root body .record-section .period-settings>summary {margin-left:0}
+  :root body .record-section .period-settings[open]>.period-toolbar {border:0;background:var(--surface-subtle);color:var(--text);box-shadow:none;border-radius:6px;padding:20px;margin-top:10px}
+  :root body .record-section .period-toolbar :is(.period-name-field>span,.period-completion,.period-completion span,.period-completion small) {color:var(--text)!important}
+  :root body .record-section .period-toolbar .period-name {background:var(--surface)!important;color:var(--text)!important}
+  :root body .sheet-utilities {display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0;margin:16px 0 0;min-height:44px;background:none;border:0}
+  :root body .sheet-caption {margin-left:auto;font-size:13px;color:var(--muted)}
+  :root body .entry-focus-controls {padding:14px 0;margin:0;gap:12px;font-size:14px}
+  :root body .entry-focus-controls label {display:flex;align-items:center;gap:12px;font-size:14px;min-width:0}
+  :root body .entry-focus-controls select {min-width:180px;font-size:14px}
+  :root body .sheet-scroll-hint {font-size:13px;line-height:1.5;margin:0 0 12px;color:var(--muted)}
+  :root body .record-section .table-wrap {display:block;position:relative;flex:none;height:clamp(340px,56vh,720px)!important;min-height:340px;max-height:none;max-width:100%;width:100%;overflow:auto;border:1px solid var(--border);border-radius:6px;background:var(--surface);box-shadow:none;overscroll-behavior:contain;scrollbar-width:auto;scrollbar-color:#9aa5ae var(--surface-subtle)} /* taste-skill-ignore: The boundary belongs to the real scrollable grade table. */
+  :root body .record-section .table-wrap[hidden] {display:none!important}
+  :root body .record-section .record-table {font-family:var(--font-sans);font-variant-numeric:tabular-nums;background:#fff;color:#24292e}
+  :root body .record-section .record-table thead :is(th,td) {font-size:13px}
+  :root body .record-section .record-table thead .component-header {background:#e7edf0!important;color:#253c4a!important;padding:12px 8px}
+  :root body .record-section .record-table thead .component-pt {background:#e4ede7!important;color:#244e39!important}
+  :root body .record-section .record-table thead .component-qa {background:#f0e5e9!important;color:#682a40!important}
+  :root body .record-section .record-table thead :is(.initial-header,.transmuted-header,.descriptor-header) {background:#34434e!important;color:#fff!important}
+  :root body .record-section .record-table input:is([data-score],[data-hps],[data-name-row]) {min-height:36px;font-size:14px!important;font-variant-numeric:tabular-nums;border-radius:2px}
+  :root body .record-section .record-table input[data-score]:focus {background:#fff5d6!important;outline:2px solid #0b6b88!important;outline-offset:-2px}
+  :root body .record-section .record-table .summary-cell {font-size:14px;font-weight:600}
+  :root body .record-section .record-table .descriptor-badge {font-size:13px}
+  :root body .record-section .record-table .col-btn {min-height:28px;min-width:28px;line-height:1}
+  :root body .record-section .record-table input.invalid {outline:2px solid #ba243c!important;outline-offset:-2px}
+  :root body .activity-register {padding:24px;margin:24px 0 0;background:var(--surface);border:0;border-radius:8px;box-shadow:none}
+  :root body .activity-register-heading {display:flex;align-items:start;justify-content:space-between;gap:20px;margin-bottom:20px}
+  :root body .activity-register-heading h3 {font-size:22px;margin:0}
+  :root body .activity-register-heading p {font-size:14px;color:var(--muted);max-width:42ch;margin:0}
+  :root body .activity-register-scroll {overflow:auto}
+  :root body .activity-register table {min-width:850px}
+  :root body .activity-register thead th {background:var(--surface-subtle);color:var(--text);font-size:14px}
+  :root body .activity-register :is(td,th) {font-size:14px}
+  :root body .activity-kind {font-size:13px}
+  :root body .record-section textarea.activity-register-input {font-size:14px}
+  :root body .editable-student-report {border:0;border-radius:8px;box-shadow:none;overflow:hidden}
+  :root body .editable-student-report .report-heading p {text-transform:none;letter-spacing:0;font-size:16px}
+  :root body .report-chart {background-image:none}
+
+  /* Dialogs and popovers share the same controls and clear reading hierarchy. */
+  :root body .modal-backdrop {background:rgb(16 22 29 / .55);backdrop-filter:none;padding:24px} /* taste-skill-ignore: Disable the legacy backdrop blur. */
+  :root body :is(.modal,.backup-dialog,.policy-dialog) {background:var(--surface);color:var(--text);border:0;border-radius:12px;padding:28px;box-shadow:0 20px 80px #0003;max-width:min(720px,calc(100vw - 32px));max-height:90dvh;overflow:auto} /* taste-skill-ignore: Depth belongs to these actual modal dialogs. */
+  :root body .modal .section-heading h2 {font-size:26px;line-height:1.2}
+  :root body .modal :is(p,label,.settings-note,.settings-account-meta) {font-size:14px;line-height:1.6;color:var(--text)}
+  :root body .modal :is(input,select,textarea) {min-height:46px;padding:11px 12px;font-size:16px}
+  :root body .modal .settings-grid {gap:20px;grid-template-columns:minmax(0,1fr)}
+  :root body .modal label {display:grid;gap:6px}
+  :root body .settings-section {background:var(--surface-subtle);padding:18px;border:0;border-radius:6px}
+  :root body .recovery-tools {border:0;padding:18px;background:var(--surface-subtle);border-radius:6px}
+  :root body .stack-actions {gap:10px;flex-wrap:wrap}
+  :root body :is(.subject-menu,.sheet-help-panel,.class-weights-popover),:root body .record-section .bulk-column-tools {background:var(--surface)!important;color:var(--text)!important;border:1px solid var(--border);border-radius:8px;box-shadow:0 14px 40px #0002;font-size:14px} /* taste-skill-ignore: These are floating menus and popovers, with visible boundaries. */
+  :root body .subject-menu button {color:var(--text)!important;font-size:14px;padding:12px;min-height:44px}
+  :root body .subject-menu button:hover {background:var(--surface-subtle)!important}
+  :root body .weight-preview {font-size:13px;color:var(--muted)}
+  :root body .policy-page {background:var(--surface);max-width:900px!important;margin:32px auto!important;padding:40px!important}
+  :root body .policy-intro h1 {font-size:36px;line-height:1.15}
+  :root body .policy-body h2 {font-size:22px;margin:32px 0 12px}
+  :root body :is(.policy-body,.policy-intro) p {font-size:16px;line-height:1.7;color:var(--text)}
+  :root body .policy-body a {overflow-wrap:anywhere}
+  :root body .policy-dialog-toolbar {background:var(--surface-subtle);padding:10px 14px;border:0;border-radius:6px;font-size:14px}
+  @keyframes ledger-arrive {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  :root body .workspace-intro {animation:ledger-arrive .25s ease-out both}
+  /* Resolve inherited positioning and decorative treatments from older revisions. */
+  :root body .welcome-brand-copy strong {color:var(--text)}
+  :root body .sidebar-brand-copy small {font-weight:400;text-transform:none;letter-spacing:0;white-space:normal}
+  :root body .sidebar-link[aria-current="page"]::before {display:none}
+  :root body .sidebar-search label {position:static;width:auto;height:auto;overflow:visible;clip-path:none;margin-bottom:4px}
+  :root body .sidebar-search input:not([type="checkbox"]) {background:#432630!important;color:#fff!important;border-color:#79616b}
+  :root body .app-sidebar .sidebar-link {font-weight:400}
+  :root body .metric-card {animation:none!important}
+  :root body .recent-class-accent {position:static;inset:auto;display:block}
+  :root body .recent-class-main :is(strong,small) {white-space:normal;overflow:visible;overflow-wrap:anywhere;text-overflow:clip}
+  :root body .recent-class-stat small {text-transform:none;letter-spacing:0}
+  :root body .panel-heading {border:0;min-height:0}
+  :root body .recent-class-group-heading {border:0}
+  :root body .sidebar-owner {border:0;padding-top:0}
+  :root body .record-section .class-name {border:0!important}
+  :root body .record-section :is(.class-level,.sheet-caption,.component-header,.number-cell,.name-cell) {text-transform:none;letter-spacing:0}
+  :root body .record-section .period-tabs .tab::after {display:none}
+  :root body .record-section .period-tabs button.tab[aria-pressed="true"] :is(span,svg) {color:inherit!important}
+  :root body .record-section .record-table .hps-row>th {background:#e7edf0!important;color:#253c4a!important}
+  :root body .record-section .record-table .hps-row>.component-pt {background:#e4ede7!important;color:#244e39!important}
+  :root body .record-section .record-table .hps-row>.component-qa {background:#f0e5e9!important;color:#682a40!important}
+  :root body .archive-pills {background:none;border:0;padding:0}
+  :root body .archive-pill[aria-pressed="true"] {text-decoration:none}
+  :root body .section-card-wrap {border:0;box-shadow:none}
+  :root body .card-level-badge {text-transform:none}
+  :root body .record-section .class-period-area .period-tabs button.tab {text-decoration:none!important;border:0!important}
+  :root body .record-section .activity-register-heading {background:none!important;color:var(--text)!important;padding:0;border:0}
+  :root body .record-section .activity-register-heading :is(h3,p) {color:var(--text)!important}
+  :root body .record-section .activity-register thead th {background:var(--surface-subtle)!important;color:var(--text)!important}
+  :root body .record-section .activity-register tbody th {background:#edf1f3!important;color:#263c49!important}
+  :root body .record-section .activity-register tbody th .activity-kind {color:#455b68!important}
+  :root body .modal .section-heading {display:flex;flex-direction:row;align-items:center;flex-wrap:nowrap;border:0;padding-bottom:0;min-width:0}
+  :root body .modal .section-heading>div {min-width:0;flex:1}
+  :root body .modal .section-heading>.icon-button {width:44px;height:44px;flex:0 0 44px;align-self:start;background:var(--surface-subtle);border-radius:6px}
+  :root body .settings-account-card {background:var(--surface-subtle);border:0;border-radius:6px;box-shadow:none}
+  :root body .settings-account-provider-badge {font-size:13px;text-transform:none;letter-spacing:0;border:0;background:var(--surface);color:var(--text)}
+  :root body .welcome-story h2 br {display:block!important}
+  :root body .record-section input.cell-selected {outline:2px solid var(--focus)!important;outline-offset:-2px}
+
+  @media(min-width:1600px) { :root body .app-shell {padding:40px 48px} }
+  @media(max-width:1150px) {
+    :root body .metric-card {padding:0 16px}
+    :root body .section-card-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
+    :root body .workspace-intro {align-items:start}
+    :root body .workspace-intro h2 {font-size:30px}
+    :root body .login-screen {gap:0 36px;margin-top:28px}
+    :root body .welcome-story {padding:30px 30px 0}
+    :root body .welcome-story :is(figure,.welcome-unofficial) {margin-left:-30px;margin-right:-30px;width:calc(100% + 60px)}
+    :root body .app-header-inner {padding:20px 24px}
+  }
+  @media(max-width:900px) {
+    :root body .welcome-nav {padding:18px 24px}
+    :root body .welcome-brand-copy small {max-width:30ch}
+    :root body .welcome-policy span {display:none}
+    :root body .login-screen {grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 28px;padding:0 24px 40px}
+    :root body .welcome-story h2 {font-size:42px}
+    :root body .welcome-features {display:none}
+    :root body .welcome-story figure img {height:300px}
+    :root body .project-about {gap:20px 30px;padding:28px}
+    :root body .metric-grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 0}
+    :root body .dashboard-hero {grid-template-columns:1fr}
+    :root body .recent-class-row {gap:12px}
+  }
+  @media(max-width:760px) {
+    :root body .welcome-nav {padding:14px 20px;min-height:80px;gap:12px;flex-wrap:nowrap}
+    :root body .welcome-brand {gap:10px;font-size:14px!important}
+    :root body .welcome-brand-copy strong {font-size:16px}
+    :root body .welcome-brand-copy small {font-size:13px;max-width:26ch}
+    :root body .welcome-brand img {width:32px!important;height:40px!important}
+    :root body .welcome-tools {gap:2px}
+    :root body .welcome-tools .welcome-policy {width:38px;min-width:38px;padding:6px}
+    :root body .login-screen {display:flex!important;flex-direction:column!important;margin:0;padding:0 20px 32px;gap:0}
+    :root body .login-card {order:0!important;padding:32px 0;max-width:480px!important;margin:0 auto!important}
+    :root body .login-card h1 {font-size:30px}
+    :root body .welcome-story {order:1!important;width:100%;margin:20px 0 0;padding:28px 28px 0}
+    :root body .welcome-story h2 {font-size:42px;line-height:1.05}
+    :root body .welcome-story :is(figure,.welcome-unofficial) {margin-left:-28px;margin-right:-28px;width:calc(100% + 56px)}
+    :root body .welcome-story figure img {height:240px}
+    :root body .project-about {order:2;display:block;width:100%;margin:32px 0 0;padding:24px}
+    :root body .project-about h2 {font-size:32px;margin-bottom:20px}
+    :root body .project-about section {margin-top:18px;padding:0}
+    :root body :is(.app-layout,.app-layout.sheet-layout) {--sidebar-width:246px;grid-template-columns:246px minmax(0,1fr)}
+    :root body :is(.app-layout.sidebar-collapsed,.app-layout.sheet-layout.sidebar-collapsed) {--sidebar-width:56px;grid-template-columns:56px minmax(0,1fr)}
+    :root body .sidebar-collapsed .app-sidebar {width:56px;padding:16px 6px}
+    :root body .sidebar-collapsed .sidebar-link {padding:10px 8px}
+    :root body .app-layout:not(.sidebar-collapsed) {grid-template-columns:56px minmax(0,1fr)}
+    :root body .app-layout:not(.sidebar-collapsed) .app-sidebar {width:246px;box-shadow:20px 0 60px #0004} /* taste-skill-ignore: The expanded phone navigation overlays the page. */
+    :root body :is(.app-header-inner,.app-header.header-shrunk .app-header-inner) {display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto;gap:12px;padding:20px 18px;min-height:0}
+    :root body .app-header .page-context {grid-area:1/1}
+    :root body .app-header .app-title {font-size:22px!important}
+    :root body .header-actions-wrap {grid-area:2/1;justify-content:flex-start;gap:8px}
+    :root body .app-header .theme-toggle {order:2;grid-area:auto}
+    :root body .app-header #saveChanges {order:1;grid-area:auto;padding:10px 14px}
+    :root body .save-feedback {order:3;text-align:left;max-width:100%}
+    :root body .app-header .policy-note {grid-area:3/1;font-size:13px}
+    :root body .app-header .policy-note strong {display:none}
+    :root body .app-shell,:root body .sheet-layout .app-shell {padding:24px 16px;max-width:100%}
+    :root body .dashboard {gap:22px}
+    :root body .workspace-intro {display:block}
+    :root body .workspace-intro h2 {font-size:28px}
+    :root body .workspace-intro p {font-size:14px}
+    :root body .workspace-intro>.button {margin-top:16px}
+    :root body .metric-grid {padding:20px 0;gap:24px 0}
+    :root body .metric-card {padding:0 14px}
+    :root body .metric-card strong {font-size:28px}
+    :root body .metric-card p {font-size:13px;margin-bottom:8px}
+    :root body .metric-card small {font-size:13px}
+    :root body .dashboard-panel.recent-panel {padding:18px 12px}
+    :root body .panel-heading {align-items:start;flex-wrap:wrap;gap:6px;padding:0 2px}
+    :root body .panel-heading h3 {font-size:20px}
+    :root body .panel-heading .button {padding:6px 0;min-height:36px}
+    :root body button.recent-class-row {grid-template-columns:3px minmax(0,1fr) 20px;gap:7px 12px;padding:16px 4px}
+    :root body .recent-class-main {grid-column:2;grid-row:1}
+    :root body .recent-class-accent {grid-row:1/4;height:100%}
+    :root body .recent-class-stat {grid-column:2;display:flex;gap:6px;align-items:center;text-align:left}
+    :root body .recent-class-stat strong {font-size:14px}
+    :root body .recent-class-row .row-arrow {grid-column:3;grid-row:1}
+    :root body .recent-class-group-heading {padding:10px;font-size:13px}
+    :root body .profile-details>summary {padding:18px;font-size:14px}
+    :root body .dashboard-hero {padding:8px 18px 24px;gap:20px}
+    :root body .dashboard-hero .teacher-block {grid-template-columns:1fr!important}
+    :root body .profile-field {grid-column:1!important}
+    :root body .level-grid {flex-direction:column;margin:22px 0;gap:8px}
+    :root body button.level-card {padding:18px;min-height:85px}
+    :root body .level-card strong {font-size:18px}
+    :root body .section-heading {flex-wrap:wrap;gap:14px}
+    :root body .section-heading h2 {font-size:28px}
+    :root body .section-heading p {font-size:14px}
+    :root body .section-card-grid {grid-template-columns:1fr}
+    :root body button.section-card {padding:20px;min-height:205px}
+    :root body .archive-toggle-bar {flex-wrap:wrap}
+    :root body .archive-pills {display:flex;gap:4px;flex-wrap:wrap}
+    :root body button.archive-pill {font-size:13px;padding:10px}
+    :root body .record-section .class-header-card {padding:18px 14px}
+    :root body .record-section .class-identity {grid-template-columns:minmax(0,1fr);padding-bottom:16px}
+    :root body .class-level {grid-column:1;grid-row:2;font-size:14px}
+    :root body .record-section .class-name {grid-row:3;font-size:28px!important}
+    :root body .class-context-line {grid-row:4;flex-wrap:wrap;gap:6px 14px}
+    :root body .record-section .period-tabs button.tab {font-size:13px;padding:10px;flex:1 1 auto}
+    :root body .record-section .period-settings[open]>.period-toolbar {padding:14px}
+    :root body .record-section .period-actions .button {width:100%}
+    :root body .sheet-caption {display:none}
+    :root body .sheet-utilities {gap:6px}
+    :root body .sheet-utilities .button {padding:8px;font-size:13px}
+    :root body .record-section :is(.roster-options,.column-options)>summary {padding:8px;font-size:13px}
+    :root body .entry-focus-controls label {display:grid;width:100%;gap:6px}
+    :root body .entry-focus-controls select {width:100%;min-width:0;font-size:16px}
+    :root body .record-section .table-wrap {height:440px!important;max-height:70dvh;min-height:340px}
+    :root body .record-section .record-table input:is([data-score],[data-hps],[data-name-row]) {min-height:44px}
+    :root body .record-section .record-table .name-cell {width:150px!important;min-width:150px!important;max-width:150px!important}
+    :root body .record-section .record-table .name-cell input {min-width:0!important;width:100%!important}
+    :root body .activity-register {padding:18px 14px}
+    :root body .activity-register-heading {display:block}
+    :root body .activity-register-heading h3 {font-size:22px;margin-bottom:12px}
+    :root body .modal-backdrop {padding:12px}
+    :root body :is(.modal,.backup-dialog,.policy-dialog) {padding:22px 18px;width:100%;max-width:calc(100vw - 24px);max-height:92dvh}
+    :root body .policy-page {margin:0!important;padding:24px!important}
+    :root body .policy-intro h1 {font-size:30px}
+  }
+  @media(prefers-reduced-motion:reduce) {
+    :root body *, :root body *::before, :root body *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important}
+  }
+}

@@ -224,32 +224,7 @@ button:not(:disabled):active { transform:translateY(0)!important; box-shadow:0 1
 .record-section .class-subject-line .subject-picker > summary { color:var(--text)!important; }
 .record-section .subject-menu { max-height:min(240px,45dvh); overflow:auto; overscroll-behavior:contain; }
 
-/* All actions are unboxed. Input fields, popups, and the class card retain their boundaries. */
-:root body :is(button,#saveChanges),
-:root body summary {
-  border:0!important;
-  border-radius:0!important;
-  background:transparent!important;
-  background-image:none!important;
-  box-shadow:none!important;
-}
-:root body :is(button,#saveChanges):not(:disabled):hover,
-:root body summary:hover {
-  border:0!important;
-  background:transparent!important;
-  box-shadow:none!important;
-  transform:translateY(-1px)!important;
-  text-decoration:underline;
-  text-underline-offset:3px;
-}
-:root body :is(button,#saveChanges):not(:disabled):active { box-shadow:none!important; transform:translateY(0)!important; }
-:root body button:focus-visible,
-:root body summary:focus-visible { outline:3px solid #2563eb!important; outline-offset:3px; }
-.record-section .record-table .component-header .col-btn { color:inherit!important; }
-.record-section .record-table .component-header .col-btn:hover { color:inherit!important; }
-.record-section .roster-options[open] > summary,
-.record-section .column-options[open] > summary,
-.record-section .period-settings[open] > summary { background:transparent!important; box-shadow:none!important; }
+/* Action surfaces and focus states are defined in workspace.css. */
 
 /* The theme control is an icon and label, without a switch-shaped container. */
 .theme-toggle,.welcome-tools .theme-toggle,.policy-header-tools .theme-toggle {

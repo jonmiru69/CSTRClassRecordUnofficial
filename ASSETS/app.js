@@ -903,19 +903,19 @@
   window.addEventListener('resize', () => document.querySelectorAll('.record-section textarea[data-activity-field]').forEach(sizeActivityTextarea), { passive: true });
 
   function renderLogin() {
-    const titles = { signin: "Sign in to your records", signup: "Create your teacher account", legacy: "Claim your existing records" };
+    const titles = { signin: "Welcome back", signup: "Create your account", legacy: "Find your records" };
     const panelBody = loginPanel === "signup" ? renderSignUpPanel()
       : loginPanel === "legacy" ? renderLegacyClaimPanel()
       : renderSignInPanel();
 
-    return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/logo-compact.png" alt="">Colegio de Sto. Tomas-Recoletos, Incorporated <span>Digital Class Record · Unofficial</span></a><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen">
-      <div class="welcome-story"><p class="eyebrow">CST-R · Digital Class Record</p><h2>Teaching records,<br><span>clearly organized.</span></h2><p>Keep class rosters, assessment scores, and grade reviews together in your teacher workspace.</p><div class="welcome-features"><span>${icon("records")} Class records</span><span>${icon("save")} Visible save status</span><span>${icon("lock")} Teacher access</span></div><figure><img src="ASSETS/campus.webp" width="1400" height="788" loading="lazy" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Colegio de Sto. Tomás – Recoletos</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
+    return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/logo-compact.png" alt=""><span class="welcome-brand-copy"><strong>CST-R Class Record</strong><small>Colegio de Sto. Tomás–Recoletos · Unofficial</small></span></a><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen">
+      <div class="welcome-story"><h2>Every class.<br>Clearly recorded.</h2><p>Keep class rosters, assessment scores, and grade reviews together in your teacher workspace.</p><div class="welcome-features"><span>${icon("records")} Class records</span><span>${icon("save")} Visible save status</span><span>${icon("lock")} Teacher access</span></div><figure><img src="ASSETS/campus.webp" width="1400" height="788" loading="lazy" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Colegio de Sto. Tomás – Recoletos</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
       <div class="login-card">
         <div class="login-header-logo">
           <img src="ASSETS/logo-compact.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
         </div>
-        <p class="eyebrow">Colegio de Sto. Tomás – Recoletos</p>
-        <h1>${titles[loginPanel]}</h1><p class="login-intro">Access your class record workspace.</p>
+
+        <h1>${titles[loginPanel]}</h1><p class="login-intro">Sign in to your teaching workspace.</p>
         <p class="muted">Confirm grading settings and assessment rules with your school before use.</p>
 
         ${panelBody}
@@ -924,9 +924,7 @@
         <p id="loginSuccess" class="login-success" role="status" style="display: none;"></p>
       </div>
       <article class="project-about" aria-labelledby="projectTitle">
-        <p class="project-kicker">About the project and the developer</p>
-        <p class="project-label">Project Title</p>
-        <h2 id="projectTitle">CSTR Class Record System</h2>
+        <h2 id="projectTitle">Built by a teacher.<br>For the faculty.</h2>
         <p class="project-subtitle"><em>Unofficial Digital Grading Platform of Colegio de Sto. Tomás – Recoletos, Incorporated</em></p>
         <section><h3>About the Project</h3><p>This platform is the unofficial class record system of Colegio de Sto. Tomás – Recoletos, Incorporated, built to bring accuracy, consistency, and convenience to everyday classroom grade management.</p></section>
         <section><h3>About the Developer</h3><p>Designed and developed through vibe coding by Sir Ramelito &quot;Johnmil&quot; Jr. C. Sanchez, LPT — a Licensed Professional Teacher, Science and Research educator, and graduate of Science Education — as a personal initiative to give CSTR faculty a faster, more reliable way to handle their records.</p></section>
@@ -961,7 +959,7 @@
         </button>
       </div>
 
-      <p class="login-alternative"><a href="#" class="legacy-toggle-link" data-action="show-signup">Prefer email? Register here</a></p>
+      <p class="login-alternative"><a href="#" class="legacy-toggle-link" data-action="show-signup">Create a teacher account</a></p>
       <p style="text-align: center; margin-top: 6px;">
         <a href="#" class="legacy-toggle-link" data-action="show-legacy-claim"> Need your existing records? Request recovery</a>
       </p>`;
@@ -1250,7 +1248,7 @@
         </nav>
       </aside>
       <div class="app-main"><header class="app-header"><div class="app-header-inner">
-        <div class="page-context"><p class="eyebrow">Teacher workspace</p><h1 class="app-title">${viewTitle}</h1></div>
+        <div class="page-context"><h1 class="app-title">${viewTitle}</h1></div>
         <div class="header-actions-wrap"><div class="save-feedback"><p id="statusMessage" class="save-status" role="status" aria-live="polite"></p><p id="saveMeta" class="save-meta" aria-live="polite"></p></div>
           ${themeControl()}
           ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", 'id="saveChanges"')}
@@ -1299,7 +1297,22 @@
     const recentClasses = buildActiveClassRows(metrics.activeSections);
 
     return `<section class="dashboard">
-      <section class="dashboard-hero" aria-labelledby="ownerTitle">
+      <div class="workspace-intro"><div><h2>Your teaching desk</h2><p>${state.calendarMode === "trimester" ? "Trimester · Zero-based grading" : "Quarterly / Semestral grading"}. Open a class to continue your records.</p></div>${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}</div>
+
+      <div class="metric-grid" aria-label="Class record overview">
+        <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
+        <article class="metric-card"><span class="metric-icon">${icon("users")}</span><div><p>Total learners</p><strong>${metrics.learners}</strong><small>Across active class rosters</small></div></article>
+        <article class="metric-card"><span class="metric-icon">${icon("chart")}</span><div><p>Complete periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>All required entries present</small></div></article>
+        <article class="metric-card metric-progress"><span class="metric-icon">${icon("chart")}</span><div><p>Entry completion</p><strong>${metrics.completion}%</strong><div class="progress-track" aria-label="${metrics.completion}% of periods complete"><span style="width:${metrics.completion}%"></span></div></div></article>
+      </div>
+
+      <div class="dashboard-grid">
+        <section class="dashboard-panel recent-panel">
+          <div class="panel-heading"><div><h3>Active class records${metrics.activeSections.length ? ` <span class="panel-count">${metrics.activeSections.length}</span>` : ""}</h3></div>${button(`View all ${icon("arrow")}`, "go-records", "button button-ghost button-small")}</div>
+          <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4><p>Create your first class to begin building a roster and entering scores.</p>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
+        </section>
+      </div>
+      <details class="profile-details"><summary>Teacher profile and optional details ${icon("chevron")}</summary><section class="dashboard-hero" aria-labelledby="ownerTitle">
         <div class="owner-intro">
           <p class="eyebrow">Teacher profile</p>
           <h2 id="ownerTitle">Class record owner</h2>
@@ -1321,21 +1334,7 @@
             ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-secondary")}
           </div></div>
         </div>
-      </section>
-
-      <div class="metric-grid" aria-label="Class record overview">
-        <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
-        <article class="metric-card"><span class="metric-icon">${icon("users")}</span><div><p>Total learners</p><strong>${metrics.learners}</strong><small>Across active class rosters</small></div></article>
-        <article class="metric-card"><span class="metric-icon">${icon("chart")}</span><div><p>Complete periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>All required entries present</small></div></article>
-        <article class="metric-card metric-progress"><span class="metric-icon">${icon("chart")}</span><div><p>Entry completion</p><strong>${metrics.completion}%</strong><div class="progress-track" aria-label="${metrics.completion}% of periods complete"><span style="width:${metrics.completion}%"></span></div></div></article>
-      </div>
-
-      <div class="dashboard-grid">
-        <section class="dashboard-panel recent-panel">
-          <div class="panel-heading"><div><p class="eyebrow">Your workspace</p><h3>Active class records${metrics.activeSections.length ? ` <span class="panel-count">${metrics.activeSections.length}</span>` : ""}</h3></div>${button(`View all ${icon("arrow")}`, "go-records", "button button-ghost button-small")}</div>
-          <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4><p>Create your first class to begin building a roster and entering scores.</p>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
-        </section>
-      </div>
+      </section></details>
     </section>`;
   }
 
@@ -1371,9 +1370,8 @@
     return `<section class="record-chooser">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Class Record</p>
-          <h2>Select a level and section</h2>
-          <p class="muted">Choose a school level first, then open the specific section. Grade sheets stay hidden until a section is selected.</p>
+          <h2>Your class records</h2>
+          <p class="muted">Choose a school level, then open a class to enter or review grades.</p>
         </div>
         ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}
       </div>
