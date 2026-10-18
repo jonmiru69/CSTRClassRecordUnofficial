@@ -738,22 +738,47 @@
     if (countBadge) countBadge.textContent = `${totalLearners} Learner${totalLearners === 1 ? "" : "s"}`;
   }
 
-  function adjustNameColumnWidth() {
-    const period = currentPeriod();
-    if (!period || !period.roster) return;
-    const inputs = document.querySelectorAll(".record-table .name-cell input[data-name-row]");
-    if (!inputs.length) return;
-    // Measure the rendered text, so wide letters, uppercase dividers, and
-    // long names all expand the same shared table column without a hard cap.
-    document.documentElement.style.setProperty("--name-col-width", "218px");
-    let newWidth = 218;
-    inputs.forEach((input) => {
-      const cell = input.closest(".name-cell");
-      const overflow = Math.max(0, input.scrollWidth - input.clientWidth);
-      newWidth = Math.max(newWidth, Math.ceil(cell.getBoundingClientRect().width + overflow + 12));
-    });
-    document.documentElement.style.setProperty("--name-col-width", `${newWidth}px`);
+  // Fit the working sheet to its contents without changing stored values.
+  let sheetTextCanvas;
+  function sheetTextWidth(input) {
+    const context = (sheetTextCanvas ||= document.createElement("canvas")).getContext("2d");
+    const style = getComputedStyle(input); context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    return Math.ceil(context.measureText(input.value || input.placeholder || "").width);
   }
+  function adjustNameColumnWidth() {
+    const inputs = document.querySelectorAll(".record-table input[data-name-row]");
+    let width = matchMedia("(max-width: 760px)").matches ? 150 : 190;
+    inputs.forEach(input => { width = Math.max(width, sheetTextWidth(input) + 80); });
+    document.documentElement.style.setProperty("--name-col-width", `${width}px`);
+    adjustEntryColumnWidths();
+  }
+  function adjustEntryColumnWidths() {
+    const table = document.querySelector(".record-table");
+    if (!table) return;
+    const columns = new Map();
+    table.querySelectorAll("input[data-date],input[data-hps],input[data-score]").forEach(input => {
+      const kind = input.dataset.date || input.dataset.hps || input.dataset.score;
+      const key = `${kind}:${input.dataset.index}`;
+      if (!columns.has(key)) columns.set(key, {width:44, inputs:[]});
+      const column = columns.get(key);
+      // Extra room covers padding, caret, borders and native number controls.
+      column.width = Math.max(column.width, sheetTextWidth(input) + (input.type === "number" ? 24 : 14));
+      column.inputs.push(input);
+    });
+    columns.forEach(column => column.inputs.forEach(input => {
+      input.style.setProperty("--entry-width", `${column.width}px`);
+    }));
+  }
+  let sheetFitFrame = 0;
+  function scheduleSheetFit() {
+    cancelAnimationFrame(sheetFitFrame);
+    sheetFitFrame = requestAnimationFrame(adjustNameColumnWidth);
+  }
+  app.addEventListener("input", event => {
+    if (event.target.closest(".record-table")) scheduleSheetFit();
+  });
+  app.addEventListener("paste", scheduleSheetFit);
+  window.addEventListener("resize", scheduleSheetFit);
 
   // Smooth jitter-free header scrolling with hysteresis
   let isHeaderShrunk = false;
@@ -1297,25 +1322,10 @@
     const recentClasses = buildActiveClassRows(metrics.activeSections);
 
     return `<section class="dashboard">
-      <div class="workspace-intro"><div><h2>Your teaching desk</h2><p>${state.calendarMode === "trimester" ? "Trimester · Zero-based grading" : "Quarterly / Semestral grading"}. Open a class to continue your records.</p></div>${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}</div>
-
-      <div class="metric-grid" aria-label="Class record overview">
-        <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
-        <article class="metric-card"><span class="metric-icon">${icon("users")}</span><div><p>Total learners</p><strong>${metrics.learners}</strong><small>Across active class rosters</small></div></article>
-        <article class="metric-card"><span class="metric-icon">${icon("chart")}</span><div><p>Complete periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>All required entries present</small></div></article>
-        <article class="metric-card metric-progress"><span class="metric-icon">${icon("chart")}</span><div><p>Entry completion</p><strong>${metrics.completion}%</strong><div class="progress-track" aria-label="${metrics.completion}% of periods complete"><span style="width:${metrics.completion}%"></span></div></div></article>
-      </div>
-
-      <div class="dashboard-grid">
-        <section class="dashboard-panel recent-panel">
-          <div class="panel-heading"><div><h3>Active class records${metrics.activeSections.length ? ` <span class="panel-count">${metrics.activeSections.length}</span>` : ""}</h3></div>${button(`View all ${icon("arrow")}`, "go-records", "button button-ghost button-small")}</div>
-          <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4><p>Create your first class to begin building a roster and entering scores.</p>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
-        </section>
-      </div>
-      <details class="profile-details"><summary>Teacher profile and optional details ${icon("chevron")}</summary><section class="dashboard-hero" aria-labelledby="ownerTitle">
+      <section class="dashboard-hero" aria-labelledby="ownerTitle">
         <div class="owner-intro">
           <p class="eyebrow">Teacher profile</p>
-          <h2 id="ownerTitle">Class record owner</h2>
+          <h2 id="ownerTitle">Teacher details</h2>
           <p class="owner-context">${state.calendarMode === "trimester" ? "Trimester (Zero-Based)" : "Quarterly / Semestral"} workspace</p>
           <input id="photoInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" hidden>
           <button class="photo-frame" type="button" data-action="choose-photo" data-has-photo="${Boolean(state.photo)}" aria-label="${state.photo ? "Change" : "Upload"} teacher photo" title="${state.photo ? "Change" : "Upload"} teacher photo">${portrait}</button>
@@ -1334,7 +1344,23 @@
             ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-secondary")}
           </div></div>
         </div>
-      </section></details>
+      </section>
+      <div class="workspace-intro"><div><h2>Your teaching desk</h2><p>${state.calendarMode === "trimester" ? "Trimester · Zero-based grading" : "Quarterly / Semestral grading"}. Open a class to continue your records.</p></div>${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}</div>
+
+      <div class="metric-grid" aria-label="Class record overview">
+        <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
+        <article class="metric-card"><span class="metric-icon">${icon("users")}</span><div><p>Total learners</p><strong>${metrics.learners}</strong><small>Across active class rosters</small></div></article>
+        <article class="metric-card"><span class="metric-icon">${icon("chart")}</span><div><p>Complete periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>All required entries present</small></div></article>
+        <article class="metric-card metric-progress"><span class="metric-icon">${icon("chart")}</span><div><p>Entry completion</p><strong>${metrics.completion}%</strong><div class="progress-track" aria-label="${metrics.completion}% of periods complete"><span style="width:${metrics.completion}%"></span></div></div></article>
+      </div>
+
+      <div class="dashboard-grid">
+        <section class="dashboard-panel recent-panel">
+          <div class="panel-heading"><div><h3>Active class records${metrics.activeSections.length ? ` <span class="panel-count">${metrics.activeSections.length}</span>` : ""}</h3></div>${button(`View all ${icon("arrow")}`, "go-records", "button button-ghost button-small")}</div>
+          <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4><p>Create your first class to begin building a roster and entering scores.</p>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
+        </section>
+      </div>
+
     </section>`;
   }
 
@@ -1634,9 +1660,9 @@
         ${dateHeaders("qa", period.qaDates, qaLabels)}<th class="component-summary component-qa" scope="col">Total QA</th><th class="component-summary component-qa" scope="col">PS</th><th class="component-summary component-qa" scope="col">WS<br>(${section.weights[2]}%)</th>
       </tr>
       <tr class="hps-row">
-        <th colspan="${wwLen}" scope="row">Highest Possible Scores (HPS)</th><th class="component-summary component-ww">Raw / HPS</th><th class="component-summary component-ww">Percentage</th><th class="component-summary component-ww">Weighted</th>
-        <th colspan="${ptLen}" scope="row" class="border-start-pt">Highest Possible Scores (HPS)</th><th class="component-summary component-pt">Raw / HPS</th><th class="component-summary component-pt">Percentage</th><th class="component-summary component-pt">Weighted</th>
-        <th colspan="${qaLen}" scope="row" class="border-start-qa">Highest Possible Scores (HPS)</th><th class="component-summary component-qa">Raw / HPS</th><th class="component-summary component-qa">Percentage</th><th class="component-summary component-qa">Weighted</th>
+        <th colspan="${wwLen}" scope="row">Highest Possible Scores (HPS)</th><th class="component-summary component-ww">Raw / HPS</th><th class="component-summary component-ww">Percent</th><th class="component-summary component-ww">Weighted</th>
+        <th colspan="${ptLen}" scope="row" class="border-start-pt">Highest Possible Scores (HPS)</th><th class="component-summary component-pt">Raw / HPS</th><th class="component-summary component-pt">Percent</th><th class="component-summary component-pt">Weighted</th>
+        <th colspan="${qaLen}" scope="row" class="border-start-qa">Highest Possible Scores (HPS)</th><th class="component-summary component-qa">Raw / HPS</th><th class="component-summary component-qa">Percent</th><th class="component-summary component-qa">Weighted</th>
       </tr>
       <tr class="hps-input-row">
         <th class="number-cell" aria-hidden="true"></th><th class="name-cell" scope="row">Enter HPS</th>

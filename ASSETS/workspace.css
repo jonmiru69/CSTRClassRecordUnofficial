@@ -461,3 +461,48 @@
     :root body *, :root body *::before, :root body *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important}
   }
 }
+/* Compact working ledger: devote the viewport to learner records. Screen only. */
+@media screen {
+  :root body .sheet-layout .app-shell {padding:20px 10px;max-width:none}
+  :root body .sheet-layout .record-section {padding-inline:0;max-width:none;width:100%}
+  :root body .record-section .record-table {min-width:100%;width:max-content}
+  :root body .record-section .record-table :is(th,td) {padding-inline:3px}
+  :root body .record-section .record-table .number-cell {min-width:28px;width:28px}
+  :root body .record-section .record-table .name-cell {width:200px;min-width:200px;max-width:200px}
+  :root body .record-section .record-table .name-cell input {min-width:0;width:100%;font-size:13px!important}
+  :root body .record-section .record-table .activity-date-cell {min-width:54px;width:54px;max-width:54px;white-space:normal;overflow-wrap:break-word}
+  :root body .record-section .record-table .activity-date {box-sizing:border-box;width:54px;min-width:0;max-width:100%;padding-inline:2px;font-size:12px!important}
+  :root body .record-section .record-table input:is([data-score],[data-hps]) {width:54px;min-width:54px;max-width:54px;padding-inline:2px;font-size:13px!important}
+  :root body .record-section .record-table :is(.summary-cell,.component-summary,.initial-cell,.transmuted-cell) {min-width:60px;width:60px;font-size:12px!important}
+  :root body .record-section .record-table thead :is(.component-summary,.initial-header,.transmuted-header) {min-width:60px;width:60px;max-width:68px;font-size:12px;white-space:normal;overflow-wrap:break-word;line-height:1.35}
+  :root body .record-section .record-table :is(.descriptor-header,.descriptor-cell) {min-width:100px;width:100px;max-width:100px;white-space:normal}
+  :root body .record-section .record-table .descriptor-badge {font-size:12px;white-space:normal;line-height:1.35}
+  @media(min-width:761px) {
+    :root body .app-layout.sheet-layout:not(.sidebar-collapsed) {--sidebar-width:176px;grid-template-columns:176px minmax(0,1fr)}
+    :root body .sheet-layout:not(.sidebar-collapsed) .app-sidebar {padding-inline:10px}
+    :root body .sheet-layout .app-header-inner {padding-inline:20px}
+  }
+  @media(max-width:760px) {
+    :root body .sheet-layout .app-shell {padding-inline:6px}
+  }
+}
+@media screen {
+  :root body .dashboard>.dashboard-hero {padding:28px;border-radius:10px}
+  :root body .sheet-layout .sidebar-link {min-width:0;white-space:normal}
+  :root body .sheet-layout .sidebar-link>span {min-width:0;overflow-wrap:break-word;line-height:1.35}
+  :root body .sheet-layout .sidebar-link svg {flex-shrink:0}
+  @media(max-width:760px) {
+    :root body .dashboard>.dashboard-hero {padding:20px}
+  }
+}
+@media screen {
+  :root body .record-section .record-table .activity-date-cell {min-width:44px;width:auto;max-width:none}
+  :root body .record-section .record-table input:is([data-date],[data-score],[data-hps]) {width:var(--entry-width,44px);min-width:var(--entry-width,44px);max-width:none}
+  :root body .record-section .record-table .name-cell {width:var(--name-col-width,190px)!important;min-width:var(--name-col-width,190px)!important;max-width:var(--name-col-width,190px)!important}
+}
+@media screen {
+  :root body .sheet-layout .sidebar-link>span {white-space:normal;overflow:visible;text-overflow:clip}
+}
+@media screen {
+  :root body .record-section .record-table .name-cell {transition:none}
+}
