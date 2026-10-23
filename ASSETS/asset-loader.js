@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const pending = new Map();
-  const groups = { excel: ["xlsx.min.js", "jszip.min.js"], pdf: ["pdf-lib.min.js", "fontkit.umd.min.js"], word: ["docx.iife.js"] };
+  const groups = { images: ["jszip.min.js"], excel: ["xlsx.min.js", "jszip.min.js"], pdf: ["pdf-lib.min.js", "fontkit.umd.min.js"], word: ["docx.iife.js"] };
   function load(file) {
     if (!pending.has(file)) pending.set(file, new Promise((resolve, reject) => {
       const script = document.createElement("script"); script.src = "ASSETS/vendor/" + file;

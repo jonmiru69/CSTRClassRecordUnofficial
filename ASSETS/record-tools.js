@@ -24,9 +24,71 @@
 
   function setScore(learner, kind, index, value) {
     if (!kinds.includes(kind)) throw new Error('Unknown assessment component');
+    // A direct replacement starts a new raw score. Keep the previous explanation
+    // as history rather than silently carrying bonus points to a different mark.
+    const adjustment = learner.scoreAdjustments?.[kind]?.[index];
+    if (adjustment && String(value) !== String(learner[kind][index])) {
+      adjustment.history ||= [];
+      if (adjustment.entries.length) adjustment.history.push({ raw: adjustment.raw, applied: learner[kind][index], entries: adjustment.entries, endedAt: new Date().toISOString(), reason: 'Score replaced by direct edit' });
+      adjustment.entries = [];
+      adjustment.raw = value;
+    }
     // Every explicit edit wins, even if it equals the temporarily capped score.
     if (learner.hpsOriginals?.[kind]) delete learner.hpsOriginals[kind][index];
     learner[kind][index] = value;
+  }
+
+  const precise = n => Math.round((n + Number.EPSILON) * 1e8) / 1e8;
+  function addPoints(period, kind, row, index, amount, reason, actor = '') {
+    if (period.locked) throw new Error('Unlock this period before adding points.');
+    if (!kinds.includes(kind) || !Number.isInteger(index) || index < 0 || index >= period[kind + 'Hps'].length) throw new Error('Unknown activity.');
+    const learner = period.roster[row], maximum = period[kind + 'Hps'][index];
+    if (!learner || !learner.name.trim() || category(learner.name)) throw new Error('Enter a learner name first.');
+    if (!numeric(learner[kind][index])) throw new Error('Enter a numeric raw score first. A, L, M, E and blank marks remain unchanged.');
+    if (!numeric(maximum) || Number(maximum) <= 0) throw new Error('Set a valid HPS first.');
+    const points = Number(amount), explanation = String(reason || '').trim();
+    if (!present(amount) || !Number.isFinite(points) || points <= 0 || precise(points) === 0) throw new Error('Points must be a positive number.');
+    if (!explanation || explanation.length > 500) throw new Error('A reason of 1–500 characters is required.');
+    const result = precise(Number(learner[kind][index]) + points);
+    if (result > Number(maximum)) throw new Error('The resulting score cannot exceed HPS.');
+    learner.scoreAdjustments ||= {};
+    learner.scoreAdjustments[kind] ||= {};
+    const ledger = learner.scoreAdjustments[kind][index] ||= { raw: learner[kind][index], entries: [], history: [] };
+    ledger.entries.push({ points: precise(points), reason: explanation, at: new Date().toISOString(), actor: String(actor).slice(0, 200) });
+    learner[kind][index] = String(result);
+    if (learner.hpsOriginals?.[kind]) delete learner.hpsOriginals[kind][index];
+    return result;
+  }
+
+  function removePoints(period, kind, row, index, reason) {
+    if (period.locked) throw new Error('Unlock this period first.');
+    if (!kinds.includes(kind)) throw new Error('Unknown assessment component');
+    const learner = period.roster[row], ledger = learner?.scoreAdjustments?.[kind]?.[index];
+    if (!ledger?.entries.length) throw new Error('There are no added points to remove.');
+    const explanation = String(reason || '').trim();
+    if (!explanation || explanation.length > 500) throw new Error('A reason of 1–500 characters is required.');
+    ledger.history ||= [];
+    ledger.history.push({ raw: ledger.raw, applied: learner[kind][index], entries: ledger.entries, endedAt: new Date().toISOString(), reason: explanation });
+    ledger.entries = [];
+    const maximum = period[kind + 'Hps'][index], origin = learner.hpsOriginals?.[kind]?.[index];
+    learner[kind][index] = numeric(ledger.raw) && numeric(maximum) && Number(maximum) > 0 ? String(Math.min(Number(ledger.raw), Number(maximum))) : ledger.raw;
+    if (numeric(ledger.raw) && numeric(maximum) && Number(maximum) > 0 && Number(ledger.raw) > Number(maximum)) {
+      learner.hpsOriginals ||= {}; learner.hpsOriginals[kind] ||= {};
+      learner.hpsOriginals[kind][index] = { score: ledger.raw, hps: origin?.hps || ledger.raw, applied: learner[kind][index] };
+    } else if (learner.hpsOriginals?.[kind]) delete learner.hpsOriginals[kind][index];
+  }
+
+  function normalizeAdjustments(learner, lengths) {
+    const result = {};
+    const entries = list => (Array.isArray(list) ? list : []).filter(e => e && numeric(e.points) && Number(e.points) > 0 && typeof e.reason === 'string' && e.reason.trim() && e.reason.length <= 500).map(e => ({ points: Number(e.points), reason: e.reason, at: typeof e.at === 'string' ? e.at : '', actor: typeof e.actor === 'string' ? e.actor.slice(0, 200) : '' }));
+    kinds.forEach(kind => Object.entries(learner?.scoreAdjustments?.[kind] || {}).forEach(([key, item]) => {
+      const index = Number(key);
+      if (!Number.isInteger(index) || index < 0 || index >= lengths[kind] || !item || !['string', 'number'].includes(typeof item.raw)) return;
+      const history = (Array.isArray(item.history) ? item.history : []).filter(h => h && ['string', 'number'].includes(typeof h.raw)).map(h => ({ raw: h.raw, applied: h.applied ?? '', entries: entries(h.entries), endedAt: typeof h.endedAt === 'string' ? h.endedAt : '', reason: String(h.reason || '').slice(0, 500) }));
+      result[kind] ||= {};
+      result[kind][index] = { raw: item.raw, entries: entries(item.entries), history };
+    }));
+    return result;
   }
 
   function adjustHps(period, kind, index, previous, next) {
@@ -109,5 +171,5 @@
     const quarter = period.quarter || index % 2 + 1;
     return `${period.name || 'Period'} · Quarter ${quarter}, Semester ${semester}`;
   }
-  return { getLearnerCategory, setScore, adjustHps, normalizeOrigins, completion, periodLabel };
+  return { getLearnerCategory, setScore, addPoints, removePoints, normalizeAdjustments, adjustHps, normalizeOrigins, completion, periodLabel };
 });

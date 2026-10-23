@@ -44,6 +44,7 @@
   try { const stored = localStorage.getItem("cstr-sidebar-collapsed"); if (stored !== null) sidebarCollapsed = matchMedia("(max-width: 760px)").matches || stored === "true"; } catch (_) {}
   const hpsEdits = new WeakMap();
   let lastRenderedRecord = "";
+  let lastMotionView = "";
   const completionSeen = new WeakMap();
   let archiveFilter = "active"; // "active" | "archived"
   let state = createInitialState();
@@ -491,7 +492,8 @@
               ww: fitArray(learner && learner.ww, wwLen),
               pt: fitArray(learner && learner.pt, ptLen),
               qa: fitArray(learner && learner.qa, qaLen),
-              hpsOriginals: window.CSTRRecordTools.normalizeOrigins(learner, { ww: wwLen, pt: ptLen, qa: qaLen })
+              hpsOriginals: window.CSTRRecordTools.normalizeOrigins(learner, { ww: wwLen, pt: ptLen, qa: qaLen }),
+              scoreAdjustments: window.CSTRRecordTools.normalizeAdjustments(learner, { ww: wwLen, pt: ptLen, qa: qaLen })
             };
           })
         };
@@ -887,6 +889,12 @@
       app.innerHTML = signedIn ? renderApp() : renderLogin();
     }
     lastRenderedRecord = recordKey;
+    const motionView = `${signedIn}:${currentView}:${activeSectionId}:${activePeriodIndex}:${sheetEntryView}`;
+    if (lastMotionView !== motionView && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const panel = app.querySelector(".app-shell") || app.querySelector(".login-card");
+      panel?.animate?.([{ opacity: .5, transform: "perspective(1200px) translate3d(0,8px,-10px) rotateX(.5deg)" }, { opacity: 1, transform: "none" }], { duration: 240, easing: "cubic-bezier(.22,1,.36,1)" });
+    }
+    lastMotionView = motionView;
     if (sessionStorage.getItem("cstr-class-record-login") === "true") {
       syncSaveControl();
       updateSaveIndicators();
@@ -1527,13 +1535,15 @@
     const rowIndex = selectedEntryRow(period);
     if (rowIndex === null) return `<section class="editable-student-report empty-state"><h3>No learner rows</h3><p>Add a learner row to use this view.</p></section>`;
     const learner = period.roster[rowIndex], entries = reportEntriesForLearner(periods, rowIndex);
+    const exportEntry = entries.find(entry => entry.periodIndex === activePeriodIndex);
+    const reportExport = exportEntry ? `<div data-report-live="one-export"><button type="button" class="button button-primary" data-action="export-student-png" data-report-id="one-learner" data-report-name="${escapeHtml(learner.name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(window.CSTRRecordTools.periodLabel(period,section.group,activePeriodIndex,state.calendarMode))}">${icon('download')} Save this period PNG</button><div hidden aria-hidden="true">${renderStudentReportSvg(section,[exportEntry],'one-learner')}</div></div>` : '';
     const categories = [
       { key: "ww", label: "Written Works", weight: section.weights[0] },
       { key: "pt", label: "Performance Tasks", weight: section.weights[1] },
       { key: "qa", label: state.calendarMode === "trimester" ? "Term Assessment" : "Quarterly Assessment", weight: section.weights[2] }
     ];
     const pct = value => Number.isFinite(value) ? `${format(value, 1)}%` : "—";
-    const chart = `<div class="report-chart" role="img" aria-label="Assessment percentages by component and grading period">${entries.map(({ period: entryPeriod, periodIndex, result }) => `<div class="report-chart-group"><div class="report-bars">${categories.map(cat => `<span class="report-bar report-${cat.key}" style="height:${Number.isFinite(result[cat.key].percentage) ? Math.max(0, Math.min(100, result[cat.key].percentage)) : 0}%" title="${escapeHtml(cat.label)}: ${pct(result[cat.key].percentage)}"></span>`).join("")}</div><span>${escapeHtml(shortenPeriodLabel(entryPeriod.name))}</span></div>`).join("")}</div>`;
+    const chart = renderDetailedChart(entries, section);
     const means = categories.map(cat => {
       const values = entries.map(({ result }) => result[cat.key].percentage).filter(Number.isFinite);
       return `<div class="report-mean report-${cat.key}"><span>${escapeHtml(cat.label)}</span><strong>${pct(values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null)}</strong><small>${values.length} period${values.length === 1 ? "" : "s"}</small></div>`;
@@ -1559,17 +1569,22 @@
         const hpsLabel = hps === "" || hps === null || hps === undefined ? "—" : String(hps);
         return `<div class="report-activity-row" data-report-kind="${cat.key}" data-report-index="${index}">
           <div class="report-activity-name"><strong>${slot}</strong><label>Activity title<textarea class="activity-register-input" rows="1" data-activity-kind="${cat.key}" data-activity-index="${index}" data-activity-field="title" aria-label="${slot} activity title" placeholder="Activity title" ${locked}>${safeValue(info.title)}</textarea></label></div>
-          <label>Date<input type="text" maxlength="12" data-date="${cat.key}" data-index="${index}" value="${safeValue(date)}" aria-label="${slot} date" placeholder="Date" ${locked}></label>
+          <label>Date<input type="date" data-calendar-date data-date="${cat.key}" data-index="${index}" value="${safeValue(calendarDate(date))}" aria-label="${slot} date" placeholder="Date" ${locked}></label>
           <label>HPS<input type="number" min="0" step="any" inputmode="decimal" data-hps="${cat.key}" data-index="${index}" value="${safeValue(hps)}" aria-label="${slot} highest possible score" ${locked}></label>
-          <label>Score <small class="score-hps">/ ${escapeHtml(hpsLabel)}</small><input type="text" inputmode="text" autocomplete="off" maxlength="6" data-score="${cat.key}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(value)}" aria-label="${slot} score for ${escapeHtml(learner.name.trim() || `Learner ${rowIndex + 1}`)}" aria-invalid="${invalid}" class="${invalid ? "invalid" : ""}" ${locked}></label>
+          <label>Score <small class="score-hps">/ ${escapeHtml(hpsLabel)}</small><input type="text" inputmode="text" autocomplete="off" maxlength="6" data-score="${cat.key}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(value)}" aria-label="${slot} score for ${escapeHtml(learner.name.trim() || `Learner ${rowIndex + 1}`)}" aria-invalid="${invalid}" class="${invalid ? "invalid" : ""}" data-mark="${safeValue(String(value).toUpperCase())}" ${locked}>${scoreAdjustmentControl(learner, cat.key, rowIndex, index, entryPeriod.locked)}</label>
         </div>`;
-      }).join("")}</div></fieldset>`).join("")}</div></div>` : `<button type="button" class="button button-secondary report-switch-period" data-action="select-period" data-period="${periodIndex}">Open this period to edit</button>`;
-      return `<article class="report-period-card ${active ? "is-current" : ""}"><div data-report-live="period-${periodIndex}"><div class="report-period-heading"><h3>${escapeHtml(entryPeriod.name)}</h3><span class="report-status ${complete ? "is-complete" : ""}">${complete ? "Complete requirements" : "Provisional · incomplete requirements"}</span></div><div class="report-grades"><div><small>${gradeLabel}</small><strong>${format(result.initial.rounded, 3)}</strong></div><div><small>${state.calendarMode === "trimester" ? "Transmutation" : "Final transmuted"}</small><strong>${state.calendarMode === "trimester" ? "Not used" : format(result.initial.transmuted, 0)}</strong></div><div><small>Qualitative descriptor</small><strong>${renderDescriptorBadge(result.initial.descriptor)}</strong></div></div><div class="report-components">${components}</div></div>${inputs}</article>`;
+      }).join("")}</div></fieldset>`).join("")}</div></div>` : `<button type="button" class="button button-secondary report-switch-period" data-action="select-period" data-period="${periodIndex}">Open this period to edit</button>${renderScoreLedgerHtml(entryPeriod, entries.find(e => e.period === entryPeriod).learner)}`;
+      return `<article class="report-period-card ${active ? "is-current" : ""}"><div data-report-live="period-${periodIndex}"><div class="report-period-heading"><h3>${escapeHtml(entryPeriod.name)}</h3><span class="report-status ${complete ? "is-complete" : ""}">${complete ? "Complete requirements" : "Provisional · incomplete requirements"}</span></div><div class="report-grades"><div><small>${gradeLabel}</small><strong>${format(result.initial.rounded, 3)}</strong></div><div><small>${state.calendarMode === "trimester" ? "Transmutation" : "Final transmuted"}</small><strong>${state.calendarMode === "trimester" ? "Not used" : format(result.initial.transmuted, 0)}</strong></div><div><small>Qualitative descriptor</small><strong>${renderDescriptorBadge(result.initial.descriptor)}</strong></div></div><div class="report-components">${components}</div></div>${inputs}${active ? `<div data-report-live="ledger-${periodIndex}">${renderScoreLedgerHtml(entryPeriod, learner)}</div>` : ""}</article>`;
     }).join("");
-    return `<section class="editable-student-report" aria-label="Editable individual grade report"><div class="report-heading"><p>Individual grade report</p><label>Learner name<input data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}></label><span>${escapeHtml(section.level)} · ${escapeHtml(section.subject)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</span></div><div data-report-live="overview"><h3>Assessment performance</h3><p>Percentage scored by component and grading period</p><div class="report-legend">${categories.map(cat => `<span class="report-${cat.key}">${escapeHtml(cat.label)} (${cat.weight}%)</span>`).join("")}</div>${chart}<h3>Component means across recorded periods</h3><div class="report-means">${means}</div><p class="report-interpretation">${escapeHtml(interpretation)}</p></div><div class="report-periods">${cards}</div><p class="report-footnote">Component means are unweighted averages of available period percentages; they are not final grades. A/M count as zero. E/L are excluded. Grades are provisional when requirements are incomplete.</p></section>`;
+    return `<section class="editable-student-report" aria-label="Editable individual grade report"><div class="report-heading"><p>Individual grade report</p><label>Learner name<input data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}></label><span>${escapeHtml(section.level)} · ${escapeHtml(section.subject)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</span></div>${reportExport}<div data-report-live="overview">${chart}<h3>Component means across recorded periods</h3><div class="report-means">${means}</div><p class="report-interpretation">${escapeHtml(interpretation)}</p></div><div class="report-periods">${cards}</div><p class="report-footnote">Component means are unweighted averages of available period percentages; they are not final grades. A/M count as zero. E/L are excluded. Grades are provisional when requirements are incomplete.</p></section>`;
   }
 
+  let reportRefreshFrame = 0;
   function refreshEditableStudentReport() {
+    cancelAnimationFrame(reportRefreshFrame);
+    reportRefreshFrame = requestAnimationFrame(refreshEditableStudentReportNow);
+  }
+  function refreshEditableStudentReportNow() {
     const report = document.querySelector(".editable-student-report");
     if (!report || !currentPeriod()) return;
     const template = document.createElement("template");
@@ -1585,6 +1600,10 @@
         current.closest('.report-activity-row').querySelector('.score-hps').textContent = fresh.querySelector('.score-hps').textContent;
         current.classList.toggle('invalid', input.classList.contains('invalid'));
         current.setAttribute('aria-invalid', input.getAttribute('aria-invalid'));
+        current.dataset.mark = input.dataset.mark;
+        const oldControl = current.closest('label').querySelector('.score-adjustment');
+        const freshControl = fresh.querySelector('.score-adjustment');
+        if (oldControl && freshControl) oldControl.outerHTML = freshControl.outerHTML;
       }
     });
   }
@@ -1607,6 +1626,72 @@
     if (integrity) integrity.innerHTML = hasPeriodInputIssues(issues) ? `<p class="integrity-note">Review needed: ${escapeHtml(periodInputIssueMessage(issues))}.</p>` : "";
   }
 
+  function calendarDate(value) {
+    const text = String(value || '').trim();
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+    if (!match) return '';
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return date.getFullYear() === Number(match[1]) && date.getMonth() === Number(match[2]) - 1 && date.getDate() === Number(match[3]) ? text : '';
+  }
+
+  function scoreAdjustmentControl(learner, kind, row, index, locked) {
+    const ledger = learner.scoreAdjustments?.[kind]?.[index];
+    const total = (ledger?.entries || []).reduce((sum, e) => sum + e.points, 0);
+    const reason = (ledger?.entries || []).map(e => `+${formatScore(e.points)}: ${e.reason}`).join('; ');
+    return `<span class="score-adjustment"><button type="button" class="score-plus" data-action="add-score-points" data-kind="${kind}" data-row="${row}" data-index="${index}" ${locked ? 'disabled' : ''} aria-label="Add points to ${escapeHtml(learner.name || `learner ${row + 1}`)}, ${kind.toUpperCase()} ${index + 1}" title="${escapeHtml(reason || 'Add points with a reason')}">+</button>${total ? `<small class="score-plus-note" title="${escapeHtml(reason)}" aria-label="${escapeHtml(reason)}">+${formatScore(total)}*</small>` : ''}</span>`;
+  }
+
+  function openScoreAdjustment(trigger) {
+    commitActiveFieldEdit();
+    const period = currentPeriod(), kind = trigger.dataset.kind, row = Number(trigger.dataset.row), index = Number(trigger.dataset.index);
+    const learner = period?.roster[row];
+    if (!learner || period.locked) { showSaveToast('Unlock the period before changing scores.', 'error'); return; }
+    const ledger = learner.scoreAdjustments?.[kind]?.[index];
+    const valid = learner[kind][index] !== '' && Number.isFinite(Number(learner[kind][index])) && Number(learner[kind][index]) >= 0;
+    const maximum = Number(period[kind + 'Hps'][index]);
+    const remaining = maximum - Number(learner[kind][index]);
+    const dialog = document.createElement('dialog');
+    dialog.className = 'modal points-dialog';
+    dialog.setAttribute('aria-label', 'Add score points with a reason');
+    dialog.innerHTML = `<form><h2>Add score points</h2><p>${escapeHtml(learner.name || 'Unnamed learner')} · ${kind.toUpperCase()} ${index + 1}</p><p>Current score: <strong>${safeValue(learner[kind][index] || 'Blank')}</strong> / ${safeValue(period[kind + 'Hps'][index] || 'No HPS')}${ledger?.entries.length ? ` · Raw: ${safeValue(ledger.raw)}` : ''}</p><p class="form-note">Added points affect grades. Directly replacing a score ends its current adjustments and preserves them in report history.</p><label>Points to add<input name="points" type="number" inputmode="decimal" min="0.00000001" step="any" max="${Number.isFinite(remaining) ? Math.max(0, remaining) : 0}" required></label><label>Reason (required)<textarea name="reason" rows="3" maxlength="500" required placeholder="Explain why these points are being added."></textarea></label><p class="points-error" role="alert"></p><div class="stack-actions"><button type="button" class="button" data-points-cancel>Cancel</button>${ledger?.entries.length ? '<button type="button" class="button button-danger" data-points-remove>Remove added points</button>' : ''}<button type="submit" class="button button-primary" ${!valid || !Number.isFinite(maximum) || remaining <= 0 ? 'disabled' : ''}>Apply points</button></div></form>`;
+    const error = dialog.querySelector('.points-error');
+    if (!valid) error.textContent = 'Enter a numeric raw score first. Attendance codes and blank scores cannot receive points.';
+    else if (remaining <= 0) error.textContent = 'This score is already at or above HPS. No additional points can be added.';
+    const finish = remove => {
+      try {
+        if (period !== currentPeriod()) throw new Error('The selected period changed. Reopen this dialog.');
+        const reason = dialog.querySelector('[name="reason"]').value;
+        if (remove) window.CSTRRecordTools.removePoints(period, kind, row, index, reason);
+        else window.CSTRRecordTools.addPoints(period, kind, row, index, dialog.querySelector('[name="points"]').value, reason, currentUserEmail());
+        markStateDirty(); dialog.close(); render();
+        showSaveToast(remove ? 'Added points removed; the explanation remains in report history.' : 'Points added with a recorded reason.');
+      } catch (e) { error.textContent = e.message; }
+    };
+    dialog.querySelector('form').addEventListener('submit', event => { event.preventDefault(); finish(false); });
+    dialog.querySelector('[data-points-cancel]').onclick = () => dialog.close();
+    dialog.querySelector('[data-points-remove]')?.addEventListener('click', () => finish(true));
+    for (const type of ['keydown', 'copy', 'cut', 'paste']) dialog.addEventListener(type, event => event.stopPropagation());
+    dialog.addEventListener('close', () => { dialog.remove(); document.querySelector(`.score-plus[data-kind="${kind}"][data-row="${row}"][data-index="${index}"]`)?.focus(); });
+    document.body.append(dialog); dialog.showModal(); dialog.querySelector(valid && remaining > 0 ? '[name="points"]' : '[name="reason"]').focus();
+  }
+
+  // Use the browser calendar, which opens on today's real device date when empty.
+  app.addEventListener('click', event => {
+    const field = event.target.closest('input[data-calendar-date]');
+    if (field && !field.disabled) { try { field.showPicker?.(); } catch (_) {} }
+  });
+  app.addEventListener('keydown', event => {
+    const field = event.target.closest('input[data-calendar-date]');
+    if (!field) return;
+    event.stopPropagation();
+    if (['Tab', 'Escape'].includes(event.key)) return;
+    // Preserve native calendar arrow navigation and prevent free-text date entry.
+    if (/^\d$/.test(event.key) || (event.ctrlKey && event.key.toLowerCase() === 'v')) event.preventDefault();
+    if (['Enter', ' '].includes(event.key)) { event.preventDefault(); try { field.showPicker?.(); } catch (_) {} }
+  });
+  app.addEventListener('paste', event => { if (event.target.matches('input[data-calendar-date]')) { event.preventDefault(); event.stopImmediatePropagation(); } }, true);
+
+
   function renderBulkColumnControl(kind, label, count, locked) {
     return `<div class="bulk-column-control"><strong>${label}</strong><label class="sr-only" for="${kind}ColumnCount">Number of ${label} columns</label><input id="${kind}ColumnCount" type="number" min="1" max="50" value="1" data-column-count="${kind}" aria-label="Number of ${label} columns" ${locked ? "disabled" : ""}><button type="button" class="col-btn col-btn-wide" data-action="bulk-add-col" data-kind="${kind}" title="Add columns" ${locked ? "disabled" : ""}>Add</button><button type="button" class="col-btn col-btn-wide" data-action="bulk-remove-col" data-kind="${kind}" title="Remove last columns" ${locked ? "disabled" : ""}>Remove</button><small>${count} active</small></div>`;
   }
@@ -1615,7 +1700,7 @@
     const dateHeaders = (kind, values, labels = []) => values.map((value, index) => {
       const label = labels[index] ? `<span>${labels[index]}</span>` : "";
       const borderClass = (index === 0 && kind === "pt") ? "border-start-pt" : (index === 0 && kind === "qa") ? "border-start-qa" : "";
-      return `<th scope="col" class="activity-date-cell ${borderClass}">${label}<input class="activity-date" type="text" maxlength="12" placeholder="Date" data-date="${kind}" data-index="${index}" value="${safeValue(value)}" aria-label="${kind.toUpperCase()} activity ${index + 1} date" ${period.locked ? "disabled" : ""}></th>`;
+      return `<th scope="col" class="activity-date-cell ${borderClass}">${label}<input class="activity-date" type="date" data-calendar-date data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(value))}" aria-label="${kind.toUpperCase()} activity ${index + 1} date" ${period.locked ? "disabled" : ""}></th>`;
     }).join("");
     const hpsInputs = (kind, values) => values.map((value, index) => {
       const borderClass = (index === 0 && kind === "pt") ? "border-start-pt" : (index === 0 && kind === "qa") ? "border-start-qa" : "";
@@ -1687,7 +1772,7 @@
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" placeholder="Activity title" aria-label="${number} title" ${disabled}>${safeValue(info.title)}</textarea></td>
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="competency" placeholder="Learning competency" aria-label="${number} competency" ${disabled}>${safeValue(info.competency)}</textarea></td>
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="topic" placeholder="Topic" aria-label="${number} topic" ${disabled}>${safeValue(info.topic)}</textarea></td>
-        <td><input data-date="${kind}" data-index="${index}" maxlength="12" value="${safeValue(period[`${kind}Dates`][index])}" placeholder="Date" aria-label="${number} date" ${disabled}></td>
+        <td>${period[`${kind}Dates`][index] && !calendarDate(period[`${kind}Dates`][index]) ? `<small class="legacy-date">Previous date: ${safeValue(period[`${kind}Dates`][index])}. Select a calendar date.</small>` : ""}<input type="date" data-calendar-date data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(period[`${kind}Dates`][index]))}" aria-label="${number} date" ${disabled}></td>
         <td><input type="number" min="0" step="any" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(hps)}" aria-label="${number} highest possible score" ${disabled}></td></tr>`;
     })).join("");
     return `<section class="activity-register" aria-labelledby="activityRegisterTitle"><div class="activity-register-heading"><div><p class="eyebrow">Assessment transparency</p><h3 id="activityRegisterTitle">${state.calendarMode === "trimester" ? "Term" : "Quarter"} activity register</h3></div><p>One row per score column. Dates and HPS are shared with the grade sheet above.</p></div><div class="activity-register-scroll"><table><caption class="sr-only">Activity title, competency, topic, date, and HPS for ${escapeHtml(section.subject)} ${escapeHtml(period.name)}</caption><thead><tr><th scope="col">Score column</th><th scope="col">Activity title</th><th scope="col">Learning competency</th><th scope="col">Topic</th><th scope="col">Date</th><th scope="col">HPS</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
@@ -1708,7 +1793,7 @@
       const inputClasses = [aboveHps || invalidScore ? "invalid" : "", isAttendanceCode(value) ? "code-cell" : "", codeValue === "M" ? "code-cell-missing" : ""].filter(Boolean).join(" ");
       const invalidMessage = invalidScore ? "Invalid score. Enter zero or a positive number, or an attendance code." : aboveHps ? "Score is above the highest possible score." : "";
       const kindLabel = kind === "ww" ? "Written Work" : kind === "pt" ? "Performance Task" : "Assessment";
-      return `<td class="${tdBorderClass}"><input class="${inputClasses}" type="text" inputmode="text" maxlength="6" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cellsDisabled ? 'disabled tabindex="-1"' : ''} title="${invalidMessage || "Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)"}" aria-invalid="${invalidScore || aboveHps}" aria-label="${learnerLabel}, ${kindLabel} ${index + 1}${invalidMessage ? `, ${invalidMessage}` : ""}"></td>`;
+      return `<td class="${tdBorderClass}"><div class="score-entry"><input class="${inputClasses}" type="text" inputmode="text" maxlength="6" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cellsDisabled ? 'disabled tabindex="-1"' : ''} title="${invalidMessage || "Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)"}" aria-invalid="${invalidScore || aboveHps}" aria-label="${learnerLabel}, ${kindLabel} ${index + 1}${invalidMessage ? `, ${invalidMessage}` : ""}" data-mark="${safeValue(codeValue)}">${cat ? "" : scoreAdjustmentControl(learner, kind, rowIndex, index, period.locked)}</div></td>`;
     }).join("");
     const result = learnerResult(cat ? {
       ww: learner.ww.map(() => ""),
@@ -1954,6 +2039,7 @@
     period.activityMeta[kind].splice(-removable, removable);
     period.roster.forEach((learner) => {
       learner[kind].splice(-removable, removable);
+      if (learner.scoreAdjustments?.[kind]) Object.keys(learner.scoreAdjustments[kind]).forEach(key => { if (Number(key) >= dates.length) delete learner.scoreAdjustments[kind][key]; });
       if (learner.hpsOriginals?.[kind]) Object.keys(learner.hpsOriginals[kind]).forEach(key => {
         if (Number(key) >= dates.length) delete learner.hpsOriginals[kind][key];
       });
@@ -2462,163 +2548,194 @@
     }));
   }
 
-  function searchStudent() {
-    const input = document.querySelector("#studentSearch");
-    const query = searchNameKey(input && input.value);
-    if (!query) { showSearchModal("Enter the student's complete name to check a grade."); return; }
+  function reportLines(value, limit = 60) {
+    const lines = []; let current = '';
+    // Split long unbroken tokens too, so user content never overflows a report.
+    const words = String(value ?? '').split(/\s+/).filter(Boolean).flatMap(word => word.match(new RegExp(`.{1,${limit}}`, 'gu')) || []);
+    words.forEach(word => { if (current && `${current} ${word}`.length > limit) { lines.push(current); current = word; } else current = current ? `${current} ${word}` : word; });
+    if (current) lines.push(current);
+    return lines.length ? lines : ['—'];
+  }
 
-    // Group matches by section (not by section+period) so a learner who has
-    // several grading periods in the same class shares ONE performance chart built
-    // from all of them, instead of one flat, disconnected card per period.
-    const bySection = new Map();
-    activeRegistry().forEach((section) => {
-      activeSections()[section.id].periods.forEach((period) => {
-        period.roster.forEach((learner) => {
+  function assessmentRows(period, learner) {
+    return ['ww', 'pt', 'qa'].flatMap(kind => period[kind + 'Hps'].map((hps, index) => ({ kind, index, hps: hps ?? '', score: learner[kind][index] ?? '', date: period[kind + 'Dates'][index], meta: period.activityMeta?.[kind]?.[index] || {}, ledger: learner.scoreAdjustments?.[kind]?.[index] })));
+  }
+  function reportAuditDate(value) {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date.toLocaleDateString('en-PH', {year:'numeric', month:'short', day:'numeric'}) : '';
+  }
+  function ledgerNotes(row) {
+    const notes = [];
+    (row.ledger?.entries || []).forEach(e => notes.push(`+${formatScore(e.points)} points: ${e.reason}${e.at ? ` · ${reportAuditDate(e.at)}` : ''}`));
+    if (row.ledger?.entries.length && Number(row.score) < Number(row.ledger.raw) + row.ledger.entries.reduce((n, e) => n + e.points, 0)) notes.push('Current score is capped at the revised HPS.');
+    (row.ledger?.history || []).forEach(h => {
+      notes.push(`Previous adjustment (no longer applied): raw ${h.raw}, resulting score ${h.applied}. ${h.reason}${h.endedAt ? ` · ${reportAuditDate(h.endedAt)}` : ''}`);
+      h.entries.forEach(e => notes.push(`Previous +${formatScore(e.points)}: ${e.reason}`));
+    });
+    return notes;
+  }
+  function renderScoreLedgerHtml(period, learner) {
+    return `<div class="report-ledger-scroll"><table class="report-ledger"><caption>All recorded activities · ${escapeHtml(period.name)}</caption><thead><tr><th>Activity</th><th>Date</th><th>Raw</th><th>Added</th><th>Score / HPS</th></tr></thead><tbody>${assessmentRows(period, learner).map(row => `<tr><th scope="row">${row.kind.toUpperCase()} ${row.index + 1} · ${safeValue(row.meta.title || 'Untitled activity')}${ledgerNotes(row).map(note => `<small class="adjustment-reason">${escapeHtml(note)}</small>`).join('')}</th><td data-label="Date">${safeValue(row.date || '—')}</td><td data-label="Raw" data-mark="${safeValue(row.score)}">${safeValue(row.ledger?.entries.length ? row.ledger.raw : row.score === '' ? '—' : row.score)}</td><td data-label="Added">${row.ledger?.entries.length ? `+${formatScore(row.ledger.entries.reduce((sum, e) => sum + e.points, 0))}*` : '—'}</td><td data-label="Score / HPS" data-mark="${safeValue(row.score)}">${safeValue(row.score === '' ? 'Not recorded' : row.score)} / ${safeValue(row.hps === '' ? '—' : row.hps)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  function renderChartContent(entries, section, top = 0) {
+    const categories = [{key:'ww', label:'Written Works', color:'#087f8c'}, {key:'pt', label:'Performance Tasks', color:'#416b96'}, {key:'qa', label:state.calendarMode === 'trimester' ? 'Term Assessment' : 'Quarterly Assessment', color:'#777f88'}];
+    const text = (x,y,v,size=14,extra='') => `<text x="${x}" y="${y}" font-family="Arial, sans-serif" font-size="${size}" fill="#21343d" ${extra}>${escapeHtml(v)}</text>`;
+    const left = 90, right = 910, bottom = top + 254, plotHeight = 154;
+    let content = text(44, top + 25, 'Assessment performance', 22, 'font-weight="700"') + text(44, top + 49, 'Y: earned score / included HPS (%) · X: grading period · blank data is not zero', 13);
+    content += categories.map((cat, i) => `<rect x="${44+i*292}" y="${top+66}" width="12" height="12" fill="${cat.color}"/>${text(62+i*292,top+77,`${cat.label} · ${section.weights[i]}% weight`,13)}`).join('');
+    content += [0,25,50,75,100].map(value => {const y=bottom-value/100*plotHeight;return `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="#dce4e7"/>${text(left-12,y+5,`${value}%`,12,'text-anchor="end"')}`;}).join('');
+    const group = (right-left)/Math.max(1,entries.length), bar=Math.min(62,group/4-8);
+    entries.forEach(({period,result},i)=>{
+      const center=left+group*(i+.5);
+      categories.forEach((cat,j)=>{
+        const part=result[cat.key], pct=part.percentage, x=center+(j-1)* (bar+12)-bar/2;
+        const height=Number.isFinite(pct)?Math.max(0,Math.min(100,pct))/100*plotHeight:0;
+        content+=`<rect x="${x}" y="${bottom-height}" width="${bar}" height="${height}" fill="${cat.color}"/>${text(x+bar/2,bottom-height-8,Number.isFinite(pct)?`${format(pct,1)}%`:'N/A',12,'text-anchor="middle" font-weight="700"')}`;
+      });
+      content+=text(center,bottom+24,shortenPeriodLabel(period.name),13,'text-anchor="middle"');
+    });
+    return content;
+  }
+  function renderDetailedChart(entries, section) {
+    const labels = ['Written Works', 'Performance Tasks', state.calendarMode === 'trimester' ? 'Term Assessment' : 'Quarterly Assessment'];
+    const mobile = `<div class="mobile-component-chart"><h4>Assessment performance</h4><p>Earned score / included HPS (%)</p>${entries.map(({period, result}) => `<section><h5>${escapeHtml(period.name)}</h5><div class="mobile-chart-scale" aria-hidden="true"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>${['ww','pt','qa'].map((kind,i) => {
+      const value = result[kind].percentage;
+      return `<div class="mobile-chart-row chart-${kind}"><div><span>${labels[i]} · ${section.weights[i]}% weight</span><strong>${Number.isFinite(value) ? `${format(value,1)}%` : 'N/A'}</strong></div><div class="mobile-chart-plot"><span class="mobile-chart-grid" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>${Number.isFinite(value) ? `<span class="mobile-chart-bar" style="width:${Math.max(0,Math.min(100,value))}%" role="img" aria-label="${labels[i]}: ${format(value,1)} percent"></span>` : ''}</div><small>${scoreTotal(result[kind])} earned / included HPS</small></div>`;
+    }).join('')}</section>`).join('')}</div>`;
+    return `<svg class="detailed-report-chart" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 295" role="img" aria-label="Assessment performance with a 0 to 100 percent scale, period labels, component legend and exact bar values">${renderChartContent(entries, section)}</svg>${mobile}`;
+  }
+
+  function reportSlot(section, period, index) {
+    const slot = state.calendarMode === 'trimester' ? (period.term || index + 1) - 1 : section.group === 'SHS' ? ((period.semester || Math.floor(index / 2) + 1) - 1) * 2 + (period.quarter || index % 2 + 1) - 1 : (period.quarter || index + 1) - 1;
+    return Number.isInteger(slot) && slot >= 0 && slot < 100 ? slot : index;
+  }
+  function reportSlotLabel(section, slot) {
+    if (state.calendarMode === 'trimester') return `Term ${slot + 1}`;
+    return section.group === 'SHS' ? `Semester ${Math.floor(slot/2)+1} · Quarter ${slot%2+1}` : `Quarter ${slot + 1}`;
+  }
+  function searchStudent() {
+    commitActiveFieldEdit();
+    const input = document.querySelector('#studentSearch'), query = searchNameKey(input?.value);
+    if (!query) { showSearchModal("Enter the student's complete name to check a grade."); return; }
+    const matches = [];
+    activeRegistry().forEach(section => {
+      const byOccurrence = new Map();
+      activeSections()[section.id].periods.forEach((period, periodIndex) => {
+        let occurrence = 0;
+        period.roster.forEach((learner, rowIndex) => {
           if (searchNameKey(learner.name) !== query || getLearnerCategory(learner.name)) return;
-          const result = learnerResult(learner, period, section.weights);
-          const complete = isLearnerAssessmentComplete(learner, period);
-          if (!bySection.has(section.id)) bySection.set(section.id, { section, entries: [] });
-          bySection.get(section.id).entries.push({ period, learner, result, complete });
+          const key = occurrence++;
+          if (!byOccurrence.has(key)) byOccurrence.set(key, {section, entries:[], occurrence:key});
+          byOccurrence.get(key).entries.push({period,periodIndex,rowIndex,learner,result:learnerResult(learner,period,section.weights),complete:isLearnerAssessmentComplete(learner,period)});
         });
       });
+      matches.push(...[...byOccurrence.values()].map(match => ({ ...match, ambiguous: byOccurrence.size > 1 })));
     });
-
-    if (!bySection.size) { showSearchModal("No student matching '" + String(input.value).trim() + "' was found. Please verify the name and try again."); return; }
-
-    const blocks = [...bySection.values()].map(({ section, entries }, index) => {
-      const learnerName = entries[0].learner.name;
-      return `<div class="student-perf-block">
-        <div class="student-report-actions"><p>Grade report for ${escapeHtml(learnerName)} · ${escapeHtml(section.subject)}</p><button type="button" class="button button-primary" data-action="export-student-png" data-report-id="${index}" data-report-name="${escapeHtml(learnerName)}" data-report-section="${escapeHtml(section.section || section.level)}">${icon("download")} Save as PNG image</button></div>
-        ${renderStudentReportSvg(section, entries, index)}
-      </div>`;
-    }).join("");
-
-    showSearchModal(blocks, true);
+    if (!matches.length) { showSearchModal(`No student matching '${String(input.value).trim()}' was found. Verify the complete name.`); return; }
+    const blocks = matches.map(({section,entries,occurrence,ambiguous},block)=>{
+      const count=Math.max(state.calendarMode==='trimester'?3:4,...entries.map(e=>reportSlot(section,e.period,e.periodIndex)+1));
+      const slots=Array.from({length:count},(_,slot)=>({slot,label:reportSlotLabel(section,slot),entries:entries.filter(e=>reportSlot(section,e.period,e.periodIndex)===slot)}));
+      const first=Math.max(0,slots.findIndex(s=>s.entries.length));
+      return `<section class="student-perf-block"><h3>${escapeHtml(entries[0].learner.name)} · ${escapeHtml(section.subject)} · ${escapeHtml(section.section || section.level)}</h3>${ambiguous ? `<p role="alert">Same-name match ${occurrence + 1}: confirm roster row ${entries[0].rowIndex + 1} and class before sharing.</p>` : ''}<div class="report-quarter-tabs" role="tablist" aria-label="Report periods">${slots.map(({slot,label})=>`<button type="button" class="tab" role="tab" id="report-tab-${block}-${slot}" aria-controls="report-panel-${block}-${slot}" aria-selected="${slot===first}" tabindex="${slot===first?0:-1}" data-action="report-period" data-report-block="${block}" data-slot="${slot}">${escapeHtml(label)}</button>`).join('')}</div>${slots.map(({slot,label,entries:chosen})=>`<div role="tabpanel" id="report-panel-${block}-${slot}" aria-labelledby="report-tab-${block}-${slot}" ${slot===first?'':'hidden'}>${chosen.length ? `<div class="student-report-actions"><p>${escapeHtml(label)} · ${chosen[0].complete?'Complete':'Provisional'}</p><button type="button" class="button button-primary" data-action="export-student-png" data-report-id="${block}-${slot}" data-report-name="${escapeHtml(entries[0].learner.name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(label)}">${icon('download')} Save ${escapeHtml(label)} PNG</button></div>${chosen.length>1?'<p role="alert">Multiple records use this period label. Review period settings before sharing.</p>':''}<div class="report-readable">${renderDetailedChart(chosen,section)}${chosen.map(entry=>`<h4>${escapeHtml(entry.period.name)}</h4><p>Initial: ${format(entry.result.initial.rounded,3)}${state.calendarMode === "trimester" ? "" : ` · Transmuted: ${format(entry.result.initial.transmuted,0)}`} · ${escapeHtml(entry.result.initial.descriptor)}</p>${renderScoreLedgerHtml(entry.period,entry.learner)}`).join("")}<p class="report-footnote">A = Absent (zero), L = Late (excluded), M = Missing (zero), E = Excused (excluded). Added points and their reasons appear beneath the activity. Missing entries remain provisional.</p></div>${renderStudentReportSvg(section,chosen,`${block}-${slot}`)}` : `<p class="empty-report">${escapeHtml(label)} has no recorded scores for this learner. Add the period and learner in the grade sheet; no grades have been inferred.</p>`}</div>`).join('')}</section>`;
+    }).join('');
+    showSearchModal(blocks,true);
   }
 
-  function reportLines(value, limit = 48) {
-    const words = String(value || "").split(/\s+/).filter(Boolean);
-    const lines = [];
-    let current = "";
-    words.forEach(word => {
-      if (current && `${current} ${word}`.length > limit) { lines.push(current); current = word; }
-      else current = current ? `${current} ${word}` : word;
-    });
-    if (current) lines.push(current);
-    return lines.length ? lines : ["—"];
+  function selectReportPeriod(button) {
+    const block=button.closest('.student-perf-block');
+    block.querySelectorAll('[role="tab"]').forEach(tab=>{const active=tab===button;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;});
+    block.querySelectorAll('[role="tabpanel"]').forEach(panel=>{panel.hidden=panel.id!==button.getAttribute('aria-controls');});
+    const panel=block.querySelector(`#${button.getAttribute('aria-controls')}`);
+    if(!matchMedia('(prefers-reduced-motion: reduce)').matches) panel?.animate?.([{opacity:.4,transform:'perspective(1200px) translate3d(0,6px,-8px)'},{opacity:1,transform:'none'}],{duration:220,easing:'cubic-bezier(.22,1,.36,1)'});
   }
+  document.addEventListener('keydown',event=>{
+    const tab=event.target.closest('[data-action="report-period"]');
+    if(!tab || !['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+    event.preventDefault();
+    const tabs=[...tab.parentElement.querySelectorAll('[role="tab"]')],i=tabs.indexOf(tab);
+    const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+    tabs[next].click();tabs[next].focus();
+  });
 
   function renderStudentReportSvg(section, entries, reportId) {
-    const width = 960;
-    const learnerName = entries[0].learner.name;
-    const nameLines = reportLines(learnerName, 38);
-    const classLines = reportLines(`${section.level} · ${section.subject}${section.section ? ` · ${section.section}` : ""}${section.archived ? " · Archived" : ""}`, 76);
-    const headerHeight = 110 + nameLines.length * 40 + classLines.length * 22;
-    const chartTop = headerHeight + 32;
-    const plotTop = chartTop + 76;
-    const plotBottom = plotTop + 150;
-    const statsTop = chartTop + 282;
-    const cardsTop = statsTop + 138;
-    const cardStep = 226;
-    const footerTop = cardsTop + entries.length * cardStep + 5;
-    const height = footerTop + 100;
-    const ink = "#202833", muted = "#5d6874", line = "#dfe4e8", crimson = "#8f1d31";
-    const categories = [
-      { key: "ww", label: "Written Works", color: "#846b1d", weight: section.weights[0] },
-      { key: "pt", label: "Performance Tasks", color: "#326f89", weight: section.weights[1] },
-      { key: "qa", label: state.calendarMode === "trimester" ? "Term Assessment" : "Quarterly Assessment", color: "#a13d49", weight: section.weights[2] }
-    ];
-    const t = (x, y, value, size = 16, color = ink, weight = 400, extra = "") => `<text x="${x}" y="${y}" fill="${color}" font-family="Arial, sans-serif" font-size="${size}" font-weight="${weight}" ${extra}>${escapeHtml(value)}</text>`;
-    const pct = value => Number.isFinite(value) ? `${format(value, 1)}%` : "—";
-    const start = `<svg xmlns="http://www.w3.org/2000/svg" class="student-report-svg" data-report-id="${reportId}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grade report for ${escapeHtml(learnerName)} in ${escapeHtml(section.subject)}"><rect width="${width}" height="${height}" fill="#fff"/><rect width="${width}" height="9" fill="${crimson}"/>`;
-    const header = `${t(44, 44, "INDIVIDUAL GRADE REPORT", 13, crimson, 700, 'letter-spacing="2"')}
-      ${nameLines.map((value, index) => t(44, 87 + index * 40, value, 35, ink, 700)).join("")}
-      ${classLines.map((value, index) => t(44, 96 + nameLines.length * 40 + index * 22, value, 16, muted, 400)).join("")}
-      <line x1="44" y1="${headerHeight}" x2="916" y2="${headerHeight}" stroke="${line}" stroke-width="2"/>`;
-    const chartTitle = `${t(44, chartTop, "Assessment performance", 23, ink, 700)}${t(44, chartTop + 25, "Percentage scored by component and grading period", 14, muted)}`;
-    const legends = categories.map((cat, index) => `<rect x="${44 + index * 280}" y="${chartTop + 41}" width="12" height="12" rx="2" fill="${cat.color}"/>${t(62 + index * 280, chartTop + 52, `${cat.label} (${cat.weight}%)`, 13, ink, 500)}`).join("");
-    const chartLeft = 82, chartRight = 914, chartWidth = chartRight - chartLeft;
-    const grids = [0, 25, 50, 75, 100].map(value => {
-      const y = plotBottom - value * 1.5;
-      return `<line x1="${chartLeft}" y1="${y}" x2="${chartRight}" y2="${y}" stroke="${line}"/>${t(44, y + 5, `${value}`, 11, muted)}`;
-    }).join("");
-    const groupWidth = chartWidth / entries.length;
-    const barWidth = Math.min(30, Math.max(7, (groupWidth - 36) / 4));
-    const bars = entries.map(({ period, result }, index) => {
-      const center = chartLeft + groupWidth * (index + 0.5);
-      const barSet = categories.map((cat, catIndex) => {
-        const value = result[cat.key].percentage;
-        if (!Number.isFinite(value)) return "";
-        const barHeight = Math.max(0, Math.min(100, value)) * 1.5;
-        const x = center + (catIndex - 1.5) * (barWidth + 5);
-        return `<rect x="${x}" y="${plotBottom - barHeight}" width="${barWidth}" height="${barHeight}" rx="3" fill="${cat.color}"/>`;
-      }).join("");
-      return `${barSet}${t(center, plotBottom + 27, shortenPeriodLabel(period.name), 12, ink, 600, 'text-anchor="middle"')}`;
-    }).join("");
-    const stats = categories.map((cat, index) => {
-      const values = entries.map(({ result }) => result[cat.key].percentage).filter(Number.isFinite);
-      const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-      const x = 44 + index * 294;
-      return { label: cat.label, average, count: values.length, html: `<rect x="${x}" y="${statsTop}" width="280" height="90" rx="12" fill="#f6f8fa" stroke="${line}"/><rect x="${x}" y="${statsTop}" width="5" height="90" rx="2" fill="${cat.color}"/>${t(x + 19, statsTop + 26, cat.label, 13, muted, 600)}${t(x + 19, statsTop + 66, pct(average), 29, ink, 700)}${t(x + 158, statsTop + 65, `${values.length} period${values.length === 1 ? "" : "s"}`, 12, muted)}` };
+    const width=960, ink='#21343d', muted='#536770', accent='#086977';
+    const text=(x,y,value,size=15,color=ink,weight=400,extra='')=>`<text x="${x}" y="${y}" fill="${color}" font-family="Arial, sans-serif" font-size="${size}" font-weight="${weight}" ${extra}>${escapeHtml(value)}</text>`;
+    let y=48, body=text(44,y,'Individual grade report',17,accent,700);y+=44;
+    reportLines(entries[0].learner.name,45).forEach(line=>{body+=text(44,y,line,30,ink,700);y+=37;});
+    reportLines(`${section.level} · ${section.subject} · ${section.section || ''}`,83).forEach(line=>{body+=text(44,y,line,17,muted);y+=24;});
+    body+=text(44,y+6,`Generated ${new Date().toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'})} · Current teacher workspace`,13,muted);y+=30;
+    body+=renderChartContent(entries,section,y);y+=306;
+    entries.forEach(({period,learner,result,complete,periodIndex})=>{
+      const label=window.CSTRRecordTools.periodLabel(period,section.group,periodIndex??0,state.calendarMode);
+      reportLines(label,60).forEach(line=>{body+=text(44,y,line,23,ink,700);y+=28;});
+      body+=text(44,y,complete?'Complete requirements':'Provisional · incomplete requirements',14,complete?'#286645':'#875b16',600);y+=35;
+      body+=text(44,y,`Initial grade: ${format(result.initial.rounded,3)}${state.calendarMode==='trimester'?'':` · Transmuted grade: ${format(result.initial.transmuted,0)}`} · ${result.initial.descriptor}`,18,ink,700);y+=30;
+      ['ww','pt','qa'].forEach((kind,i)=>{const c=result[kind];body+=text(44,y,`${kind.toUpperCase()} · ${scoreTotal(c)} earned / included HPS · ${format(c.percentage,2)}% · ${format(c.weighted,3)} weighted (${section.weights[i]}%)`,14,muted);y+=22;});y+=20;
+      body+=text(44,y,'All activity scores',21,ink,700);y+=29;
+      body+=`<rect x="44" y="${y-18}" width="872" height="30" fill="#edf2f3"/>`;
+      [[54,'Activity / learning context'],[437,'Date'],[573,'Raw'],[655,'Added'],[748,'Score'],[848,'HPS']].forEach(([x,v])=>body+=text(x,y+2,v,13,ink,700));y+=40;
+      assessmentRows(period,learner).forEach(row=>{
+        const start=y, code=String(row.score).toUpperCase();
+        const markColor=({A:'#b94d00',L:'#806400',M:'#bc2435',E:'#1a68b2'})[code]||ink;
+        const title=`${row.kind.toUpperCase()} ${row.index+1} · ${row.meta.title || 'Untitled activity'}`;
+        const titleLines=reportLines(title,43);
+        titleLines.forEach((line,i)=>body+=text(54,start+i*19,line,14,ink,600));
+        const raw=row.ledger?.entries.length?row.ledger.raw:row.score;
+        const bonus=(row.ledger?.entries||[]).reduce((n,e)=>n+e.points,0);
+        body+=text(437,start,row.date||'—',13,muted)+text(573,start,raw===''?'—':raw,14,markColor)+text(655,start,bonus?`+${formatScore(bonus)}*`:'—',14,accent,600)+text(748,start,row.score===''?'—':row.score,15,markColor,700)+text(848,start,row.hps===''?'—':row.hps,14);
+        y+=Math.max(24,titleLines.length*19);
+        if(row.meta.competency||row.meta.topic)reportLines([row.meta.competency&&`Competency: ${row.meta.competency}`,row.meta.topic&&`Topic: ${row.meta.topic}`].filter(Boolean).join(' · '),108).forEach(line=>{body+=text(60,y,line,12,muted);y+=17;});
+        ledgerNotes(row).forEach(note=>reportLines(note,104).forEach(line=>{body+=text(60,y,line,12,accent);y+=17;}));
+        if(code==='A'||code==='M'||code==='E'||code==='L'){body+=text(60,y,({A:'A · Absent · counted as 0 / HPS',M:'M · Missing · counted as 0 / HPS',L:'L · Late · excluded from calculation',E:'E · Excused · excluded from calculation'})[code],12,markColor);y+=17;}
+        if(row.score===''){body+=text(60,y,'Not recorded · incomplete requirement',12,muted);y+=17;}
+        y+=16;
+      });y+=22;
     });
-    const ranked = stats.filter(item => Number.isFinite(item.average)).sort((a, b) => b.average - a.average);
-    const interpretation = ranked.length > 1
-      ? `Highest recorded component mean: ${ranked[0].label} (${pct(ranked[0].average)}); lowest: ${ranked[ranked.length - 1].label} (${pct(ranked[ranked.length - 1].average)}).`
-      : ranked.length ? `Only ${ranked[0].label} has a recorded component percentage so far.` : "No component percentages are available yet.";
-    const summary = `${t(44, statsTop - 16, "Component means across recorded periods", 17, ink, 700)}${stats.map(item => item.html).join("")}${t(44, statsTop + 113, interpretation, 13, muted)}`;
-    const cards = entries.map(({ period, result, complete }, index) => {
-      const y = cardsTop + index * cardStep;
-      const status = complete ? "Complete requirements" : "Provisional · incomplete requirements";
-      const finalLabel = state.calendarMode === "trimester" ? "Transmutation" : "Final transmuted";
-      const finalValue = state.calendarMode === "trimester" ? "Not used" : format(result.initial.transmuted, 0);
-      const components = categories.map((cat, catIndex) => {
-        const component = result[cat.key];
-        const x = 65 + catIndex * 294;
-        return `${t(x, y + 146, cat.label, 12, cat.color, 700)}${t(x, y + 170, `${pct(component.percentage)} · ${Number.isFinite(component.weighted) ? `${format(component.weighted, 2)} weighted` : "— weighted"}`, 14, ink, 600)}${t(x, y + 191, `${scoreTotal(component)} raw / HPS`, 12, muted)}`;
-      }).join("");
-      return `<rect x="44" y="${y}" width="872" height="209" rx="14" fill="#fff" stroke="${line}"/><rect x="44" y="${y}" width="6" height="209" rx="3" fill="${complete ? "#327657" : "#b47a22"}"/>
-        ${t(65, y + 35, period.name, 21, ink, 700)}${t(895, y + 34, status, 13, complete ? "#327657" : "#8a5d16", 600, 'text-anchor="end"')}
-        ${t(65, y + 70, state.calendarMode === "trimester" ? "Term grade" : "Initial grade", 12, muted, 600)}${t(65, y + 109, format(result.initial.rounded, 3), 32, ink, 700)}
-        ${t(350, y + 70, finalLabel, 12, muted, 600)}${t(350, y + 109, finalValue, 32, crimson, 700)}
-        ${t(620, y + 70, "Qualitative descriptor", 12, muted, 600)}${t(620, y + 105, result.initial.descriptor, 21, ink, 700)}
-        <line x1="65" y1="${y + 126}" x2="895" y2="${y + 126}" stroke="${line}"/>${components}`;
-    }).join("");
-    const footer = `<line x1="44" y1="${footerTop}" x2="916" y2="${footerTop}" stroke="${line}"/>${t(44, footerTop + 27, "Component means are unweighted averages of available period percentages; they are not final grades.", 12, muted)}${t(44, footerTop + 47, "A/M count as zero. E/L are excluded. A provisional grade has missing or incomplete requirements.", 12, muted)}${t(44, footerTop + 70, "Source: this teacher's current class record view", 12, crimson, 600)}`;
-    return `${start}${header}${chartTitle}${legends}${grids}${bars}${summary}${cards}${footer}</svg>`;
+    ['* Added points are separate from the original raw score. Reasons appear beneath each activity.','A = Absent (zero); L = Late (excluded); M = Missing (zero); E = Excused (excluded).','HPS = highest possible score. Percentages use only included activities; missing entries remain provisional.','Unofficial class record · Verify grading settings and learner identity before sharing.'].forEach(line=>{body+=text(44,y,line,12,muted);y+=22;});
+    const height=y+24;
+    return `<svg xmlns="http://www.w3.org/2000/svg" class="student-report-svg" data-report-id="${reportId}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Comprehensive grade report for ${escapeHtml(entries[0].learner.name)}, ${escapeHtml(entries.map(e=>e.period.name).join(', '))}"><rect width="${width}" height="${height}" fill="#fff"/>${body}</svg>`;
   }
+
 
   async function exportStudentReportPng(button) {
     const svg = document.querySelector(`.student-report-svg[data-report-id="${button.dataset.reportId}"]`);
-    if (!svg) return;
-    const clone = svg.cloneNode(true);
-    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    const source = new XMLSerializer().serializeToString(clone);
-    const url = URL.createObjectURL(new Blob([source], { type: "image/svg+xml;charset=utf-8" }));
+    if (!svg || button.disabled) return;
+    button.disabled = true; button.setAttribute('aria-busy', 'true');
+    const clean = value => String(value || '').normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '');
+    const filename = [clean(button.dataset.reportName).slice(0,40), clean(button.dataset.reportSection).slice(0,30), clean(button.dataset.reportPeriod).slice(0,40), 'grades'].filter(Boolean).join('-');
+    const width = Number(svg.getAttribute('width')), height = Number(svg.getAttribute('height'));
+    const pageHeight = 6000, pages = Math.ceil(height / pageHeight);
+    let zip;
     try {
-      const image = new Image();
-      await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = url; });
-      const canvas = document.createElement("canvas");
-      canvas.width = Number(svg.getAttribute("width")) * 2;
-      canvas.height = Number(svg.getAttribute("height")) * 2;
-      const context = canvas.getContext("2d");
-      context.scale(2, 2);
-      context.drawImage(image, 0, 0);
-      const png = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
-      if (!png) throw new Error("PNG conversion failed");
-      const download = document.createElement("a");
-      const filename = `${button.dataset.reportName}-${button.dataset.reportSection}-grades`.normalize("NFD").replace(/\p{M}/gu, "").replace(/[^a-z0-9-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 100);
-      const pngUrl = URL.createObjectURL(png);
-      download.href = pngUrl;
-      download.download = `${filename || "student-grades"}.png`;
-      document.body.append(download);
-      download.click();
-      download.remove();
-      setTimeout(() => URL.revokeObjectURL(pngUrl), 1000);
-    } catch (error) {
-      showSaveToast(`Image export failed: ${error.message}`, "error");
-    } finally {
-      URL.revokeObjectURL(url);
-    }
+      if (pages > 1) { await window.CSTRAssets.ensure('images'); zip = new window.JSZip(); }
+      let output;
+      for (let page = 0; page < pages; page++) {
+        const offset = page * pageHeight, sliceHeight = Math.min(pageHeight, height - offset);
+        const clone = svg.cloneNode(true);
+        clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        clone.setAttribute('height', sliceHeight); clone.setAttribute('viewBox', `0 ${offset} ${width} ${sliceHeight}`);
+        const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], {type:'image/svg+xml;charset=utf-8'}));
+        try {
+          const image = new Image();
+          await new Promise((resolve,reject) => { image.onload=resolve; image.onerror=()=>reject(new Error('Report image could not be decoded')); image.src=url; });
+          const canvas = document.createElement('canvas'); canvas.width = width * 2; canvas.height = sliceHeight * 2;
+          const context = canvas.getContext('2d'); if (!context) throw new Error('Canvas is unavailable');
+          context.scale(2,2); context.drawImage(image,0,0);
+          const png = await new Promise(resolve => canvas.toBlob(resolve,'image/png'));
+          if (!png) throw new Error('PNG conversion failed');
+          if (zip) zip.file(`${filename}-part-${String(page+1).padStart(2,'0')}.png`, await png.arrayBuffer());
+          else output = png;
+          canvas.width = canvas.height = 0;
+        } finally { URL.revokeObjectURL(url); }
+      }
+      if (zip) output = await zip.generateAsync({type:'blob'});
+      const download = document.createElement('a'), outputUrl = URL.createObjectURL(output);
+      download.href=outputUrl; download.download=filename+(zip?'.zip':'.png'); document.body.append(download); download.click(); download.remove();
+      setTimeout(()=>URL.revokeObjectURL(outputUrl),1000);
+      if (zip) showSaveToast(`Long report exported as ${pages} PNG parts in one ZIP.`);
+    } catch(error) { showSaveToast(`Image export failed: ${error.message}`, 'error'); }
+    finally { button.disabled=false; button.removeAttribute('aria-busy'); }
   }
 
   function shortenPeriodLabel(name) {
@@ -2906,6 +3023,9 @@
       const bad = hasRawAboveHps(cellValue, period[kind + "Hps"][index]) || (cellValue !== "" && !isAttendanceCode(cellValue) && (!Number.isFinite(Number(cellValue)) || Number(cellValue) < 0));
       input.classList.toggle("invalid", bad);
       input.setAttribute("aria-invalid", String(bad));
+      input.dataset.mark = String(cellValue).toUpperCase();
+      const control = input.closest(".score-entry")?.querySelector(".score-adjustment");
+      if (control) control.outerHTML = scoreAdjustmentControl(learner, kind, rowIndex, index, period.locked);
       input.classList.toggle("code-cell", isAttendanceCode(cellValue));
       input.classList.toggle("code-cell-missing", typeof cellValue === "string" && cellValue.trim().toUpperCase() === "M");
     }));
@@ -3809,6 +3929,9 @@
     const target = event.target.closest("[data-action]");
     if (!target) return;
     const action = target.dataset.action;
+    if (target.disabled) return;
+    if (action === "add-score-points") { openScoreAdjustment(target); return; }
+    if (action === "report-period") { selectReportPeriod(target); return; }
     if (action === "toggle-sidebar" || action === "expand-search") {
       sidebarCollapsed = action === "expand-search" ? false : !sidebarCollapsed;
       try { localStorage.setItem("cstr-sidebar-collapsed", String(sidebarCollapsed)); } catch (_) {}
@@ -4198,6 +4321,7 @@
   app.addEventListener("input", (event) => {
     const input = event.target;
     let stateChanged = false;
+    if ((input.dataset.score || input.dataset.date || input.dataset.hps || input.dataset.activityField || input.dataset.nameRow !== undefined) && currentPeriod()?.locked) return;
     if (input.dataset.nameRow !== undefined) { 
       const rowIndex = Number(input.dataset.nameRow);
       const learner = currentPeriod().roster[rowIndex];
@@ -4206,6 +4330,7 @@
       const cat = getLearnerCategory(learner.name);
       if (cat) {
         learner.hpsOriginals = {};
+        learner.scoreAdjustments = {};
         learner.ww.fill("");
         learner.pt.fill("");
         learner.qa.fill("");
@@ -4224,6 +4349,7 @@
     if (input.dataset.teacher !== undefined) { state.teacher[input.dataset.teacher] = input.value; stateChanged = true; }
     if (input.dataset.periodName !== undefined) { currentPeriod().name = input.value; stateChanged = true; }
     if (input.dataset.date) {
+      if (input.value && !calendarDate(input.value)) return;
       currentPeriod()[`${input.dataset.date}Dates`][Number(input.dataset.index)] = input.value;
       document.querySelectorAll(`[data-date="${input.dataset.date}"][data-index="${input.dataset.index}"]`).forEach(peer => { if (peer !== input) peer.value = input.value; });
       stateChanged = true;
