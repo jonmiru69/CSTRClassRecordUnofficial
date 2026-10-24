@@ -1,6 +1,6 @@
 # CSTR Class Record — Unofficial
 
-Current local revision: [23 October 2026 changes, usage, and verification](REVISION-2026-10-23.md). This revised source has not been deployed by this task.
+Current revision: [24 October 2026 fixes, usage, and verification](REVISION-2026-10-24.md). This source update has not been deployed by this task. Earlier changes: [23 October revision](REVISION-2026-10-23.md).
 
 [Open the class record](https://jonmiru69.github.io/CSTRClassRecordUnofficial/) · [Firebase Hosting](https://cstr-class-record-global.web.app/)
 
