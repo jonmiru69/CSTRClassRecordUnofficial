@@ -681,11 +681,13 @@
     return window.CSTRRecordTools.getLearnerCategory(name);
   }
 
+  function getRowCategory(learner) { return window.CSTRRecordTools.getRowCategory(learner); }
+
   // Keep divider rows out of the record tools, including when their labels
   // contain additional words (for example, "Grade 8 Boys").
   function recordablePeriod(period) {
     if (!period || !Array.isArray(period.roster)) return period;
-    return { ...period, roster: period.roster.filter((learner) => !getLearnerCategory(learner.name)) };
+    return { ...period, roster: period.roster.filter((learner) => !getRowCategory(learner)) };
   }
 
   function recordCompletion(period) {
@@ -710,7 +712,7 @@
     const numbering = roster.map((learner) => {
       const name = (learner.name || "").trim();
       if (!name) return ""; 
-      if (getLearnerCategory(name)) return ""; 
+      if (getRowCategory(learner)) return "";
       count += 1;
       return count;
     });
@@ -831,7 +833,7 @@
         if (!Number.isFinite(hps) || hps <= 0) issues.invalidHps += 1;
       });
       (period.roster || []).forEach((learner) => {
-        if (getLearnerCategory(learner.name)) return;
+        if (getRowCategory(learner)) return;
         (learner[kind] || []).forEach((value, index) => {
           if (value === "" || value === null || value === undefined || isAttendanceCode(value)) return;
           const score = Number(value);
@@ -919,7 +921,7 @@
     const style = getComputedStyle(name);
     const weight = style.fontWeight || "700";
     const family = style.fontFamily || "sans-serif";
-    let low = 10, high = 88;
+    let low = 12, high = matchMedia("(max-width: 760px)").matches ? 24 : 30;
     while (high - low > 0.5) {
       const size = (low + high) / 2;
       context.font = `${weight} ${size}px ${family}`;
@@ -1503,7 +1505,7 @@
 
   function entryLearnerRows(period) {
     return period.roster.map((learner, index) => ({ learner, index }))
-      .filter(({ learner }) => !getLearnerCategory(learner.name));
+      .filter(({ learner }) => !getRowCategory(learner));
   }
 
   function selectedEntryRow(period) {
@@ -1524,9 +1526,9 @@
     const active = periods[activePeriodIndex], learner = active.roster[rowIndex];
     if (!learner) return [];
     const name = String(learner.name || "").trim(), key = searchNameKey(name);
-    const occurrence = key ? active.roster.slice(0, rowIndex + 1).filter(item => !getLearnerCategory(item.name) && searchNameKey(item.name) === key).length - 1 : 0;
+    const occurrence = key ? active.roster.slice(0, rowIndex + 1).filter(item => !getRowCategory(item) && searchNameKey(item.name) === key).length - 1 : 0;
     return periods.flatMap((period, periodIndex) => {
-      const found = periodIndex === activePeriodIndex ? learner : key ? period.roster.filter(item => !getLearnerCategory(item.name) && searchNameKey(item.name) === key)[occurrence] : null;
+      const found = periodIndex === activePeriodIndex ? learner : key ? period.roster.filter(item => !getRowCategory(item) && searchNameKey(item.name) === key)[occurrence] : null;
       return found ? [{ period, periodIndex, learner: found, result: learnerResult(found, period, currentSection().weights), complete: isLearnerAssessmentComplete(found, period) }] : [];
     });
   }
@@ -1574,7 +1576,7 @@
           <label>Score <small class="score-hps">/ ${escapeHtml(hpsLabel)}</small><input type="text" inputmode="text" autocomplete="off" maxlength="6" data-score="${cat.key}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(value)}" aria-label="${slot} score for ${escapeHtml(learner.name.trim() || `Learner ${rowIndex + 1}`)}" aria-invalid="${invalid}" class="${invalid ? "invalid" : ""}" data-mark="${safeValue(String(value).toUpperCase())}" ${locked}>${scoreAdjustmentControl(learner, cat.key, rowIndex, index, entryPeriod.locked)}</label>
         </div>`;
       }).join("")}</div></fieldset>`).join("")}</div></div>` : `<button type="button" class="button button-secondary report-switch-period" data-action="select-period" data-period="${periodIndex}">Open this period to edit</button>${renderScoreLedgerHtml(entryPeriod, entries.find(e => e.period === entryPeriod).learner)}`;
-      return `<article class="report-period-card ${active ? "is-current" : ""}"><div data-report-live="period-${periodIndex}"><div class="report-period-heading"><h3>${escapeHtml(entryPeriod.name)}</h3><span class="report-status ${complete ? "is-complete" : ""}">${complete ? "Complete requirements" : "Provisional · incomplete requirements"}</span></div><div class="report-grades"><div><small>${gradeLabel}</small><strong>${format(result.initial.rounded, 3)}</strong></div><div><small>${state.calendarMode === "trimester" ? "Transmutation" : "Final transmuted"}</small><strong>${state.calendarMode === "trimester" ? "Not used" : format(result.initial.transmuted, 0)}</strong></div><div><small>Qualitative descriptor</small><strong>${renderDescriptorBadge(result.initial.descriptor)}</strong></div></div><div class="report-components">${components}</div></div>${inputs}${active ? `<div data-report-live="ledger-${periodIndex}">${renderScoreLedgerHtml(entryPeriod, learner)}</div>` : ""}</article>`;
+      return `<article class="report-period-card ${active ? "is-current" : ""}"><div data-report-live="period-${periodIndex}"><div class="report-period-heading"><h3>${escapeHtml(entryPeriod.name)}</h3><span class="report-status ${complete ? "is-complete" : ""}">${complete ? "Complete requirements" : "Provisional · incomplete requirements"}</span></div><div class="report-grades"><div class="${state.calendarMode === "trimester" ? "report-final-grade" : ""}"><small>${gradeLabel}</small><strong>${format(result.initial.rounded, 3)}</strong></div><div class="${state.calendarMode === "trimester" ? "" : "report-final-grade"}"><small>${state.calendarMode === "trimester" ? "Transmutation" : "Final transmuted"}</small><strong>${state.calendarMode === "trimester" ? "Not used" : format(result.initial.transmuted, 0)}</strong></div><div><small>Qualitative descriptor</small><strong>${renderDescriptorBadge(result.initial.descriptor)}</strong></div></div><div class="report-components">${components}</div></div>${inputs}${active ? `<div data-report-live="ledger-${periodIndex}">${renderScoreLedgerHtml(entryPeriod, learner)}</div>` : ""}</article>`;
     }).join("");
     return `<section class="editable-student-report" aria-label="Editable individual grade report"><div class="report-heading"><p>Individual grade report</p><label>Learner name<input data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}></label><span>${escapeHtml(section.level)} · ${escapeHtml(section.subject)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</span></div>${reportExport}<div data-report-live="overview">${chart}<h3>Component means across recorded periods</h3><div class="report-means">${means}</div><p class="report-interpretation">${escapeHtml(interpretation)}</p></div><div class="report-periods">${cards}</div><p class="report-footnote">Component means are unweighted averages of available period percentages; they are not final grades. A/M count as zero. E/L are excluded. Grades are provisional when requirements are incomplete.</p></section>`;
   }
@@ -1638,41 +1640,43 @@
     const ledger = learner.scoreAdjustments?.[kind]?.[index];
     const total = (ledger?.entries || []).reduce((sum, e) => sum + e.points, 0);
     const reason = (ledger?.entries || []).map(e => `+${formatScore(e.points)}: ${e.reason}`).join('; ');
-    return `<span class="score-adjustment"><button type="button" class="score-plus" data-action="add-score-points" data-kind="${kind}" data-row="${row}" data-index="${index}" ${locked ? 'disabled' : ''} aria-label="Add points to ${escapeHtml(learner.name || `learner ${row + 1}`)}, ${kind.toUpperCase()} ${index + 1}" title="${escapeHtml(reason || 'Add points with a reason')}">+</button>${total ? `<small class="score-plus-note" title="${escapeHtml(reason)}" aria-label="${escapeHtml(reason)}">+${formatScore(total)}*</small>` : ''}</span>`;
+    const data = `data-kind="${kind}" data-row="${row}" data-index="${index}" ${locked ? 'disabled' : ''}`;
+    return `<span class="score-adjustment"><button type="button" class="score-plus" data-action="add-score-points" ${data} aria-label="Add points to ${escapeHtml(learner.name || `learner ${row + 1}`)}, ${kind.toUpperCase()} ${index + 1}" title="${escapeHtml(reason || 'Add points with a reason')}">Add points</button>${total ? `<small class="score-plus-note" title="${escapeHtml(reason)}">+${formatScore(total)}*</small><button type="button" class="score-cancel" data-action="cancel-score-points" ${data} aria-label="Cancel added points for ${escapeHtml(learner.name)}, ${kind.toUpperCase()} ${index + 1}">Cancel points</button>` : ''}</span>`;
   }
 
-  function openScoreAdjustment(trigger) {
+  function openScoreAdjustment(trigger, cancelMode = false) {
     commitActiveFieldEdit();
     const period = currentPeriod(), kind = trigger.dataset.kind, row = Number(trigger.dataset.row), index = Number(trigger.dataset.index);
     const learner = period?.roster[row];
-    if (!learner || period.locked) { showSaveToast('Unlock the period before changing scores.', 'error'); return; }
+    if (!learner || period.locked || getRowCategory(learner)) { showSaveToast('This score is not editable.', 'error'); return; }
     const ledger = learner.scoreAdjustments?.[kind]?.[index];
-    const valid = learner[kind][index] !== '' && Number.isFinite(Number(learner[kind][index])) && Number(learner[kind][index]) >= 0;
-    const maximum = Number(period[kind + 'Hps'][index]);
-    const remaining = maximum - Number(learner[kind][index]);
+    const hasPoints = Boolean(ledger?.entries?.length);
+    if (cancelMode && !hasPoints) { showSaveToast('There are no active added points to cancel.', 'error'); return; }
+    const valid = learner[kind][index] !== '' && learner[kind][index] != null && Number.isFinite(Number(learner[kind][index])) && Number(learner[kind][index]) >= 0;
+    const maximum = Number(period[kind + 'Hps'][index]), remaining = maximum - Number(learner[kind][index]);
     const dialog = document.createElement('dialog');
-    dialog.className = 'modal points-dialog';
-    dialog.setAttribute('aria-label', 'Add score points with a reason');
-    dialog.innerHTML = `<form><h2>Add score points</h2><p>${escapeHtml(learner.name || 'Unnamed learner')} · ${kind.toUpperCase()} ${index + 1}</p><p>Current score: <strong>${safeValue(learner[kind][index] || 'Blank')}</strong> / ${safeValue(period[kind + 'Hps'][index] || 'No HPS')}${ledger?.entries.length ? ` · Raw: ${safeValue(ledger.raw)}` : ''}</p><p class="form-note">Added points affect grades. Directly replacing a score ends its current adjustments and preserves them in report history.</p><label>Points to add<input name="points" type="number" inputmode="decimal" min="0.00000001" step="any" max="${Number.isFinite(remaining) ? Math.max(0, remaining) : 0}" required></label><label>Reason (required)<textarea name="reason" rows="3" maxlength="500" required placeholder="Explain why these points are being added."></textarea></label><p class="points-error" role="alert"></p><div class="stack-actions"><button type="button" class="button" data-points-cancel>Cancel</button>${ledger?.entries.length ? '<button type="button" class="button button-danger" data-points-remove>Remove added points</button>' : ''}<button type="submit" class="button button-primary" ${!valid || !Number.isFinite(maximum) || remaining <= 0 ? 'disabled' : ''}>Apply points</button></div></form>`;
+    dialog.className = 'modal points-dialog'; dialog.setAttribute('aria-label', cancelMode ? 'Cancel added points' : 'Add score points with a reason');
+    const score = learner[kind][index] === '' || learner[kind][index] == null ? 'Blank' : learner[kind][index];
+    dialog.innerHTML = `<form novalidate><h2>${cancelMode ? 'Cancel added points' : 'Add score points'}</h2><p>${escapeHtml(learner.name || 'Unnamed learner')} · ${kind.toUpperCase()} ${index + 1}</p><p>Current score: <strong>${safeValue(score)}</strong> / ${safeValue(period[kind + 'Hps'][index] || 'No HPS')}${hasPoints ? ` · Original raw score: <strong>${safeValue(ledger.raw)}</strong>` : ''}</p>${cancelMode ? '<p>Restore the original raw score and retain the cancelled additions in the report history. The existing HPS limit still applies.</p>' : '<p class="form-note">Points require a reason and cannot take the score above HPS.</p><label>Points to add<input name="points" type="number" inputmode="decimal" min="0.00000001" step="any" required></label>'}<label>${cancelMode ? 'Cancellation note (optional)' : 'Reason (required)'}<textarea name="reason" rows="3" maxlength="500" ${cancelMode ? '' : 'required'}></textarea></label><p class="points-error" role="alert"></p><div class="stack-actions"><button type="button" class="button" data-points-cancel>Close</button>${!cancelMode && hasPoints ? '<button type="button" class="button button-danger" data-points-remove>Cancel added points</button>' : ''}<button type="submit" class="button ${cancelMode ? 'button-danger' : 'button-primary'}" ${!cancelMode && (!valid || !Number.isFinite(maximum) || remaining <= 0) ? 'disabled' : ''}>${cancelMode ? 'Restore raw score' : 'Apply points'}</button></div></form>`;
     const error = dialog.querySelector('.points-error');
-    if (!valid) error.textContent = 'Enter a numeric raw score first. Attendance codes and blank scores cannot receive points.';
-    else if (remaining <= 0) error.textContent = 'This score is already at or above HPS. No additional points can be added.';
+    if (!cancelMode && !valid) error.textContent = 'Enter a numeric raw score first. Attendance codes and blanks cannot receive points.';
+    else if (!cancelMode && remaining <= 0) error.textContent = 'This score is at or above HPS. You can still cancel its added points.';
     const finish = remove => {
       try {
         if (period !== currentPeriod()) throw new Error('The selected period changed. Reopen this dialog.');
-        const reason = dialog.querySelector('[name="reason"]').value;
-        if (remove) window.CSTRRecordTools.removePoints(period, kind, row, index, reason);
+        const reason = dialog.querySelector('[name="reason"]').value.trim();
+        if (remove) window.CSTRRecordTools.removePoints(period, kind, row, index, reason || 'Added points cancelled by the teacher');
         else window.CSTRRecordTools.addPoints(period, kind, row, index, dialog.querySelector('[name="points"]').value, reason, currentUserEmail());
         markStateDirty(); dialog.close(); render();
-        showSaveToast(remove ? 'Added points removed; the explanation remains in report history.' : 'Points added with a recorded reason.');
+        showSaveToast(remove ? 'Added points cancelled. Raw score restored; history retained.' : 'Points added with a recorded reason.');
       } catch (e) { error.textContent = e.message; }
     };
-    dialog.querySelector('form').addEventListener('submit', event => { event.preventDefault(); finish(false); });
+    dialog.querySelector('form').addEventListener('submit', event => { event.preventDefault(); finish(cancelMode); });
     dialog.querySelector('[data-points-cancel]').onclick = () => dialog.close();
     dialog.querySelector('[data-points-remove]')?.addEventListener('click', () => finish(true));
     for (const type of ['keydown', 'copy', 'cut', 'paste']) dialog.addEventListener(type, event => event.stopPropagation());
     dialog.addEventListener('close', () => { dialog.remove(); document.querySelector(`.score-plus[data-kind="${kind}"][data-row="${row}"][data-index="${index}"]`)?.focus(); });
-    document.body.append(dialog); dialog.showModal(); dialog.querySelector(valid && remaining > 0 ? '[name="points"]' : '[name="reason"]').focus();
+    document.body.append(dialog); dialog.showModal(); dialog.querySelector(cancelMode || !valid || remaining <= 0 ? '[name="reason"]' : '[name="points"]').focus();
   }
 
   // Use the browser calendar, which opens on today's real device date when empty.
@@ -1772,14 +1776,14 @@
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" placeholder="Activity title" aria-label="${number} title" ${disabled}>${safeValue(info.title)}</textarea></td>
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="competency" placeholder="Learning competency" aria-label="${number} competency" ${disabled}>${safeValue(info.competency)}</textarea></td>
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="topic" placeholder="Topic" aria-label="${number} topic" ${disabled}>${safeValue(info.topic)}</textarea></td>
-        <td>${period[`${kind}Dates`][index] && !calendarDate(period[`${kind}Dates`][index]) ? `<small class="legacy-date">Previous date: ${safeValue(period[`${kind}Dates`][index])}. Select a calendar date.</small>` : ""}<input type="date" data-calendar-date data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(period[`${kind}Dates`][index]))}" aria-label="${number} date" ${disabled}></td>
+        <td>${period[`${kind}Dates`][index] && !calendarDate(period[`${kind}Dates`][index]) ? `<small class="legacy-date">${safeValue(period[`${kind}Dates`][index])}</small>` : ""}<input type="date" data-calendar-date data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(period[`${kind}Dates`][index]))}" aria-label="${number} date" ${disabled}></td>
         <td><input type="number" min="0" step="any" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(hps)}" aria-label="${number} highest possible score" ${disabled}></td></tr>`;
     })).join("");
     return `<section class="activity-register" aria-labelledby="activityRegisterTitle"><div class="activity-register-heading"><div><p class="eyebrow">Assessment transparency</p><h3 id="activityRegisterTitle">${state.calendarMode === "trimester" ? "Term" : "Quarter"} activity register</h3></div><p>One row per score column. Dates and HPS are shared with the grade sheet above.</p></div><div class="activity-register-scroll"><table><caption class="sr-only">Activity title, competency, topic, date, and HPS for ${escapeHtml(section.subject)} ${escapeHtml(period.name)}</caption><thead><tr><th scope="col">Score column</th><th scope="col">Activity title</th><th scope="col">Learning competency</th><th scope="col">Topic</th><th scope="col">Date</th><th scope="col">HPS</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
 
   function renderLearnerRow(learner, rowIndex, period, section, numDisplay, periodLocked) {
-    const cat = getLearnerCategory(learner.name);
+    const cat = getRowCategory(learner);
     const catClass = cat ? `row-category row-category-${cat}` : "";
     const cellsDisabled = cat || period.locked;
     const learnerLabel = escapeHtml(String(learner.name || "").trim() || `Learner ${rowIndex + 1}`);
@@ -1800,7 +1804,7 @@
       pt: learner.pt.map(() => ""),
       qa: learner.qa.map(() => "")
     } : learner, period, section.weights);
-    const deleteRowBtn = `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${periodLocked ? "Unlock this grading period to delete rows" : "Remove this learner row from this grading period only"}" aria-label="Delete learner ${rowIndex + 1} row" ${periodLocked ? "disabled" : ""}>${icon("trash")}</button>`;
+    const deleteRowBtn = cat ? "" : `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${periodLocked ? "Unlock this grading period to delete rows" : "Remove this learner row from this grading period only"}" aria-label="Delete learner ${rowIndex + 1} row" ${periodLocked ? "disabled" : ""}>${icon("trash")}</button>`;
     return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td>${state.calendarMode === "trimester" ? "" : `<td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td>`}<td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
   }
 
@@ -1992,6 +1996,7 @@
     }
 
     const learner = period.roster[rowIndex];
+    if (getRowCategory(learner)) { setStatus("Category headings cannot be deleted.", "error"); return; }
     const learnerName = (learner.name || "").trim();
     const rowHasData = learnerName || [...learner.ww, ...learner.pt, ...learner.qa].some((value) => String(value).trim() !== "");
     if (rowHasData) {
@@ -2143,14 +2148,14 @@
       const row = firstLearnerRow - 1 + rowIndex;
       matrix[row][0] = numbering[rowIndex] === "—" ? "" : numbering[rowIndex];
       matrix[row][1] = learner.name || "";
-      if (getLearnerCategory(learner.name)) return;
+      if (getRowCategory(learner)) return;
       [[wwStart, learner.ww], [ptStart, learner.pt], [qaStart, learner.qa]].forEach(([start, scores]) => scores.forEach((value, index) => { matrix[row][start + index] = excelValue(value); }));
     });
     const worksheet = XLSX.utils.aoa_to_sheet(matrix);
     const setFormula = (address, formula, value, type = "n") => { worksheet[address] = { t: type, f: formula, v: value }; };
     period.roster.forEach((learner, rowIndex) => {
       const excelRow = firstLearnerRow + rowIndex;
-      if (getLearnerCategory(learner.name)) return;
+      if (getRowCategory(learner)) return;
       const result = learnerResult(learner, period, section.weights);
       const ww = componentExcelFormulas(wwStart, wwLen, excelRow, hpsRow, section.weights[0], false);
       const pt = componentExcelFormulas(ptStart, ptLen, excelRow, hpsRow, section.weights[1], false);
@@ -2217,7 +2222,7 @@
     workbook.Workbook = { CalcPr: { calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true } };
     const safeName = `${section.level}-${section.subject}-${section.section || "Section"}-${period.name}`.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
     period.roster.forEach((learner, index) => {
-      const category = getLearnerCategory(learner.name);
+      const category = getRowCategory(learner);
       if (!category) return;
       const row = firstLearnerRow - 1 + index;
       worksheet["!merges"].push({ s: { r: row, c: 1 }, e: { r: row, c: lastCol } });
@@ -2326,7 +2331,7 @@
       const entries = [];
       (period.roster || []).forEach((learner) => {
         const name = String((learner && learner.name) || "").trim();
-        if (!name || getLearnerCategory(name)) return;
+        if (!name || getRowCategory(learner)) return;
         const base = normalizedName(name);
         const occurrence = seen.get(base) || 0;
         seen.set(base, occurrence + 1);
@@ -2530,7 +2535,7 @@
   }
 
   function isPeriodFinalized(period, section) {
-    const learners = period.roster.filter((learner) => learner.name.trim() && !getLearnerCategory(learner.name));
+    const learners = period.roster.filter((learner) => learner.name.trim() && !getRowCategory(learner));
     return recordCompletion(period).complete;
   }
 
@@ -2579,8 +2584,8 @@
   }
 
   function renderChartContent(entries, section, top = 0) {
-    const categories = [{key:'ww', label:'Written Works', color:'#087f8c'}, {key:'pt', label:'Performance Tasks', color:'#416b96'}, {key:'qa', label:state.calendarMode === 'trimester' ? 'Term Assessment' : 'Quarterly Assessment', color:'#777f88'}];
-    const text = (x,y,v,size=14,extra='') => `<text x="${x}" y="${y}" font-family="Arial, sans-serif" font-size="${size}" fill="#21343d" ${extra}>${escapeHtml(v)}</text>`;
+    const categories = [{key:'ww', label:'Written Works', color:'#FFA322'}, {key:'pt', label:'Performance Tasks', color:'#BB1414'}, {key:'qa', label:state.calendarMode === 'trimester' ? 'Term Assessment' : 'Quarterly Assessment', color:'#042134'}];
+    const text = (x,y,v,size=14,extra='') => `<text x="${x}" y="${y}" font-family="Arial, sans-serif" font-size="${size}" fill="#042134" ${extra}>${escapeHtml(v)}</text>`;
     const left = 90, right = 910, bottom = top + 254, plotHeight = 154;
     let content = text(44, top + 25, 'Assessment performance', 22, 'font-weight="700"') + text(44, top + 49, 'Y: earned score / included HPS (%) · X: grading period · blank data is not zero', 13);
     content += categories.map((cat, i) => `<rect x="${44+i*292}" y="${top+66}" width="12" height="12" fill="${cat.color}"/>${text(62+i*292,top+77,`${cat.label} · ${section.weights[i]}% weight`,13)}`).join('');
@@ -2591,7 +2596,7 @@
       categories.forEach((cat,j)=>{
         const part=result[cat.key], pct=part.percentage, x=center+(j-1)* (bar+12)-bar/2;
         const height=Number.isFinite(pct)?Math.max(0,Math.min(100,pct))/100*plotHeight:0;
-        content+=`<rect x="${x}" y="${bottom-height}" width="${bar}" height="${height}" fill="${cat.color}"/>${text(x+bar/2,bottom-height-8,Number.isFinite(pct)?`${format(pct,1)}%`:'N/A',12,'text-anchor="middle" font-weight="700"')}`;
+        content+=`<rect x="${x}" y="${bottom-height}" width="${bar}" height="${height}" fill="${cat.color}" stroke="${cat.key === 'ww' ? '#935000' : cat.color}" stroke-width="1"/>${text(x+bar/2,bottom-height-8,Number.isFinite(pct)?`${format(pct,1)}%`:'N/A',12,'text-anchor="middle" font-weight="700"')}`;
       });
       content+=text(center,bottom+24,shortenPeriodLabel(period.name),13,'text-anchor="middle"');
     });
@@ -2624,7 +2629,7 @@
       activeSections()[section.id].periods.forEach((period, periodIndex) => {
         let occurrence = 0;
         period.roster.forEach((learner, rowIndex) => {
-          if (searchNameKey(learner.name) !== query || getLearnerCategory(learner.name)) return;
+          if (searchNameKey(learner.name) !== query || getRowCategory(learner)) return;
           const key = occurrence++;
           if (!byOccurrence.has(key)) byOccurrence.set(key, {section, entries:[], occurrence:key});
           byOccurrence.get(key).entries.push({period,periodIndex,rowIndex,learner,result:learnerResult(learner,period,section.weights),complete:isLearnerAssessmentComplete(learner,period)});
@@ -2637,7 +2642,7 @@
       const count=Math.max(state.calendarMode==='trimester'?3:4,...entries.map(e=>reportSlot(section,e.period,e.periodIndex)+1));
       const slots=Array.from({length:count},(_,slot)=>({slot,label:reportSlotLabel(section,slot),entries:entries.filter(e=>reportSlot(section,e.period,e.periodIndex)===slot)}));
       const first=Math.max(0,slots.findIndex(s=>s.entries.length));
-      return `<section class="student-perf-block"><h3>${escapeHtml(entries[0].learner.name)} · ${escapeHtml(section.subject)} · ${escapeHtml(section.section || section.level)}</h3>${ambiguous ? `<p role="alert">Same-name match ${occurrence + 1}: confirm roster row ${entries[0].rowIndex + 1} and class before sharing.</p>` : ''}<div class="report-quarter-tabs" role="tablist" aria-label="Report periods">${slots.map(({slot,label})=>`<button type="button" class="tab" role="tab" id="report-tab-${block}-${slot}" aria-controls="report-panel-${block}-${slot}" aria-selected="${slot===first}" tabindex="${slot===first?0:-1}" data-action="report-period" data-report-block="${block}" data-slot="${slot}">${escapeHtml(label)}</button>`).join('')}</div>${slots.map(({slot,label,entries:chosen})=>`<div role="tabpanel" id="report-panel-${block}-${slot}" aria-labelledby="report-tab-${block}-${slot}" ${slot===first?'':'hidden'}>${chosen.length ? `<div class="student-report-actions"><p>${escapeHtml(label)} · ${chosen[0].complete?'Complete':'Provisional'}</p><button type="button" class="button button-primary" data-action="export-student-png" data-report-id="${block}-${slot}" data-report-name="${escapeHtml(entries[0].learner.name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(label)}">${icon('download')} Save ${escapeHtml(label)} PNG</button></div>${chosen.length>1?'<p role="alert">Multiple records use this period label. Review period settings before sharing.</p>':''}<div class="report-readable">${renderDetailedChart(chosen,section)}${chosen.map(entry=>`<h4>${escapeHtml(entry.period.name)}</h4><p>Initial: ${format(entry.result.initial.rounded,3)}${state.calendarMode === "trimester" ? "" : ` · Transmuted: ${format(entry.result.initial.transmuted,0)}`} · ${escapeHtml(entry.result.initial.descriptor)}</p>${renderScoreLedgerHtml(entry.period,entry.learner)}`).join("")}<p class="report-footnote">A = Absent (zero), L = Late (excluded), M = Missing (zero), E = Excused (excluded). Added points and their reasons appear beneath the activity. Missing entries remain provisional.</p></div>${renderStudentReportSvg(section,chosen,`${block}-${slot}`)}` : `<p class="empty-report">${escapeHtml(label)} has no recorded scores for this learner. Add the period and learner in the grade sheet; no grades have been inferred.</p>`}</div>`).join('')}</section>`;
+      return `<section class="student-perf-block"><h3>${escapeHtml(entries[0].learner.name)} · ${escapeHtml(section.subject)} · ${escapeHtml(section.section || section.level)}</h3>${ambiguous ? `<p role="alert">Same-name match ${occurrence + 1}: confirm roster row ${entries[0].rowIndex + 1} and class before sharing.</p>` : ''}<div class="report-quarter-tabs" role="tablist" aria-label="Report periods">${slots.map(({slot,label})=>`<button type="button" class="tab" role="tab" id="report-tab-${block}-${slot}" aria-controls="report-panel-${block}-${slot}" aria-selected="${slot===first}" tabindex="${slot===first?0:-1}" data-action="report-period" data-report-block="${block}" data-slot="${slot}">${escapeHtml(label)}</button>`).join('')}</div>${slots.map(({slot,label,entries:chosen})=>`<div role="tabpanel" id="report-panel-${block}-${slot}" aria-labelledby="report-tab-${block}-${slot}" ${slot===first?'':'hidden'}>${chosen.length ? `<div class="student-report-actions"><p>${escapeHtml(label)} · ${chosen[0].complete?'Complete':'Provisional'}</p><button type="button" class="button button-primary" data-action="export-student-png" data-report-id="${block}-${slot}" data-report-name="${escapeHtml(entries[0].learner.name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(label)}">${icon('download')} Save ${escapeHtml(label)} PNG</button></div>${chosen.length>1?'<p role="alert">Multiple records use this period label. Review period settings before sharing.</p>':''}<div class="report-readable">${chosen.map(renderReportResultHtml).join("")}${renderDetailedChart(chosen,section)}${chosen.map(entry=>renderScoreLedgerHtml(entry.period,entry.learner)).join("")}<p class="report-footnote">A = Absent (zero), L = Late (excluded), M = Missing (zero), E = Excused (excluded). Added points and their reasons appear beneath the activity. Missing entries remain provisional.</p></div>${renderStudentReportSvg(section,chosen,`${block}-${slot}`)}` : `<p class="empty-report">${escapeHtml(label)} has no recorded scores for this learner. Add the period and learner in the grade sheet; no grades have been inferred.</p>`}</div>`).join('')}</section>`;
     }).join('');
     showSearchModal(blocks,true);
   }
@@ -2658,43 +2663,71 @@
     tabs[next].click();tabs[next].focus();
   });
 
+  function renderReportResultHtml(entry) {
+    const term = state.calendarMode === 'trimester';
+    return `<section class="student-result-priority"><p>${escapeHtml(entry.period.name)}</p><div><span>${term ? 'Term grade' : 'Final transmuted grade'}</span><strong>${term ? format(entry.result.initial.rounded,3) : format(entry.result.initial.transmuted,0)}</strong></div><p>${escapeHtml(entry.result.initial.descriptor)} · ${entry.complete ? 'Complete requirements' : 'Provisional · incomplete requirements'}</p><small>Initial grade: ${format(entry.result.initial.rounded,3)}</small></section>`;
+  }
   function renderStudentReportSvg(section, entries, reportId) {
-    const width=960, ink='#21343d', muted='#536770', accent='#086977';
-    const text=(x,y,value,size=15,color=ink,weight=400,extra='')=>`<text x="${x}" y="${y}" fill="${color}" font-family="Arial, sans-serif" font-size="${size}" font-weight="${weight}" ${extra}>${escapeHtml(value)}</text>`;
-    let y=48, body=text(44,y,'Individual grade report',17,accent,700);y+=44;
-    reportLines(entries[0].learner.name,45).forEach(line=>{body+=text(44,y,line,30,ink,700);y+=37;});
-    reportLines(`${section.level} · ${section.subject} · ${section.section || ''}`,83).forEach(line=>{body+=text(44,y,line,17,muted);y+=24;});
-    body+=text(44,y+6,`Generated ${new Date().toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'})} · Current teacher workspace`,13,muted);y+=30;
-    body+=renderChartContent(entries,section,y);y+=306;
-    entries.forEach(({period,learner,result,complete,periodIndex})=>{
-      const label=window.CSTRRecordTools.periodLabel(period,section.group,periodIndex??0,state.calendarMode);
-      reportLines(label,60).forEach(line=>{body+=text(44,y,line,23,ink,700);y+=28;});
-      body+=text(44,y,complete?'Complete requirements':'Provisional · incomplete requirements',14,complete?'#286645':'#875b16',600);y+=35;
-      body+=text(44,y,`Initial grade: ${format(result.initial.rounded,3)}${state.calendarMode==='trimester'?'':` · Transmuted grade: ${format(result.initial.transmuted,0)}`} · ${result.initial.descriptor}`,18,ink,700);y+=30;
-      ['ww','pt','qa'].forEach((kind,i)=>{const c=result[kind];body+=text(44,y,`${kind.toUpperCase()} · ${scoreTotal(c)} earned / included HPS · ${format(c.percentage,2)}% · ${format(c.weighted,3)} weighted (${section.weights[i]}%)`,14,muted);y+=22;});y+=20;
-      body+=text(44,y,'All activity scores',21,ink,700);y+=29;
-      body+=`<rect x="44" y="${y-18}" width="872" height="30" fill="#edf2f3"/>`;
-      [[54,'Activity / learning context'],[437,'Date'],[573,'Raw'],[655,'Added'],[748,'Score'],[848,'HPS']].forEach(([x,v])=>body+=text(x,y+2,v,13,ink,700));y+=40;
+    const width=960, ink='#042134', muted='#4d5960', accent='#BB1414', orange='#FFA322';
+    const text=(x,y,value,size=14,color=ink,weight=400,extra='')=>`<text x="${x}" y="${y}" fill="${color}" font-family="Arial, sans-serif" font-size="${size}" font-weight="${weight}" ${extra}>${escapeHtml(value)}</text>`;
+    const term=state.calendarMode==='trimester', first=entries[0];
+    const nameLines=reportLines(first.learner.name,31), classLines=reportLines(`${section.level} · ${section.subject} · ${section.section || ''}`,64);
+    const titleLines=reportLines(`${first.period.name} · Individual grade report`,70), titleOffset=(titleLines.length-1)*18;
+    const headerHeight=Math.max(226,102+nameLines.length*35+classLines.length*20+titleOffset);
+    let body=`<rect width="960" height="${headerHeight}" fill="${ink}"/><rect x="44" y="28" width="36" height="4" fill="${orange}"/>`;
+    titleLines.forEach((line,i)=>body+=text(44,54+i*18,line,13,orange,700));
+    nameLines.forEach((line,i)=>body+=text(44,99+titleOffset+i*35,line,30,'#fff',700));
+    let metaY=112+titleOffset+nameLines.length*35;
+    classLines.forEach(line=>{body+=text(44,metaY,line,14,'#e1e8ed');metaY+=20;});
+    body+=text(680,58,term?'Term grade':'Final transmuted grade',14,'#fff',600);
+    body+=text(680,145,term?format(first.result.initial.rounded,3):format(first.result.initial.transmuted,0),72,orange,700,'data-grade-emphasis="true"');
+    reportLines(first.result.initial.descriptor,25).forEach((line,i)=>body+=text(682,179+i*18,line,14,'#fff',600));
+    let y=headerHeight+28;
+    body+=text(44,y,first.complete?'Complete requirements':'Provisional · incomplete requirements',13,first.complete?'#1d6242':accent,700);
+    body+=text(916,y,`Generated ${new Date().toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}`,12,muted,400,'text-anchor="end"');y+=28;
+    body+=text(44,y,`Initial grade: ${format(first.result.initial.rounded,3)} · ${term?'Zero-based term grading':'Transmutation applied using current class settings'}`,13,muted);y+=28;
+    entries.forEach((entry,entryIndex)=>{
+      const {period,learner,result,complete}=entry;
+      if(entryIndex){
+        body+=`<rect x="44" y="${y-20}" width="872" height="78" fill="${ink}"/>`;
+        body+=text(60,y,period.name,17,'#fff',700)+text(60,y+29,term?'Term grade':'Final transmuted grade',13,'#fff')+text(890,y+28,term?format(result.initial.rounded,3):format(result.initial.transmuted,0),34,orange,700,'text-anchor="end"');y+=87;
+      }
+      const cats=[{key:'ww',label:'Written Works',color:orange},{key:'pt',label:'Performance Tasks',color:accent},{key:'qa',label:term?'Term Assessment':'Quarterly Assessment',color:ink}];
+      cats.forEach((cat,i)=>{
+        const x=44+i*294,c=result[cat.key];
+        body+=`<rect x="${x}" y="${y}" width="280" height="91" fill="#f2f3f4"/><rect x="${x}" y="${y}" width="280" height="4" fill="${cat.color}"/>`;
+        body+=text(x+12,y+25,`${cat.label} · ${section.weights[i]}%`,13,ink,700);
+        body+=text(x+12,y+51,`${format(c.percentage,2)}%`,21,ink,700);
+        body+=text(x+12,y+72,`${scoreTotal(c)} earned / included HPS`,12,muted);
+        body+=text(x+268,y+50,`${format(c.weighted,3)} WS`,12,muted,500,'text-anchor="end"');
+      });y+=113;
+      body+=renderChartContent([entry],section,y);y+=306;
+      body+=text(44,y,'Activity record',20,ink,700);y+=25;
+      body+=text(44,y,'Original marks, additions and explanations are shown separately.',12,muted);y+=29;
+      body+=`<rect x="44" y="${y-18}" width="872" height="30" fill="${ink}"/>`;
+      [[54,'Activity / learning context'],[437,'Date'],[573,'Raw'],[655,'Added'],[748,'Score'],[848,'HPS']].forEach(([x,v])=>body+=text(x,y+2,v,12,'#fff',700));y+=38;
+      let lastKind='';
       assessmentRows(period,learner).forEach(row=>{
-        const start=y, code=String(row.score).toUpperCase();
-        const markColor=({A:'#b94d00',L:'#806400',M:'#bc2435',E:'#1a68b2'})[code]||ink;
-        const title=`${row.kind.toUpperCase()} ${row.index+1} · ${row.meta.title || 'Untitled activity'}`;
-        const titleLines=reportLines(title,43);
-        titleLines.forEach((line,i)=>body+=text(54,start+i*19,line,14,ink,600));
-        const raw=row.ledger?.entries.length?row.ledger.raw:row.score;
-        const bonus=(row.ledger?.entries||[]).reduce((n,e)=>n+e.points,0);
-        body+=text(437,start,row.date||'—',13,muted)+text(573,start,raw===''?'—':raw,14,markColor)+text(655,start,bonus?`+${formatScore(bonus)}*`:'—',14,accent,600)+text(748,start,row.score===''?'—':row.score,15,markColor,700)+text(848,start,row.hps===''?'—':row.hps,14);
-        y+=Math.max(24,titleLines.length*19);
+        if(row.kind!==lastKind){
+          const cat=cats.find(c=>c.key===row.kind),tint=row.kind==='ww'?'#fff0d9':row.kind==='pt'?'#fbe8e8':'#eaf0f4';
+          body+=`<rect x="44" y="${y-16}" width="872" height="27" fill="${tint}"/>`+text(54,y+2,`${cat.label} · ${section.weights[cats.indexOf(cat)]}% of initial grade`,13,ink,700);y+=34;lastKind=row.kind;
+        }
+        const start=y,code=String(row.score).toUpperCase(),markColor=({A:'#a64b00',L:'#806400',M:'#BB1414',E:'#175fa6'})[code]||ink;
+        const titleLines=reportLines(`${row.kind.toUpperCase()} ${row.index+1} · ${row.meta.title || 'Untitled activity'}`,43);
+        titleLines.forEach((line,i)=>body+=text(54,start+i*18,line,13,ink,700));
+        const raw=row.ledger?.entries.length?row.ledger.raw:row.score,bonus=(row.ledger?.entries||[]).reduce((n,e)=>n+e.points,0);
+        body+=text(437,start,row.date||'—',12,muted)+text(573,start,raw===''?'—':raw,13,markColor)+text(655,start,bonus?`+${formatScore(bonus)}*`:'—',13,accent,600)+text(748,start,row.score===''?'—':row.score,15,markColor,700)+text(848,start,row.hps===''?'—':row.hps,13);
+        y+=Math.max(24,titleLines.length*18);
         if(row.meta.competency||row.meta.topic)reportLines([row.meta.competency&&`Competency: ${row.meta.competency}`,row.meta.topic&&`Topic: ${row.meta.topic}`].filter(Boolean).join(' · '),108).forEach(line=>{body+=text(60,y,line,12,muted);y+=17;});
         ledgerNotes(row).forEach(note=>reportLines(note,104).forEach(line=>{body+=text(60,y,line,12,accent);y+=17;}));
-        if(code==='A'||code==='M'||code==='E'||code==='L'){body+=text(60,y,({A:'A · Absent · counted as 0 / HPS',M:'M · Missing · counted as 0 / HPS',L:'L · Late · excluded from calculation',E:'E · Excused · excluded from calculation'})[code],12,markColor);y+=17;}
+        if(['A','M','E','L'].includes(code)){body+=text(60,y,({A:'A · Absent · counted as 0 / HPS',M:'M · Missing · counted as 0 / HPS',L:'L · Late · excluded from calculation',E:'E · Excused · excluded from calculation'})[code],12,markColor);y+=17;}
         if(row.score===''){body+=text(60,y,'Not recorded · incomplete requirement',12,muted);y+=17;}
-        y+=16;
-      });y+=22;
+        y+=15;
+      });y+=20;
     });
-    ['* Added points are separate from the original raw score. Reasons appear beneath each activity.','A = Absent (zero); L = Late (excluded); M = Missing (zero); E = Excused (excluded).','HPS = highest possible score. Percentages use only included activities; missing entries remain provisional.','Unofficial class record · Verify grading settings and learner identity before sharing.'].forEach(line=>{body+=text(44,y,line,12,muted);y+=22;});
+    ['* Added points are separate from the original raw score. Cancelled additions remain in history.','A = Absent (zero); L = Late (excluded); M = Missing (zero); E = Excused (excluded).','HPS = highest possible score; WS = weighted score. Missing requirements keep a grade provisional.','Unofficial class record · Confirm learner identity and grading settings before sharing.'].forEach(line=>{body+=text(44,y,line,12,muted);y+=21;});
     const height=y+24;
-    return `<svg xmlns="http://www.w3.org/2000/svg" class="student-report-svg" data-report-id="${reportId}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Comprehensive grade report for ${escapeHtml(entries[0].learner.name)}, ${escapeHtml(entries.map(e=>e.period.name).join(', '))}"><rect width="${width}" height="${height}" fill="#fff"/>${body}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" class="student-report-svg" data-report-id="${reportId}" width="960" height="${height}" viewBox="0 0 960 ${height}" role="img" aria-label="Comprehensive grade report for ${escapeHtml(first.learner.name)}, ${escapeHtml(entries.map(e=>e.period.name).join(', '))}"><rect width="960" height="${height}" fill="#fff"/>${body}</svg>`;
   }
 
 
@@ -2995,7 +3028,7 @@
     const learner = period.roster[rowIndex];
     const row = document.querySelector(`[data-learner-row="${rowIndex}"]`);
     if (!row) return;
-    const result = learnerResult(getLearnerCategory(learner.name) ? {
+    const result = learnerResult(getRowCategory(learner) ? {
       ww: learner.ww.map(() => ""),
       pt: learner.pt.map(() => ""),
       qa: learner.qa.map(() => "")
@@ -3607,7 +3640,7 @@
     for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
       if (r >= period.roster.length) continue;
       const learner = period.roster[r];
-      if (getLearnerCategory(learner.name)) { skippedCategoryRows += 1; continue; }
+      if (getRowCategory(learner)) { skippedCategoryRows += 1; continue; }
       let rowChanged = false;
       for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
         if (c >= totalCols) continue;
@@ -3706,6 +3739,7 @@
 
       for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
         const l = period.roster[r];
+        if (getRowCategory(l)) continue;
         for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
           if (c >= totalCols) continue;
           if (c === 0) l.name = "";
@@ -3762,6 +3796,7 @@
     for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
       const rowVals = [];
       const l = period.roster[r];
+      if (getRowCategory(l)) { lines.push([l.name || ""].join("\t")); continue; }
       for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
         if (c >= totalCols) continue;
         if (c === 0) { rowVals.push(l.name || ""); l.name = ""; }
@@ -3931,6 +3966,7 @@
     const action = target.dataset.action;
     if (target.disabled) return;
     if (action === "add-score-points") { openScoreAdjustment(target); return; }
+    if (action === "cancel-score-points") { openScoreAdjustment(target, true); return; }
     if (action === "report-period") { selectReportPeriod(target); return; }
     if (action === "toggle-sidebar" || action === "expand-search") {
       sidebarCollapsed = action === "expand-search" ? false : !sidebarCollapsed;
@@ -4327,13 +4363,9 @@
       const learner = currentPeriod().roster[rowIndex];
       learner.name = input.value;
       stateChanged = true;
-      const cat = getLearnerCategory(learner.name);
+      const cat = getRowCategory(learner);
       if (cat) {
-        learner.hpsOriginals = {};
-        learner.scoreAdjustments = {};
-        learner.ww.fill("");
-        learner.pt.fill("");
-        learner.qa.fill("");
+        // A heading edit must not erase previously entered score arrays or history.
         render();
       } else {
         const rowEl = document.querySelector(`[data-learner-row="${rowIndex}"]`);
@@ -4351,7 +4383,7 @@
     if (input.dataset.date) {
       if (input.value && !calendarDate(input.value)) return;
       currentPeriod()[`${input.dataset.date}Dates`][Number(input.dataset.index)] = input.value;
-      document.querySelectorAll(`[data-date="${input.dataset.date}"][data-index="${input.dataset.index}"]`).forEach(peer => { if (peer !== input) peer.value = input.value; });
+      document.querySelectorAll(`[data-date="${input.dataset.date}"][data-index="${input.dataset.index}"]`).forEach(peer => { if (peer !== input) peer.value = input.value; peer.closest("td,label,th")?.querySelector(".legacy-date")?.remove(); });
       stateChanged = true;
     }
     if (input.dataset.activityField) {
@@ -4445,6 +4477,7 @@
       const rowIndex = startRow + lineOffset;
       if (rowIndex >= period.roster.length) { truncated = true; return; }
       const learner = period.roster[rowIndex];
+      if (getRowCategory(learner)) return;
       const cells = line.split("\t");
       cells.forEach((cellValue, cellOffset) => {
         const column = startCol + cellOffset;
@@ -4456,15 +4489,6 @@
         window.CSTRRecordTools.setScore(learner, "qa", column - 1 - wwLen - ptLen, sanitizeScoreValue(value));
       });
       rowsFilled += 1;
-    });
-
-    period.roster.forEach((l) => {
-      if (getLearnerCategory(l.name)) {
-        l.hpsOriginals = {};
-        l.ww.fill("");
-        l.pt.fill("");
-        l.qa.fill("");
-      }
     });
 
     clearSelection();

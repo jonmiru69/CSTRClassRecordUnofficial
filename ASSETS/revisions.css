@@ -213,3 +213,150 @@
 @media print {
   .score-plus,.score-plus-note {display:none!important}
 }
+
+/* 24 October: supplied palette and compact, readable task typography. */
+:root,:root[data-theme="light"] {
+  --palette-orange:#FFA322;--palette-red:#BB1414;--palette-navy:#042134;
+  --palette-charcoal:#181818;--palette-black:#000;
+  --canvas:#f3f4f4;--base:#f3f4f4;--surface:#fff;--surface-subtle:#edf0f2;
+  --text:#181818;--muted:#4d5960;--border:#b5c0c6;--border-light:#dbe1e5;
+  --brand:#042134;--brand-hover:#BB1414;--brand-soft:#eaf0f4;--focus:#BB1414;
+  --action-ink:var(--brand);--action-hover:var(--brand-hover);--on-brand:#fff;
+  --ink-surface:#042134;--sidebar-field:#103247;--sidebar-field-border:#103247;
+  --sidebar-muted:#d5dde2;--review-accent:#BB1414;--danger:#BB1414;--review-danger:#BB1414;
+  --section-surface:#edf0f2;--chart-ww:#FFA322;--chart-pt:#BB1414;--chart-qa:#042134;
+  --category-boys:#175fa6;--category-girls:#af236a;
+  --maroon:#BB1414;--maroon-dark:#821010;--maroon-light:#BB1414;
+  --gold:#FFA322;--gold-light:#ffd296;--gold-deep:#8c4b00;--gold-soft:#fff0d9;
+  --brand-line:#b5c0c6;--ww-line:#FFA322;--pt-line:#BB1414;--qa-line:#042134;
+}
+:root[data-theme="dark"] {
+  --canvas:#000;--base:#000;--surface:#181818;--surface-subtle:#24282b;
+  --text:#f4f4f4;--muted:#c2ccd2;--border:#65727a;--border-light:#3a444b;
+  --brand:#FFA322;--brand-hover:#ffd296;--brand-soft:#342a1b;--focus:#FFA322;
+  --action-ink:var(--brand);--action-hover:var(--brand-hover);--on-brand:#042134;
+  --ink-surface:#042134;--sidebar-field:#103247;--sidebar-field-border:#103247;
+  --sidebar-muted:#d5dde2;--section-surface:#24282b;--review-accent:#FFA322;
+  --danger:#ff8b8b;--review-danger:#ff8b8b;--chart-ww:#FFA322;--chart-pt:#ff7770;--chart-qa:#6ab9ed;
+  --category-boys:#80c6ff;--category-girls:#ff99cc;
+  --maroon:#ff8b8b;--maroon-dark:#ffaaaa;--maroon-light:#ff8b8b;
+  --gold:#FFA322;--gold-light:#ffd296;--gold-deep:#ffd296;--gold-soft:#342a1b;
+  --brand-line:#65727a;--ww-line:#FFA322;--pt-line:#ff7770;--qa-line:#6ab9ed;
+}
+:root body {font-size:.875rem;line-height:1.5}
+:root body :is(p,label,li,dt,dd,input,select,textarea,summary) {font-size:.875rem;line-height:1.5}
+:root body :is(h1,h2) {font-size:1.5rem;line-height:1.25}
+:root body h3 {font-size:1.125rem}
+:root body h4 {font-size:1rem}
+:root body h5 {font-size:.875rem}
+:root body :is(.muted,.form-note,.settings-note,.teacher-edit-hint,small) {font-size:.75rem;line-height:1.5}
+:root body :is(.login-card h1,.section-heading h2) {font-size:1.625rem}
+:root body .welcome-story h2 {font-size:clamp(1.75rem,3vw,2.5rem)}
+:root body .welcome-story>p:not(.eyebrow):not(.welcome-unofficial) {font-size:.875rem}
+:root body .welcome-story :is(figcaption,.welcome-unofficial) {background:#042134;color:#e1e8ed}
+:root body :is(.welcome-brand-copy strong,.app-title) {font-size:1.125rem}
+:root body .welcome-brand-copy small {font-size:.75rem}
+:root body .login-card :is(.login-intro,.field-label,input,.button,.button-google) {font-size:.875rem}
+:root body .workspace-intro h2 {font-size:1.5rem}
+:root body .metric-card strong {font-size:1.5rem}
+:root body .profile-editor :is(input,textarea,select) {font-size:.875rem}
+:root body :is(.teacher-name-input,.teacher-meta-input,.teacher-bio-input,select) {font-size:.875rem!important}
+:root body #app .record-section .class-name {font-size:1.875rem!important}
+:root body :is(.owner-context,.owner-footer p,.welcome-tools button) {font-size:.8125rem}
+/* Every underline belongs to the actual text, not its padded click target. */
+:root body :is(button,#saveChanges),
+:root body :is(button,#saveChanges):is(:hover,:active,:focus,:focus-visible) {
+  border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;
+  text-decoration:none!important;border-radius:0!important;font-size:.8125rem!important;
+  transition:transform 220ms var(--ease-control)!important;
+}
+:root body :is(button,#saveChanges)::before,:root body :is(button,#saveChanges)::after {display:none!important}
+:root body :is(button,#saveChanges):not(:disabled):hover {
+  transform:perspective(800px) translate3d(0,-1px,3px) rotateX(1.5deg) scale(1.025)!important;
+  filter:drop-shadow(0 2px 2px #0003)!important; /* taste-skill-ignore: User-requested hover shadow only. */
+}
+:root body :is(button,#saveChanges):not(:disabled):active {transform:perspective(800px) translate3d(0,0,2px) scale(1.015)!important}
+:root body .action-label {position:relative;display:inline;box-decoration-break:clone}
+:root body .action-label::after {content:"";position:absolute;left:0;right:0;bottom:-.2em;height:1.5px;background:currentColor;transform:scaleX(0);transform-origin:center;transition:transform 220ms var(--ease-control);pointer-events:none}
+:root body :is(button,summary):is(:hover,:active,:focus-visible) .action-label::after,
+:root body button:is([aria-current="page"],[aria-selected="true"],[aria-pressed="true"]):not(.theme-toggle) .action-label::after {transform:scaleX(1)}
+:root body :is(button,summary):focus-visible .action-label::after {height:3px}
+:root body button:focus-visible .ui-icon {transform:scale(1.15);filter:drop-shadow(0 2px 1px #0005)}
+:root body summary {outline:0!important;text-decoration:none!important;font-size:.8125rem}
+/* Exact sidebar equation: 48 = 2 + 44 + 2; expanded 240 = 14 + 212 + 14. */
+:root body #app button.photo-frame {border-radius:50%!important}
+:root body #app .app-layout:not(.sidebar-collapsed) {--sidebar-width:240px;grid-template-columns:240px minmax(0,1fr)}
+:root body #app .app-layout:not(.sidebar-collapsed) .app-sidebar {width:240px;padding:16px 14px}
+:root body #app .app-layout.sidebar-collapsed {--sidebar-width:48px;grid-template-columns:48px minmax(0,1fr)}
+:root body #app .app-layout.sidebar-collapsed .app-sidebar {width:48px;padding:16px 2px;overflow-x:hidden}
+:root body #app .sidebar-collapsed .sidebar-link {width:44px;min-width:44px;min-height:44px;justify-content:center;padding:10px}
+:root body #app .sidebar-collapsed .sidebar-link>.ui-icon {width:18px;height:18px;flex:0 0 18px}
+:root body #app .sidebar-collapsed .sidebar-brand {padding:0;justify-content:center;width:44px}
+:root body #app .sidebar-collapsed .sidebar-logo {width:32px;min-width:32px}
+:root body #app .sidebar-link {font-size:.8125rem;line-height:1.4}
+:root body #app .app-sidebar :is(button,#saveChanges):is([aria-current="page"],[aria-pressed="true"]) {color:#FFA322!important}
+:root body #app .sidebar-search {grid-template-columns:minmax(0,1fr) 28px!important;gap:4px}
+:root body #app .sidebar-search label {font-size:.75rem}
+:root body #app .sidebar-search input:not([type="checkbox"]),
+:root body #app #studentSearch:is(:hover,:focus,:focus-visible,:active) {
+  height:32px;min-height:32px!important;max-height:32px;line-height:20px;padding:6px 8px;
+  font-size:.8125rem;border:0!important;outline:0!important;box-shadow:none!important;border-radius:0!important;
+  background:#103247!important;color:#fff!important;
+}
+:root body #app .sidebar-search input::placeholder {color:#d5dde2!important;opacity:1}
+:root body #app .sidebar-search:has(input:focus-visible) label {color:#FFA322;text-decoration:underline;text-underline-offset:3px}
+:root body #app .sidebar-search button {width:28px;min-width:28px;height:32px;min-height:32px;padding:4px}
+:root body #app .record-section .period-tabs button.tab {font-size:.8125rem!important;padding:8px 10px;line-height:1.5;min-height:40px}
+:root body #app .record-section .period-tabs button.tab[aria-pressed="true"] {font-size:1rem!important;font-weight:700!important;color:var(--brand)!important}
+:root body #app .record-section .record-table input[data-name-row] {text-align:left!important;padding-left:8px}
+:root body #app .record-section .record-table .name-cell {text-align:left!important}
+:root body #app .record-section .record-table :is(input,th,td) {font-size:.8125rem!important}
+:root body #app .record-section .record-table input[data-date] {font-size:.75rem!important;width:118px!important;min-width:118px!important}
+:root body #app .record-section .record-table .activity-date-cell {min-width:124px}
+:root body #app .record-section .record-table .score-entry {flex-direction:column;min-width:74px;gap:0}
+:root body #app .score-adjustment {display:flex;flex-flow:row wrap;align-items:center;justify-content:center;gap:0 4px;max-width:98px}
+:root body #app :is(.score-plus,.score-cancel) {display:inline-flex;width:auto!important;min-width:0!important;min-height:24px!important;height:auto!important;font-size:.75rem!important;padding:2px 0!important;line-height:1.5}
+:root body #app .score-cancel {flex-basis:100%;justify-content:center;color:var(--danger)!important}
+:root body #app .score-plus-note {font-size:.75rem}
+:root body #app .record-section .record-table input[data-score] {min-height:28px}
+:root body #app .record-section .row-category-boys input[data-name-row] {color:var(--category-boys)!important;font-weight:700}
+:root body #app .record-section .row-category-girls input[data-name-row] {color:var(--category-girls)!important;font-weight:700}
+:root body #app .record-section .row-category-section input[data-name-row] {font-weight:700;color:var(--brand)!important}
+:root body .activity-register :is(input,textarea,th,td) {font-size:.8125rem!important}
+:root body .activity-register-heading h3 {font-size:1.125rem}
+:root body .legacy-date {font-size:.75rem;color:var(--muted)}
+:root body .report-heading>p {font-size:.8125rem}
+:root body .report-grades {display:flex;flex-wrap:wrap;gap:16px}
+:root body .report-final-grade {order:-1;flex:1 1 100%;padding:16px;background:#042134;color:#fff}
+:root body .report-final-grade :is(small,strong) {color:inherit}
+:root body .report-final-grade strong {font-size:2.25rem;color:#FFA322!important;line-height:1.15}
+:root body .student-perf-block>h3 {font-size:1.25rem;font-weight:700}
+:root body .student-result-priority {padding:18px;background:#042134;color:#fff;margin-block:12px}
+:root body .student-result-priority p {color:#e1e8ed;font-size:.8125rem;margin:0 0 8px}
+:root body .student-result-priority div {display:flex;justify-content:space-between;align-items:center;gap:16px}
+:root body .student-result-priority div>span {font-size:.875rem;max-width:140px}
+:root body .student-result-priority strong {font-size:2.75rem;line-height:1.1;color:#FFA322}
+:root body .student-result-priority small {color:#e1e8ed}
+:root body .student-results .student-result-priority :is(p,small,span) {color:#e1e8ed!important}
+:root body #app .app-title {font-size:1.125rem!important}
+:root body .mobile-chart-row.chart-ww {--chart-color:var(--chart-ww)}
+:root body .mobile-chart-row.chart-pt {--chart-color:var(--chart-pt)}
+:root body .mobile-chart-row.chart-qa {--chart-color:var(--chart-qa)}
+:root body .mobile-chart-bar {box-sizing:border-box;border:1px solid var(--text)}
+@media(max-width:760px) {
+  :root body #app .app-layout:not(.sidebar-collapsed) {grid-template-columns:48px minmax(0,1fr)}
+  :root body #app .app-sidebar {z-index:90}
+  :root body #app .record-section .class-name {font-size:1.5rem!important}
+  :root body #app .app-header-inner {padding:6px 10px}
+  :root body #app .app-title {font-size:1.0625rem}
+  :root body .login-card h1 {font-size:1.5rem}
+  :root body .login-card input {font-size:.875rem}
+  :root body .report-quarter-tabs button {font-size:.8125rem;min-height:36px}
+  :root body .mobile-component-chart :is(h4,h5) {font-size:1rem}
+  :root body .report-ledger :is(th,td) {font-size:.8125rem}
+}
+@media(prefers-reduced-motion:reduce) {
+  :root body :is(button,#saveChanges),:root body :is(button,#saveChanges):is(:hover,:active,:focus,:focus-visible) {transition:none!important;animation:none!important;transform:none!important}
+  :root body :is(button,#saveChanges):is(:hover,:active,:focus-visible) {transform:none!important;transition:none!important}
+  :root body .action-label::after {transition:none}
+}

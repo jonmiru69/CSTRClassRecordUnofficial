@@ -20,6 +20,16 @@
     const categories = [...new Set(match.map(value => value.match(/boys|girls/i)[0].toLowerCase()))];
     return categories.length === 1 ? categories[0] : null;
   }
+  function getRowCategory(learner) {
+    const sex = getLearnerCategory(learner?.name);
+    if (sex) return sex;
+    const label = String(learner?.name || '').normalize('NFKC').trim();
+    const heading = /^(STEM|ABM|HUMSS|GAS|TVL|ICT|HE|HUMANITIES|ARTS|SPORTS)(?:[ \-–—/]+[A-Z0-9]{1,12}){0,3}$/.test(label);
+    // A scored row is never reclassified merely because its name resembles a section.
+    const hasScores = kinds.some(kind => (learner?.[kind] || []).some(present));
+    const hasHistory = kinds.some(kind => Object.values(learner?.scoreAdjustments?.[kind] || {}).some(a => a?.entries?.length || a?.history?.length));
+    return heading && !hasScores && !hasHistory ? 'section' : null;
+  }
   const category = name => getLearnerCategory(name) !== null;
 
   function setScore(learner, kind, index, value) {
@@ -71,7 +81,7 @@
     ledger.history.push({ raw: ledger.raw, applied: learner[kind][index], entries: ledger.entries, endedAt: new Date().toISOString(), reason: explanation });
     ledger.entries = [];
     const maximum = period[kind + 'Hps'][index], origin = learner.hpsOriginals?.[kind]?.[index];
-    learner[kind][index] = numeric(ledger.raw) && numeric(maximum) && Number(maximum) > 0 ? String(Math.min(Number(ledger.raw), Number(maximum))) : ledger.raw;
+    learner[kind][index] = numeric(ledger.raw) && numeric(maximum) && Number(maximum) > 0 ? (Number(ledger.raw) > Number(maximum) ? String(maximum) : ledger.raw) : ledger.raw;
     if (numeric(ledger.raw) && numeric(maximum) && Number(maximum) > 0 && Number(ledger.raw) > Number(maximum)) {
       learner.hpsOriginals ||= {}; learner.hpsOriginals[kind] ||= {};
       learner.hpsOriginals[kind][index] = { score: ledger.raw, hps: origin?.hps || ledger.raw, applied: learner[kind][index] };
@@ -171,5 +181,5 @@
     const quarter = period.quarter || index % 2 + 1;
     return `${period.name || 'Period'} · Quarter ${quarter}, Semester ${semester}`;
   }
-  return { getLearnerCategory, setScore, addPoints, removePoints, normalizeAdjustments, adjustHps, normalizeOrigins, completion, periodLabel };
+  return { getLearnerCategory, getRowCategory, setScore, addPoints, removePoints, normalizeAdjustments, adjustHps, normalizeOrigins, completion, periodLabel };
 });
