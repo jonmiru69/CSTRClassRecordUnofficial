@@ -1,0 +1,148 @@
+UI refinements verification for repository 054966e2675adcb5a36118d2b86ab1ba6a1dfc82
+Synthetic records only; no production/cloud writes.
+
+PASS All application JavaScript parses
+PASS Worked grading example remains 85.8 / 88
+PASS Blank score is missing, numeric zero is included
+PASS A and M count zero; E and L are excluded
+PASS Zero HPS does not create Infinity
+PASS QA three-slot weights and exclusion normalization
+PASS Transmutation monotonic and bounded across 0–100
+PASS HPS reduction caps and reversal restores original precision
+PASS Explicit edit wins over HPS recovery; locked period is unchanged
+PASS Names containing Boys are not automatically group headers
+PASS AES-GCM encrypted backup round trip
+PASS Incorrect backup passphrase rejected
+PASS Tampered encrypted backup rejected
+PASS Prototype pollution and malformed registry rejected
+PASS Matching cloud revision commits exactly once
+PASS Second device saving stale revision is rejected without overwrite
+PASS Retry against explicitly reviewed cloud revision succeeds
+PASS Client legacy binding is disabled
+PASS Invalid revision cannot save
+PASS Rule expressions deny unauthenticated and unapproved access
+PASS Rule expressions isolate teachers and preserve verified legacy owner
+PASS Approvals, registration tickets, and bindings deny client writes
+PASS Rule validation rejects old clients and stale revision; allows next protocol revision
+PASS Profile dataKey cannot be reassigned by a client
+PASS No export vendor bundles loaded at sign-in
+PASS All sensitive recovery writes use session storage
+
+26 checks passed. Rule expression tests use test doubles; they do NOT replace the Firebase Emulator Suite or deployed acceptance tests.
+PASS Added points preserve raw score, explanation, actor and timestamp
+PASS Repeated and decimal additions accumulate without replacing the raw score
+PASS Grade calculation uses the adjusted score exactly once
+PASS Invalid amounts, over-HPS totals and absent reasons make no mutation
+PASS A/L/M/E and blank scores cannot receive bonus points
+PASS Missing/invalid HPS and unnamed/category rows cannot receive points
+PASS Locked periods reject addition and reversal without mutation
+PASS Reversal restores raw score and retains reason history
+PASS Direct replacement ends active points but preserves adjustment history
+PASS An unchanged explicit value does not erase added points
+PASS HPS reduction and restoration retain added-point provenance
+PASS Reversal under reduced HPS still permits raw-score recovery
+PASS JSON and normalization retain active and historical adjustments
+PASS Removed-column provenance is not reassigned to a new activity
+PASS Learner reordering keeps points attached to their learner object
+15 score-adjustment checks passed.
+PASS: Sign-in, registration, recovery, task-first dashboard, and synthetic grade-sheet templates render without exceptions.
+PASS Excel vendor serialization preserves numeric zero and treats text beginning with = as text.
+PASS Official Word exporter generates a valid ZIP containing document.xml and supplied metadata.
+PASS Official SVG page generation. PDF binary generation and visual export layout still require browser acceptance.
+PASS Grading-engine bytes match the existing repository version
+PASS Cancellation at full HPS restores raw score and archives every addition
+PASS Cancellation preserves a zero raw score exactly
+PASS Cancellation keeps all other learners and components unchanged
+PASS Recognized empty strand headings are protected
+PASS Scored strand-like names remain learner rows
+PASS Personal names are not silently converted to section headings
+PASS Boys and girls headings retain their separate category identity
+PASS Saved scores and adjustment histories survive normalization exactly
+PASS Rendering does not change saved teacher, roster, dates, or scores
+PASS Category deletion handler rejects boys, girls and strand headings
+PASS Category rows have no delete action, while learner rows still do
+12 October 24 regression checks passed.
+
+PASS Synthetic signed-in overview loads
+PASS Circular teacher portrait is 144 by 144
+PASS All sheet inputs have no nested borders or background fills
+PASS Calendar date inputs in sheet and register
+PASS Calendar selection updates the shared activity date
+PASS A/L/M/E have distinct text colors
+PASS Plus control opens accessible native dialog
+PASS Adding points changes effective score and preserves raw score
+PASS Normalization round trip retains reason and points
+PASS One learner mode includes plus controls and detailed chart
+PASS One learner export targets the selected period and retains its reasons
+PASS Four JHS quarter tabs appear
+PASS Selected quarter is visibly emphasized without a button border
+PASS Report contains raw, plus, effective score, attendance and reason
+PASS Actual export action generates a quarter-specific PNG
+PASS Quarter switch hides other quarters and their adjustment
+PASS Quarter PNG exports have distinct period labels
+PASS Report SVG decodes and rasterizes to PNG
+PASS SHS report tabs name semester and quarter separately
+PASS Phone overview has no document horizontal overflow
+PASS Phone save and theme controls are visible within the viewport
+PASS Phone one-learner view contains its data within the page
+PASS Phone report exposes readable activity scores and adjustment reasons
+PASS UI reversal keeps original reason in report history
+PASS Locked sheet disables all plus controls
+PASS Reduced-motion preference disables control travel
+PASS Expanded navigation is exactly 240 px
+PASS Collapsed navigation and content offset both equal 48 px
+PASS Search is compact and has no border, outline or box shadow on focus
+PASS Learner names are left aligned
+PASS Active quarter text is larger than inactive quarter text
+PASS Green plus action sits at the upper right of its score
+PASS Legacy dates retain their value without a Previous date instruction
+PASS Selecting a calendar date immediately removes legacy date text
+PASS Full-HPS score retains a plus control to manage and cancel points
+PASS Cancel action restores exact raw score with no points field or mandatory note
+PASS One learner Cancel points also restores raw score and preserves reasons
+PASS Category rows have no deletion controls but scored learner rows retain them
+PASS Boys and girls category text use blue and pink
+PASS Protected category deletion cannot mutate state
+PASS Multi-cell clear preserves category labels
+PASS Bulk paste preserves protected labels
+PASS Unrelated paste never clears existing category-row scores or history
+PASS Hover remains text-only with a centered growing underline
+PASS Report puts a large final grade and student name before its chart
+PASS Graph categories use three distinct palette colors
+PASS Tablet layout stays within document width
+PASS Mobile grade priority text contrasts against the navy panel
+PASS Long report produces multiple PNG parts in one ZIP
+PASS No uncaught browser exceptions
+
+PASS JHS and SHS retain four and three distinct colored edges
+PASS Class subject alone receives word underlines
+PASS Class metadata, school-level helper text and counts stay unadorned
+PASS Class card moves as a whole and only the subject underline grows
+PASS Reduced-motion preference also disables class-card movement
+PASS Only primary words receive underlines in multi-line actions
+PASS Word wrappers exclude punctuation, symbols, emoji and file extensions
+PASS Enhancer remains idempotent after mutation delivery
+PASS Every plus target is 24px and the glyph is 14px
+PASS No repeated Add points or Cancel points labels clutter the grid
+PASS Score glyphs are not wrapped in animated underlines
+PASS Sheet data hierarchy distinguishes raw scores, HPS, totals and final grades
+PASS Compact learner rows are at most 38px and names stay left aligned
+PASS Full sheet container still fills its available workspace
+PASS Theme toggling preserves all stored record values
+PASS Dark-mode sheet scores, names and dates use light readable inks
+PASS Dark mode keeps the green point action distinct
+PASS One-learner score controls remain in their score fields
+PASS 768px light class directory has no page overflow
+PASS 768px light sheet retains horizontal scrolling inside its container
+PASS 768px dark class directory has no page overflow
+PASS 768px dark sheet retains horizontal scrolling inside its container
+PASS 390px light class directory has no page overflow
+PASS 390px light sheet retains horizontal scrolling inside its container
+PASS 390px dark class directory has no page overflow
+PASS 390px dark sheet retains horizontal scrolling inside its container
+PASS Visual navigation and mode changes leave record state unchanged
+PASS No uncaught exceptions during visual interaction checks
+
+228 theme/viewport scenarios: 38 states x 2 themes x 3 viewport widths.
+Final flat-background text contrast failures: 0. Browser exceptions: 0.
+Desktop sheet viewport: 1180px before and after. Learner rows: 75px to 37px.
