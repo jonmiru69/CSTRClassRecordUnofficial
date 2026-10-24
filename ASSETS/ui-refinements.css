@@ -1,0 +1,155 @@
+/* Interface refinements. Presentation only; calculations and stored values are unchanged. */
+@media screen {
+  :root,:root[data-theme="light"] {
+    color-scheme:light;
+    --positive:#176c37;--positive-hover:#0c5427;
+    --report-ww-ink:#875000;--report-pt-ink:#BB1414;--report-qa-ink:#042134;
+    --selected-cell:#e7edf2;--selected-cell-ink:#042134;
+    --edge-green:#28763b;--edge-yellow:#d29c00;--edge-red:#BB1414;--edge-blue:#1763a5;
+    --edge-charcoal:#33434c;--edge-baby-blue:#2686ba;--edge-deep-red:#a52151;
+  }
+  :root[data-theme="dark"] {
+    color-scheme:dark;
+    --positive:#82dfa2;--positive-hover:#b3f4c8;
+    --report-ww-ink:#ffbf61;--report-pt-ink:#ff9690;--report-qa-ink:#91cbf1;
+    --selected-cell:#30465a;--selected-cell-ink:#fff;
+    --edge-green:#72c987;--edge-yellow:#e9bd42;--edge-red:#f16c6c;--edge-blue:#72b7ee;
+    --edge-charcoal:#95a3ac;--edge-baby-blue:#75c9f5;--edge-deep-red:#ed81aa;
+    --section-purple:#c38be5;--section-green:#73c58b;--section-blue:#71b4ef;
+    --section-red:#f27878;--section-charcoal:#9aa8b0;--section-baby-blue:#72c7f4;
+    --section-deep-red:#ee85af;--section-black:#b1bac2;--section-brown:#d4aa8b;
+    --section-orange:#ffb366;--section-pink:#f497c4;--section-gray:#b2bdc6;--section-yellow:#e9c66c;
+  }
+
+  /* Resolve legacy hard-coded inks/surfaces in both themes, including focus/locked states. */
+  :root body a {color:var(--brand)}
+  :root body a:hover {color:var(--brand-hover)}
+  :root body :is(.login-error.error,.form-note.error,.points-error,.official-export-message.error) {color:var(--danger)!important}
+  :root body :is(.login-success,.official-export-message.success) {color:var(--success)!important}
+  :root body #passwordChangeMsg:not(.error) {color:var(--success)!important}
+  :root body :is(.save-toast,.save-toast.info,.save-toast.success,.save-toast.error) {background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+  :root body .save-toast-icon {background:var(--surface-subtle)!important;color:var(--success)!important}
+  :root body .save-toast.error .save-toast-icon {color:var(--danger)!important}
+  :root body .save-toast.info .save-toast-icon {color:var(--brand)!important}
+  :root body :is(.save-status,.save-meta) {color:var(--muted)}
+  :root body .save-status.error {color:var(--danger)}
+  :root body :is(.sidebar-owner,.sidebar-brand-copy small) {color:#d5dde2!important}
+  :root body button.photo-frame:not([data-has-photo="true"]) {background:var(--surface-subtle)!important;color:var(--brand)!important}
+  :root body .photo-placeholder {color:var(--brand);background:transparent}
+  :root body .photo-caption {background:transparent!important;color:var(--brand)!important}
+  :root body :is(.welcome-brand img,.sidebar-logo img,.profile-photo,.welcome-story figure img) {filter:none;opacity:1}
+  :root body :is(.official-export-accuracy,.official-export-format-note,.custom-weights-heading,.settings-account-status,.settings-account-avatar,.weight-preview,.version-history-row) {color:var(--text);background-color:var(--surface-subtle)}
+  :root body :is(.official-export-intro,.settings-account-details,.settings-account-details strong) {color:var(--text)}
+  :root body :is(.settings-note,.official-export-message,.recovery-tools p) {color:var(--muted)}
+  :root body .settings-account-provider-badge {color:var(--text)!important;background:var(--surface)!important}
+  :root body .record-section .bulk-column-tools :is(input,label,strong,small) {color:var(--text)!important}
+  :root body .record-section .bulk-column-tools input {background:var(--surface)!important}
+  :root body #app .record-section .activity-register :is(th,td,input,textarea),
+  :root body #app .record-section .activity-register tbody :is(th,td,input,textarea):is(:hover,:focus,:disabled) {
+    background:var(--surface)!important;color:var(--text)!important;
+  }
+  :root body #app .record-section .activity-register thead th {background:var(--surface-subtle)!important}
+  :root body #app .record-section .activity-register tbody th .activity-kind {color:var(--muted)!important}
+  :root body #app .record-section .activity-register :is(input,textarea)::placeholder {color:var(--muted)!important;opacity:1}
+  :root body #app .record-section .record-table {background:var(--surface);color:var(--text)}
+  :root body #app .record-section .record-table input,
+  :root body #app .record-section .record-table input:is(:hover,:focus,:disabled) {color:var(--text)!important;background:transparent!important;opacity:1;-webkit-text-fill-color:currentColor}
+  :root body #app .record-section .record-table input[data-mark="A"] {color:var(--mark-a)!important}
+  :root body #app .record-section .record-table input[data-mark="L"] {color:var(--mark-l)!important}
+  :root body #app .record-section .record-table input[data-mark="M"] {color:var(--mark-m)!important}
+  :root body #app .record-section .record-table input[data-mark="E"] {color:var(--mark-e)!important}
+  :root body #app .record-section .record-table input.invalid[aria-invalid="true"] {color:var(--danger)!important}
+  :root body #app .record-section .record-table input.cell-selected {background:var(--selected-cell)!important;outline-color:var(--focus)!important}
+  :root body #app .record-section .record-table input[data-name-row]:focus {outline:2px solid var(--focus)!important;outline-offset:-2px}
+  :root body #app .record-section .record-table input::placeholder {color:var(--muted)!important}
+  :root body #app .record-section .record-table .row-category-boys input[data-name-row] {color:var(--category-boys)!important}
+  :root body #app .record-section .record-table .row-category-girls input[data-name-row] {color:var(--category-girls)!important}
+  :root body #app .record-section .record-table .row-category-section input[data-name-row] {color:var(--brand)!important}
+
+  /* Screen reports follow the active theme; downloadable report artwork stays on paper. */
+  :root body #app .editable-student-report,
+  :root body #app .editable-student-report :is(.report-period-card,.report-heading,.report-score-group,.report-activity-row) {background:var(--surface)!important;color:var(--text)!important;border-color:var(--border-light)}
+  :root body #app .editable-student-report :is(label,legend,.report-activity-name>strong) {color:var(--text)!important}
+  :root body #app .editable-student-report :is(.report-heading>span,.report-mean span,.report-mean small,.report-grades small,.report-component small,.report-score-grid small,.report-footnote,.report-interpretation,[data-report-live="overview"]>p,.report-edit-scores>p) {color:var(--muted)}
+  :root body #app .editable-student-report :is(.report-mean,.report-component) {background:var(--surface-subtle)!important;color:var(--text);border-color:var(--border-light)}
+  :root body #app .editable-student-report .report-heading input {background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)}
+  :root body .report-ww {--report-color:var(--report-ww-ink)}
+  :root body .report-pt {--report-color:var(--report-pt-ink)}
+  :root body .report-qa {--report-color:var(--report-qa-ink)}
+  :root body .report-status {color:var(--warning)}
+  :root body .report-status.is-complete {color:var(--success)}
+  :root body #app .editable-student-report .report-final-grade {background:#042134!important;color:#fff!important}
+  :root body #app .editable-student-report .report-final-grade :is(small,strong) {color:#fff}
+  :root body #app .editable-student-report .report-final-grade strong {color:#FFA322!important}
+  :root body .report-ledger :is(th,td,caption) {color:var(--text);background:var(--surface)}
+  :root body .report-ledger .adjustment-reason {color:var(--brand);background:transparent}
+  :root body .detailed-report-chart {background:var(--surface);color:var(--text)}
+  :root body .detailed-report-chart text {fill:var(--text)}
+  :root body .detailed-report-chart line {stroke:var(--border)}
+  :root body .detailed-report-chart rect[fill="#FFA322"] {fill:var(--chart-ww)}
+  :root body .detailed-report-chart rect[fill="#BB1414"] {fill:var(--chart-pt)}
+  :root body .detailed-report-chart rect[fill="#042134"] {fill:var(--chart-qa)}
+
+  /* Identification edges are content, independent of text-button borders. */
+  :root body #app button.level-card {position:relative;padding-left:40px;overflow:hidden;color:var(--text)!important}
+  :root body #app button.level-card :is(strong,small) {color:var(--text)!important;opacity:1}
+  :root body #app button.level-card.is-active strong {color:var(--brand)!important}
+  :root body #app .level-card .level-edge {display:block!important;position:absolute;top:4px;bottom:4px;width:6px;z-index:1}
+  :root body #app .level-card .edge-green {left:0;background:var(--edge-green)}
+  :root body #app .level-card .edge-yellow {left:6px;background:var(--edge-yellow)}
+  :root body #app .level-card .edge-red {left:12px;background:var(--edge-red)}
+  :root body #app .level-card .edge-blue {left:18px;background:var(--edge-blue)}
+  :root body #app .level-card .edge-charcoal {left:0;background:var(--edge-charcoal)}
+  :root body #app .level-card .edge-baby-blue {left:6px;background:var(--edge-baby-blue)}
+  :root body #app .level-card .edge-deep-red {left:12px;background:var(--edge-deep-red)}
+  :root body #app button.section-card {position:relative;padding-left:26px}
+  :root body #app .section-card .class-card-edge {position:absolute;left:0;top:8px;bottom:8px;width:5px;background:var(--section-accent);pointer-events:none}
+  :root body #app button:is(.section-card,.recent-class-row) :is(.section-card-section,.card-level-badge,.weight-pill,.section-card-link,.recent-class-main small,.recent-class-stat small) {color:var(--muted)}
+  :root body #app button:is(.section-card,.recent-class-row) [data-action-emphasis] {color:var(--text)}
+  :root body .action-label {display:inline-block;max-width:100%;white-space:normal;text-decoration:none!important}
+  :root body .action-copy {display:inline;color:inherit;font:inherit}
+  :root body #app .app-layout:not(.sidebar-collapsed) .sidebar-link>span:not(.sidebar-logo) {display:block}
+  :root body button:is(.section-card,.recent-class-row,.level-card) {text-decoration:none!important}
+  :root body #app button:is(.section-card,.recent-class-row,.level-card):not(:disabled):hover {
+    transform:perspective(1000px) translate3d(0,-2px,0) scale(1.005)!important;
+    filter:drop-shadow(0 1px 1px #0002)!important;
+  }
+  @media(prefers-reduced-motion:reduce) {
+    :root body #app button:is(.section-card,.recent-class-row,.level-card):not(:disabled):is(:hover,:active) {transform:none!important;filter:none!important;transition:none!important}
+  }
+
+  /* Preserve the sheet's full workspace/scroll viewport; compact only its cells. */
+  :root body #app .record-section .record-table :is(th,td) {font-size:.75rem!important;padding:2px 3px;line-height:1.3;font-style:normal}
+  :root body #app .record-section .record-table :is(input,textarea) {font-size:.75rem!important;min-height:28px!important;line-height:1.3;padding-block:3px}
+  :root body #app .record-section .record-table input[data-name-row] {font-weight:500;padding-left:5px}
+  :root body #app .record-section .record-table .number-cell {font-size:.6875rem!important;font-weight:400;min-width:24px;width:24px;color:var(--muted)!important}
+  :root body #app .record-section .record-table .component-header {font-size:.75rem!important;font-weight:700;padding-block:6px;height:30px}
+  :root body #app .record-section .record-table .component-header .component-weight {font-size:.6875rem;font-weight:500;color:var(--muted)}
+  :root body #app .record-section .record-table .activity-row th {height:34px;font-size:.6875rem!important;font-weight:600}
+  :root body #app .record-section .record-table input[data-date] {font-size:.6875rem!important;font-weight:400;color:var(--muted)!important;width:100px!important;min-width:100px!important;max-width:100px!important;padding-inline:0}
+  :root body #app .record-section .record-table .activity-date-cell {min-width:104px;width:104px}
+  :root body #app .record-section .record-table .hps-row th {height:24px;font-size:.6875rem!important;font-weight:500;font-style:italic}
+  :root body #app .record-section .record-table input[data-hps] {font-weight:700}
+  :root body #app .record-section .record-table :is(.hps-input-row th,.component-summary) {font-size:.6875rem!important;font-weight:600}
+  :root body #app .record-section .record-table input[data-score] {font-weight:400;height:28px;flex:0 0 46px}
+  :root body #app .record-section .record-table .summary-cell {font-size:.75rem!important;font-weight:400;font-style:normal;min-width:54px;width:54px}
+  :root body #app .record-section .record-table :is(.component-total,[class$="-ws"]) {font-weight:600}
+  :root body #app .record-section .record-table .initial-cell {font-size:.78125rem!important;font-weight:600}
+  :root body #app .record-section .record-table .transmuted-cell {font-size:.875rem!important;font-weight:800;color:var(--brand)!important}
+  :root body #app .record-section .record-table .descriptor-badge {font-size:.75rem;font-weight:600}
+  :root body #app .record-section .record-table .row-delete-btn:not(:disabled) {opacity:1;color:var(--muted)!important}
+  :root body #app .record-section .record-table .row-delete-btn:hover {color:var(--danger)!important}
+  :root body #app .record-section .record-table .row-category input[data-name-row] {font-size:.8125rem!important;font-weight:700}
+  :root body #app .record-section .record-table .row-category .summary-cell {color:transparent!important}
+
+  /* A 14px green glyph in a 24px target, in the score's upper-right corner. */
+  :root body #app .record-section .record-table .score-entry {position:relative;display:flex;flex-direction:row;justify-content:center;min-width:68px;min-height:32px;height:32px;padding-right:12px;box-sizing:border-box}
+  :root body #app .score-adjustment {position:absolute;top:-2px;right:-1px;width:24px;height:32px;max-width:none;min-width:0;display:block}
+  :root body #app button.score-plus {display:flex;align-items:center;justify-content:center;width:24px!important;height:24px!important;min-width:24px!important;min-height:24px!important;padding:0!important;font-size:.875rem!important;font-weight:700;line-height:1;color:var(--positive)!important}
+  :root body #app button.score-plus:hover {color:var(--positive-hover)!important}
+  :root body #app button.score-plus:focus-visible {outline:2px solid var(--positive)!important;outline-offset:-2px}
+  :root body #app .score-plus-note {position:absolute;right:1px;top:22px;font-size:.625rem!important;line-height:1;color:var(--brand);white-space:nowrap}
+  :root body #app .editable-student-report .report-activity-row>label:last-child {position:relative;padding-right:26px}
+  :root body #app .editable-student-report .report-activity-row>label:last-child .score-adjustment {top:auto;bottom:7px;right:0}
+}
+@media print {.score-adjustment{display:none!important}}

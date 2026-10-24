@@ -751,8 +751,10 @@
   }
   function adjustNameColumnWidth() {
     const inputs = document.querySelectorAll(".record-table input[data-name-row]");
-    let width = matchMedia("(max-width: 760px)").matches ? 150 : 190;
-    inputs.forEach(input => { width = Math.max(width, sheetTextWidth(input) + 80); });
+    const mobile = matchMedia("(max-width: 760px)").matches;
+    let width = mobile ? 144 : 164;
+    inputs.forEach(input => { width = Math.max(width, sheetTextWidth(input) + 42); });
+    width = Math.min(width, mobile ? 208 : 264);
     document.documentElement.style.setProperty("--name-col-width", `${width}px`);
     adjustEntryColumnWidths();
   }
@@ -1298,7 +1300,7 @@
     const locked = periods.filter((period) => recordCompletion(period).complete).length;
     return `<button type="button" class="recent-class-row" data-action="select-section" data-section="${safeValue(section.id)}">
       <span class="recent-class-accent accent-${safeValue(section.accent || section.theme)}" aria-hidden="true"></span>
-      <span class="recent-class-main"><strong>${escapeHtml(section.subject)}</strong><small>${escapeHtml(section.level)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</small></span>
+      <span class="recent-class-main"><strong data-action-emphasis>${escapeHtml(section.subject)}</strong><small>${escapeHtml(section.level)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</small></span>
       <span class="recent-class-stat"><strong>${learnerCount}</strong><small>Learners</small></span>
       <span class="recent-class-stat"><strong>${locked}/${periods.length}</strong><small>Complete</small></span>
       ${icon("arrow", "ui-icon row-arrow")}
@@ -1376,7 +1378,7 @@
 
   function renderClassRecord() {
     const edge = (group) => group === "JHS" ? `<span class="level-edge edge-green"></span><span class="level-edge edge-yellow"></span><span class="level-edge edge-red"></span><span class="level-edge edge-blue"></span>` : `<span class="level-edge edge-charcoal"></span><span class="level-edge edge-baby-blue"></span><span class="level-edge edge-deep-red"></span>`;
-    const groupCards = ["JHS", "SHS"].map((group) => `<button type="button" class="level-card level-card-${group.toLowerCase()} ${activeGroup === group ? "is-active" : ""}" data-action="select-group" data-group="${group}">${edge(group)}<span class="level-card-kicker">${group}</span><strong>${group === "JHS" ? "Junior High School" : "Senior High School"}</strong><small>Choose a level to view its sections</small></button>`).join("");
+    const groupCards = ["JHS", "SHS"].map((group) => `<button type="button" class="level-card level-card-${group.toLowerCase()} ${activeGroup === group ? "is-active" : ""}" data-action="select-group" data-group="${group}">${edge(group)}<span class="level-card-kicker">${group}</span><strong data-action-emphasis>${group === "JHS" ? "Junior High School" : "Senior High School"}</strong><small>Choose a level to view its sections</small></button>`).join("");
     
     const groupSections = activeRegistry().filter((section) => section.group === activeGroup);
     const activeCount = groupSections.filter((section) => !section.archived).length;
@@ -1388,11 +1390,11 @@
       <div class="section-card-wrap">
         <button type="button" class="kebab-btn" data-action="open-edit-section" data-section="${safeValue(section.id)}" aria-label="Edit or archive class">${icon("more")}</button>
         <button type="button" class="section-card accent-${safeValue(section.accent || section.theme)}" data-action="select-section" data-section="${safeValue(section.id)}">
-          <div class="section-card-header">
+          <span class="class-card-edge" aria-hidden="true"></span><div class="section-card-header">
             <span class="card-level-badge">${escapeHtml(section.level)}</span>
             ${section.archived ? `<span class="card-archived-badge">${icon("archive")} Archived</span>` : ""}
           </div>
-          <strong>${escapeHtml(section.subject)}</strong>
+          <strong data-action-emphasis>${escapeHtml(section.subject)}</strong>
           ${section.section ? `<span class="section-card-section">${escapeHtml(section.section)}</span>` : ""}
           <div class="section-card-weights">
             <span class="weight-pill">WW: ${section.weights[0]}%</span>
@@ -1415,8 +1417,8 @@
       
       <div class="archive-toggle-bar">
         <div class="archive-pills">
-          <button type="button" class="archive-pill" data-action="set-archive-filter" data-filter="active" aria-pressed="${archiveFilter === "active"}">Active Classes (${activeCount})</button>
-          <button type="button" class="archive-pill" data-action="set-archive-filter" data-filter="archived" aria-pressed="${archiveFilter === "archived"}">${icon("archive")} Archived Classes (${archivedCount})</button>
+          <button type="button" class="archive-pill" data-action="set-archive-filter" data-filter="active" aria-pressed="${archiveFilter === "active"}"><span data-action-emphasis>Active classes</span> <span data-action-secondary>(${activeCount})</span></button>
+          <button type="button" class="archive-pill" data-action="set-archive-filter" data-filter="archived" aria-pressed="${archiveFilter === "archived"}">${icon("archive")} <span data-action-emphasis>Archived classes</span> <span data-action-secondary>(${archivedCount})</span></button>
         </div>
         ${archiveFilter === "archived" ? `<span style="font-size:0.8rem;color:var(--muted);">Showing archived records. Stored safely for future reference.</span>` : ""}
       </div>
@@ -1640,8 +1642,9 @@
     const ledger = learner.scoreAdjustments?.[kind]?.[index];
     const total = (ledger?.entries || []).reduce((sum, e) => sum + e.points, 0);
     const reason = (ledger?.entries || []).map(e => `+${formatScore(e.points)}: ${e.reason}`).join('; ');
-    const data = `data-kind="${kind}" data-row="${row}" data-index="${index}" ${locked ? 'disabled' : ''}`;
-    return `<span class="score-adjustment"><button type="button" class="score-plus" data-action="add-score-points" ${data} aria-label="Add points to ${escapeHtml(learner.name || `learner ${row + 1}`)}, ${kind.toUpperCase()} ${index + 1}" title="${escapeHtml(reason || 'Add points with a reason')}">Add points</button>${total ? `<small class="score-plus-note" title="${escapeHtml(reason)}">+${formatScore(total)}*</small><button type="button" class="score-cancel" data-action="cancel-score-points" ${data} aria-label="Cancel added points for ${escapeHtml(learner.name)}, ${kind.toUpperCase()} ${index + 1}">Cancel points</button>` : ''}</span>`;
+    const label = `${total ? 'Manage added points for' : 'Add points to'} ${learner.name || 'learner ' + (row + 1)}, ${kind.toUpperCase()} ${index + 1}`;
+    const title = total ? `${reason}. Click + to add more or cancel added points.` : 'Add points with a reason';
+    return `<span class="score-adjustment"><button type="button" class="score-plus" data-action="add-score-points" data-kind="${kind}" data-row="${row}" data-index="${index}" ${locked ? 'disabled' : ''} aria-label="${escapeHtml(label)}" title="${escapeHtml(title)}"><span aria-hidden="true">+</span></button>${total ? `<small class="score-plus-note" title="${escapeHtml(reason)}" aria-label="${escapeHtml('Added ' + formatScore(total) + ' points. ' + reason)}">+${formatScore(total)}*</small>` : ''}</span>`;
   }
 
   function openScoreAdjustment(trigger, cancelMode = false) {
@@ -1725,17 +1728,17 @@
         <th class="number-cell" scope="col" rowspan="3">#</th>
         <th class="name-cell" scope="col" rowspan="3">Learner name</th>
         <th class="component-header component-ww" scope="colgroup" colspan="${wwLen + 3}">
-          Written Works (${section.weights[0]}%)
+          <span class="component-title">Written Works</span> <small class="component-weight">(${section.weights[0]}%)</small>
           <button type="button" class="col-btn" data-action="add-col" data-kind="ww" title="Add Written Work column" aria-label="Add Written Work column" ${period.locked ? "disabled" : ""}>+</button>
           <button type="button" class="col-btn" data-action="remove-col" data-kind="ww" title="Remove Written Work column" aria-label="Remove Written Work column" ${period.locked ? "disabled" : ""}>-</button>
         </th>
         <th class="component-header component-pt border-start-pt" scope="colgroup" colspan="${ptLen + 3}">
-          Performance Tasks (${section.weights[1]}%)
+          <span class="component-title">Performance Tasks</span> <small class="component-weight">(${section.weights[1]}%)</small>
           <button type="button" class="col-btn" data-action="add-col" data-kind="pt" title="Add Performance Task column" aria-label="Add Performance Task column" ${period.locked ? "disabled" : ""}>+</button>
           <button type="button" class="col-btn" data-action="remove-col" data-kind="pt" title="Remove Performance Task column" aria-label="Remove Performance Task column" ${period.locked ? "disabled" : ""}>-</button>
         </th>
         <th class="component-header component-qa border-start-qa" scope="colgroup" colspan="${qaLen + 3}">
-          ${state.calendarMode === "trimester" ? "Term Assessment" : "Quarterly Assessment"} (${section.weights[2]}%)
+          <span class="component-title">${state.calendarMode === "trimester" ? "Term Assessment" : "Quarterly Assessment"}</span> <small class="component-weight">(${section.weights[2]}%)</small>
           <button type="button" class="col-btn" data-action="add-col" data-kind="qa" title="Add assessment column" aria-label="Add assessment column" ${period.locked ? "disabled" : ""}>+</button>
           <button type="button" class="col-btn" data-action="remove-col" data-kind="qa" title="Remove assessment column" aria-label="Remove assessment column" ${period.locked ? "disabled" : ""}>-</button>
         </th>
@@ -1805,7 +1808,7 @@
       qa: learner.qa.map(() => "")
     } : learner, period, section.weights);
     const deleteRowBtn = cat ? "" : `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${periodLocked ? "Unlock this grading period to delete rows" : "Remove this learner row from this grading period only"}" aria-label="Delete learner ${rowIndex + 1} row" ${periodLocked ? "disabled" : ""}>${icon("trash")}</button>`;
-    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td>${state.calendarMode === "trimester" ? "" : `<td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td>`}<td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
+    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" title="${learnerLabel}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td>${state.calendarMode === "trimester" ? "" : `<td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td>`}<td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
   }
 
   function learnerResult(learner, period, weights) {
@@ -2307,8 +2310,8 @@
       <p id="officialExportMessage" class="official-export-message" role="status" aria-live="polite"></p>
       <div class="official-export-format-note"><strong>Output:</strong> Editable Word tables or searchable vector PDF; US Letter portrait, CST-R Form 1 headings, official 1-${periodCount} and F rows, principal and teacher signature area, and the selected class's current computed grades.</div>
       <div class="stack-actions official-export-actions">
-        <button type="button" class="button button-secondary" data-action="export-official-word">Save Word (.docx)</button>
-        <button type="button" class="button button-primary" data-action="export-official-pdf">Save PDF (.pdf)</button>
+        <button type="button" class="button button-secondary" data-action="export-official-word"><span data-action-emphasis>Save Word</span> <span data-action-secondary>(.docx)</span></button>
+        <button type="button" class="button button-primary" data-action="export-official-pdf"><span data-action-emphasis>Save PDF</span> <span data-action-secondary>(.pdf)</span></button>
       </div>
     </section>`;
     document.body.append(modal);
