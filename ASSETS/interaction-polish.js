@@ -1,34 +1,29 @@
-/* Presentation only: underline primary words, never card metadata or symbols. */
+/* Presentation only: one continuous underline for each primary action phrase. */
 (() => {
   'use strict';
   let scheduled = false;
   const secondary = 'svg,script,style,small,[aria-hidden="true"],[data-action-secondary],.action-label,.action-copy,.theme-switch-track,.period-completion-dot,.card-level-badge,.card-archived-badge,.section-card-section,.section-card-weights,.section-card-link,.level-card-kicker,.recent-class-stat,.score-plus-note,.weight-preview';
   function enhance() {
     scheduled = false;
-    document.querySelectorAll('button,summary').forEach(control => {
-      const emphasis = control.querySelectorAll('[data-action-emphasis]');
-      const roots = emphasis.length ? [...emphasis] : [control];
-      roots.forEach(root => {
-        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
-        let node;
-        while ((node = walker.nextNode())) {
-          if (!node.parentElement.closest(secondary) && /[\p{L}\p{N}]/u.test(node.textContent)) nodes.push(node);
-        }
-        nodes.forEach(text => {
-          const fragment = document.createDocumentFragment();
-          let cursor = 0;
-          // Each word owns its underline, including when a label wraps to another line.
-          // Whitespace, punctuation, marks and emoji remain unadorned text.
-          for (const match of text.textContent.matchAll(/[\p{L}\p{N}]+/gu)) {
-            fragment.append(document.createTextNode(text.textContent.slice(cursor, match.index)));
-            const label = document.createElement('span'); label.className = 'action-label'; label.textContent = match[0];
-            fragment.append(label); cursor = match.index + match[0].length;
-          }
-          fragment.append(document.createTextNode(text.textContent.slice(cursor)));
-          const copy = document.createElement('span'); copy.className = 'action-copy';
-          copy.append(fragment); text.replaceWith(copy);
-        });
-      });
+    document.querySelectorAll('button,summary,a[data-action],[role="button"]').forEach(control => {
+      const root = control.querySelector('[data-action-emphasis]') || control;
+      if (root.querySelector('.action-label')) return;
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
+      let node;
+      while ((node = walker.nextNode())) {
+        if (!node.parentElement.closest(secondary) && /[\p{L}\p{N}]/u.test(node.textContent)) nodes.push(node);
+      }
+      if (!nodes.length) return;
+      const first = nodes[0], last = nodes[nodes.length - 1];
+      const start = first.textContent.search(/[\p{L}\p{N}]/u);
+      const tail = [...last.textContent.matchAll(/[\p{L}\p{N}]/gu)].at(-1);
+      // Keep spaces and inline formatting inside the phrase. Decorative leading
+      // and trailing symbols, icons, and secondary card details stay outside.
+      const range = document.createRange();
+      range.setStart(first, start);
+      range.setEnd(last, tail.index + tail[0].length);
+      const label = document.createElement('span'); label.className = 'action-label';
+      label.append(range.extractContents()); range.insertNode(label);
     });
   }
   const queue = () => { if (!scheduled) { scheduled = true; requestAnimationFrame(enhance); } };

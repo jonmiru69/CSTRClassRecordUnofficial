@@ -153,3 +153,38 @@
   :root body #app .editable-student-report .report-activity-row>label:last-child .score-adjustment {top:auto;bottom:7px;right:0}
 }
 @media print {.score-adjustment{display:none!important}}
+
+/* Descriptor text retains its label; color is an additional, theme-aware cue. */
+:root {
+  --descriptor-advancing:#176c37;--descriptor-benchmarking:#175ca8;
+  --descriptor-connecting:#006a73;--descriptor-developing:#8a5200;--descriptor-emerging:#b3293d;
+}
+@media screen {
+  :root body a[data-action] {display:inline-block;text-decoration:none!important;transition:transform 220ms var(--ease-control),filter 220ms var(--ease-control)}
+  :root body a[data-action]:is(:hover,:active,:focus-visible) .action-label::after {transform:scaleX(1)}
+  :root body a[data-action]:hover {transform:perspective(800px) translate3d(0,-2px,2px) scale(1.02);filter:drop-shadow(0 3px 3px #12343d24)} /* taste-skill-ignore: User-requested action shadow. */
+  :root body a[data-action]:active {transform:scale(.985)}
+  @media(prefers-reduced-motion:reduce) { :root body a[data-action] {transform:none!important;transition:none!important;filter:none!important} }
+  :root[data-theme="dark"] {
+    --descriptor-advancing:#85d7a0;--descriptor-benchmarking:#9cc9ff;
+    --descriptor-connecting:#80d7df;--descriptor-developing:#ffd080;--descriptor-emerging:#ffa5ad;
+  }
+  :root body .app-header .policy-note {display:block;flex:1 1 175px;max-width:230px;color:var(--muted);font-size:.6875rem;line-height:1.4}
+  :root body .app-header .policy-note em {font-size:inherit;font-weight:400;font-style:italic}
+  @media(max-width:700px) {
+    :root body .app-header .policy-note {flex-basis:100%;max-width:none;order:3;margin:0}
+  }
+}
+:root body .descriptor-badge {background:transparent!important;border:0!important;padding:0;font-weight:600}
+:root body .descriptor-badge.desc-advancing {--descriptor-ink:var(--descriptor-advancing)}
+:root body .descriptor-badge.desc-benchmarking {--descriptor-ink:var(--descriptor-benchmarking)}
+:root body .descriptor-badge.desc-connecting {--descriptor-ink:var(--descriptor-connecting)}
+:root body .descriptor-badge.desc-developing {--descriptor-ink:var(--descriptor-developing)}
+:root body .descriptor-badge.desc-emerging {--descriptor-ink:var(--descriptor-emerging)}
+:root body #app .record-section .record-table .descriptor-badge[class*="desc-"],
+:root body .descriptor-badge[class*="desc-"],
+:root body .student-results .student-result-priority .descriptor-badge[class*="desc-"] {color:var(--descriptor-ink)!important}
+:root body .student-result-priority {
+  --descriptor-advancing:#85d7a0;--descriptor-benchmarking:#9cc9ff;
+  --descriptor-connecting:#80d7df;--descriptor-developing:#ffd080;--descriptor-emerging:#ffa5ad;
+}

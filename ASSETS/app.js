@@ -15,7 +15,7 @@
     transmuteGrade,
     getGradeDescriptor
   } = window.CSTRGrading;
-  
+
   const WELCOME_SEEN_PREFIX = "cstr-class-record-welcome-seen:";
   const app = document.querySelector("#app");
 
@@ -664,6 +664,11 @@
     return "#ffffff";
   }
 
+  // Fixed bright inks for descriptors on the report's navy header, including PNG exports.
+  function descriptorReportColor(descriptor) {
+    return ({Advancing:'#85d7a0',Benchmarking:'#9cc9ff',Connecting:'#80d7df',Developing:'#ffd080',Emerging:'#ffa5ad'})[descriptor] || '#ffffff';
+  }
+
   function renderDescriptorBadge(descriptor) {
     if (!descriptor || descriptor === "—") return `<span class="descriptor-empty">—</span>`;
     const clsMap = {
@@ -952,12 +957,12 @@
           <img src="ASSETS/logo-compact.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
         </div>
 
-        <h1>${titles[loginPanel]}</h1><p class="login-intro">Sign in to your teaching workspace.</p>
-        <p class="muted">Confirm grading settings and assessment rules with your school before use.</p>
+        <h1>${titles[loginPanel]}</h1>
+
 
         ${panelBody}
 
-        <p class="login-policy-note">Read our <button type="button" data-open-policies>Privacy, Terms &amp; Data Protection</button> information before using the workspace.</p><p id="loginError" class="login-error" role="alert"></p>
+        <p class="login-policy-note"><button type="button" data-open-policies>Privacy, Terms &amp; Data Protection</button></p><p id="loginError" class="login-error" role="alert"></p>
         <p id="loginSuccess" class="login-success" role="status" style="display: none;"></p>
       </div>
       <article class="project-about" aria-labelledby="projectTitle">
@@ -1003,7 +1008,7 @@
   }
 
   function renderSignUpPanel() {
-    return `<p class="legacy-helper-text" style="text-align: left;">Enter your details below to create an account. Developer approval is required before accessing a workspace.</p>
+    return `<p class="legacy-helper-text" style="text-align: left;">Developer approval required.</p>
       <form id="signupForm" class="legacy-login-box">
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Full Name
           <input id="signupName" type="text" autocomplete="name" placeholder="e.g. Maria Santos" required>
@@ -1048,7 +1053,7 @@
   function friendlyAuthErrorMessage(err, fallbackPrefix) {
     const sdkDown = !window.CSTRSync || !window.CSTRSync.configured || err?.message === "Firebase SDK not loaded";
     if (sdkDown) {
-      return "Couldn't reach the sign-in service (this usually means the page didn't fully load). Please check your internet connection and reload the page, then try again.";
+      return "Sign-in service unavailable. Check your connection and reload.";
     }
     return `${fallbackPrefix}: ${err.message}`;
   }
@@ -1121,7 +1126,7 @@
         if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
           error.textContent = "Sign-in cancelled. Please try again.";
         } else if (err.code === "auth/unauthorized-domain") {
-          error.textContent = "Domain not authorized in Firebase Console. Please see FIREBASE_SETUP.md.";
+          error.textContent = "Sign-in is unavailable on this domain. Contact support.";
         } else {
           error.textContent = friendlyAuthErrorMessage(err, "Sign-in failed");
         }
@@ -1351,13 +1356,13 @@
               <label class="profile-field profile-bio-field"><span>Professional bio</span><textarea class="teacher-bio-input" data-teacher="bio" placeholder="Short bio or role description">${safeValue(state.teacher.bio)}</textarea></label>
             </div>
           </div>
-          <div class="owner-footer"><p class="teacher-edit-hint">Profile edits are included in your next save.</p><div class="dashboard-hero-actions">
+          <div class="owner-footer"><div class="dashboard-hero-actions">
             ${button(`${icon("records")}<span>Open class records</span>`, "go-records", "button button-primary")}
             ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-secondary")}
           </div></div>
         </div>
       </section>
-      <div class="workspace-intro"><div><h2>Your teaching desk</h2><p>${state.calendarMode === "trimester" ? "Trimester · Zero-based grading" : "Quarterly / Semestral grading"}. Open a class to continue your records.</p></div>${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}</div>
+      <div class="workspace-intro"><div><h2>Your teaching desk</h2><p>${state.calendarMode === "trimester" ? "Trimester · Zero-based grading" : "Quarterly / Semestral grading"}.</p></div>${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}</div>
 
       <div class="metric-grid" aria-label="Class record overview">
         <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
@@ -1369,7 +1374,7 @@
       <div class="dashboard-grid">
         <section class="dashboard-panel recent-panel">
           <div class="panel-heading"><div><h3>Active class records${metrics.activeSections.length ? ` <span class="panel-count">${metrics.activeSections.length}</span>` : ""}</h3></div>${button(`View all ${icon("arrow")}`, "go-records", "button button-ghost button-small")}</div>
-          <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4><p>Create your first class to begin building a roster and entering scores.</p>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
+          <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
         </section>
       </div>
 
@@ -1378,12 +1383,12 @@
 
   function renderClassRecord() {
     const edge = (group) => group === "JHS" ? `<span class="level-edge edge-green"></span><span class="level-edge edge-yellow"></span><span class="level-edge edge-red"></span><span class="level-edge edge-blue"></span>` : `<span class="level-edge edge-charcoal"></span><span class="level-edge edge-baby-blue"></span><span class="level-edge edge-deep-red"></span>`;
-    const groupCards = ["JHS", "SHS"].map((group) => `<button type="button" class="level-card level-card-${group.toLowerCase()} ${activeGroup === group ? "is-active" : ""}" data-action="select-group" data-group="${group}">${edge(group)}<span class="level-card-kicker">${group}</span><strong data-action-emphasis>${group === "JHS" ? "Junior High School" : "Senior High School"}</strong><small>Choose a level to view its sections</small></button>`).join("");
-    
+    const groupCards = ["JHS", "SHS"].map((group) => `<button type="button" class="level-card level-card-${group.toLowerCase()} ${activeGroup === group ? "is-active" : ""}" data-action="select-group" data-group="${group}">${edge(group)}<span class="level-card-kicker">${group}</span><strong data-action-emphasis>${group === "JHS" ? "Junior High School" : "Senior High School"}</strong></button>`).join("");
+
     const groupSections = activeRegistry().filter((section) => section.group === activeGroup);
     const activeCount = groupSections.filter((section) => !section.archived).length;
     const archivedCount = groupSections.filter((section) => Boolean(section.archived)).length;
-    
+
     const visibleSections = groupSections.filter((section) => archiveFilter === "archived" ? Boolean(section.archived) : !section.archived);
 
     const sectionCards = visibleSections.length > 0 ? visibleSections.map((section) => `
@@ -1401,20 +1406,20 @@
             <span class="weight-pill">PT: ${section.weights[1]}%</span>
             <span class="weight-pill">EX: ${section.weights[2]}%</span>
           </div>
-          <small class="section-card-link">Open grade sheet ${icon("arrow")}</small>
+          <small class="section-card-link" aria-hidden="true">${icon("arrow")}</small>
         </button>
-      </div>`).join("") : `<div class="empty-state chooser-empty"><span class="empty-icon">${icon(archiveFilter === "archived" ? "archive" : "classes")}</span><h3>No ${archiveFilter === "archived" ? "archived" : "active"} ${activeGroup} classes</h3><p>${archiveFilter === "archived" ? "Archived classes will remain available here for future reference." : "Add a class to create its roster and grading periods."}</p>${archiveFilter === "active" ? button(`${icon("plus")}<span>Add a class</span>`, "open-add-class", "button button-primary") : ""}</div>`;
-      
+      </div>`).join("") : `<div class="empty-state chooser-empty"><span class="empty-icon">${icon(archiveFilter === "archived" ? "archive" : "classes")}</span><h3>No ${archiveFilter === "archived" ? "archived" : "active"} ${activeGroup} classes</h3>${archiveFilter === "active" ? button(`${icon("plus")}<span>Add a class</span>`, "open-add-class", "button button-primary") : ""}</div>`;
+
     return `<section class="record-chooser">
       <div class="section-heading">
         <div>
           <h2>Your class records</h2>
-          <p class="muted">Choose a school level, then open a class to enter or review grades.</p>
+
         </div>
         ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}
       </div>
       <div class="level-grid" aria-label="School levels">${groupCards}</div>
-      
+
       <div class="archive-toggle-bar">
         <div class="archive-pills">
           <button type="button" class="archive-pill" data-action="set-archive-filter" data-filter="active" aria-pressed="${archiveFilter === "active"}"><span data-action-emphasis>Active classes</span> <span data-action-secondary>(${activeCount})</span></button>
@@ -1434,12 +1439,12 @@
     if (activePeriodIndex >= periods.length) activePeriodIndex = 0;
     const period = currentPeriod();
     const { totalLearners } = computeLearnerNumbering(period.roster);
-    
+
     const sectionColorHex = themeColorHex(section.accent || section.theme);
     const sectionLocked = sectionHasLockedPeriod(section);
     const inputIntegrity = getPeriodInputIntegrity(period);
     const integrityNote = hasPeriodInputIssues(inputIntegrity)
-      ? `<p class="integrity-note" role="status"><strong>Review needed before locking:</strong> ${escapeHtml(periodInputIssueMessage(inputIntegrity))}. Correct these values to keep the record valid.</p>`
+      ? `<p class="integrity-note" role="status"><strong>Review needed before locking:</strong> ${escapeHtml(periodInputIssueMessage(inputIntegrity))}.</p>`
       : "";
 
     const shade = sectionNameShade(section.accent || section.theme);
@@ -1474,7 +1479,7 @@
           </div></details>
         </div>
       </section>
-      ${period.locked ? '<p class="locked-period-note">This period is locked. Unlock it to edit its scores and activities.</p>' : ""}
+      ${period.locked ? '<p class="locked-period-note">Period locked.</p>' : ""}
       <div id="periodIntegrity">${integrityNote}</div>
       <div class="sheet-utilities">
         ${button(`${icon("back")}<span>Sections</span>`, "go-records", "button button-ghost")}
@@ -1482,16 +1487,16 @@
         <details class="column-options"><summary>Manage columns ${icon("chevron")}</summary><div class="bulk-column-tools" aria-label="Bulk column controls">${renderBulkColumnControl("ww","WW",period.wwDates.length,period.locked)}${renderBulkColumnControl("pt","PT",period.ptDates.length,period.locked)}${renderBulkColumnControl("qa","QA",period.qaDates.length,period.locked)}</div></details>
         <span class="sheet-caption">Assessment entries</span>
         <details class="sheet-help"><summary aria-label="Grade sheet help and legend" title="Grade sheet help and legend">?</summary><div class="sheet-help-panel">
-          <h3>Working in your grade sheet</h3>
-          <p>Drag across cells to select a block. Copy with Ctrl+C, cut with Ctrl+X, clear with Delete, or paste a spreadsheet block with Ctrl+V.</p>
-          <p>To fill a selection with one value, type in its first cell and press Enter or Tab.</p>
+          <h3>Keyboard &amp; selection</h3>
+          <p>Drag to select · Ctrl+C copy · Ctrl+X cut · Ctrl+V paste · Delete clear.</p>
+          <p>Enter / Tab fills the selection from its first cell.</p>
           <h3>Score legend</h3><dl><dt>Red outline</dt><dd>Score above HPS or invalid value. Correct before finalizing.</dd><dt>A — Absent · M — Missing</dt><dd>Counted as zero against HPS.</dd><dt>E — Excused · L — Late</dt><dd>Excluded from the grade calculation.</dd><dt>${state.calendarMode === "trimester" ? "Term assessment" : "Quarterly assessment"}</dt><dd>With three QA slots, ST1/ST2/Term Exam use 30%/30%/40%, normalized to included entries. Other slot counts use the existing uniform calculation.</dd></dl>
-          <p>Complete means every named learner has an entry for every visible WW, PT and QA activity, and every HPS is valid. Remove unused columns. Locking a period is a separate action.</p>
+          <p>Complete: all named learners have entries for every activity, with valid HPS.</p>
           <p>Lowering HPS caps scores above it when you leave the field. Restoring the original HPS restores those original scores unless you explicitly edited them afterward.</p>
         </div></details>
       </div>
       ${renderEntryViewControls(period)}
-      <p class="sheet-scroll-hint" id="sheetScrollHint" ${sheetEntryView === "one" ? "hidden" : ""}>Grade sheet: scroll sideways to reach all assessments. Select the sheet to use keyboard scrolling.</p>
+
       ${sheetEntryView === "one" ? renderEditableStudentReport(section, periods, period) : ""}
       ${renderRecordTable(section, period, sheetEntryView === "one")}
       ${renderActivityRegister(section, period)}
@@ -1520,7 +1525,7 @@
     const rows = entryLearnerRows(period), selected = selectedEntryRow(period);
     return `<div class="entry-focus-controls" role="group" aria-label="Grade sheet view">
       <label>Entry view<select data-entry-view aria-label="Entry view"><option value="sheet" ${sheetEntryView === "sheet" ? "selected" : ""}>Full grade sheet</option><option value="one" ${sheetEntryView === "one" ? "selected" : ""}>One learner</option></select></label>
-      ${sheetEntryView === "one" ? `<label>Learner<select data-entry-row aria-label="Learner to display">${rows.map(({ learner, index }) => `<option value="${index}" ${index === selected ? "selected" : ""}>${escapeHtml(learner.name.trim() || `Learner ${index + 1}`)}</option>`).join("")}</select></label><p>Activity titles, dates, HPS, and scores in the selected period are editable below. Competencies and topics remain in the activity register.</p>` : ""}
+      ${sheetEntryView === "one" ? `<label>Learner<select data-entry-row aria-label="Learner to display">${rows.map(({ learner, index }) => `<option value="${index}" ${index === selected ? "selected" : ""}>${escapeHtml(learner.name.trim() || `Learner ${index + 1}`)}</option>`).join("")}</select></label>` : ""}
     </div>`;
   }
 
@@ -1537,7 +1542,7 @@
 
   function renderEditableStudentReport(section, periods, period) {
     const rowIndex = selectedEntryRow(period);
-    if (rowIndex === null) return `<section class="editable-student-report empty-state"><h3>No learner rows</h3><p>Add a learner row to use this view.</p></section>`;
+    if (rowIndex === null) return `<section class="editable-student-report empty-state"><h3>No learner rows</h3></section>`;
     const learner = period.roster[rowIndex], entries = reportEntriesForLearner(periods, rowIndex);
     const exportEntry = entries.find(entry => entry.periodIndex === activePeriodIndex);
     const reportExport = exportEntry ? `<div data-report-live="one-export"><button type="button" class="button button-primary" data-action="export-student-png" data-report-id="one-learner" data-report-name="${escapeHtml(learner.name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(window.CSTRRecordTools.periodLabel(period,section.group,activePeriodIndex,state.calendarMode))}">${icon('download')} Save this period PNG</button><div hidden aria-hidden="true">${renderStudentReportSvg(section,[exportEntry],'one-learner')}</div></div>` : '';
@@ -1563,7 +1568,7 @@
       const active = periodIndex === activePeriodIndex;
       const gradeLabel = state.calendarMode === "trimester" ? "Term grade" : "Initial grade";
       const components = categories.map(cat => `<div class="report-component report-${cat.key}"><strong>${escapeHtml(cat.label)}</strong><span>${pct(result[cat.key].percentage)} · ${Number.isFinite(result[cat.key].weighted) ? `${format(result[cat.key].weighted, 2)} weighted` : "— weighted"}</span><small>${scoreTotal(result[cat.key])} raw / HPS</small></div>`).join("");
-      const inputs = active ? `<div class="report-edit-scores"><h4>Edit ${escapeHtml(entryPeriod.name)} activities and scores</h4><p>Enter a number or A, M, E, L for each score. An empty score remains missing. Changing HPS also updates the full sheet.</p><div class="report-score-groups">${categories.map(cat => `<fieldset class="report-score-group report-${cat.key}"><legend>${escapeHtml(cat.label)}</legend><div class="report-score-grid">${learner[cat.key].map((value, index) => {
+      const inputs = active ? `<div class="report-edit-scores"><h4>Edit ${escapeHtml(entryPeriod.name)} activities and scores</h4><div class="report-score-groups">${categories.map(cat => `<fieldset class="report-score-group report-${cat.key}"><legend>${escapeHtml(cat.label)}</legend><div class="report-score-grid">${learner[cat.key].map((value, index) => {
         const hps = entryPeriod[cat.key + "Hps"][index];
         const info = entryPeriod.activityMeta[cat.key][index];
         const date = entryPeriod[cat.key + "Dates"][index];
@@ -1660,7 +1665,7 @@
     const dialog = document.createElement('dialog');
     dialog.className = 'modal points-dialog'; dialog.setAttribute('aria-label', cancelMode ? 'Cancel added points' : 'Add score points with a reason');
     const score = learner[kind][index] === '' || learner[kind][index] == null ? 'Blank' : learner[kind][index];
-    dialog.innerHTML = `<form novalidate><h2>${cancelMode ? 'Cancel added points' : 'Add score points'}</h2><p>${escapeHtml(learner.name || 'Unnamed learner')} · ${kind.toUpperCase()} ${index + 1}</p><p>Current score: <strong>${safeValue(score)}</strong> / ${safeValue(period[kind + 'Hps'][index] || 'No HPS')}${hasPoints ? ` · Original raw score: <strong>${safeValue(ledger.raw)}</strong>` : ''}</p>${cancelMode ? '<p>Restore the original raw score and retain the cancelled additions in the report history. The existing HPS limit still applies.</p>' : '<p class="form-note">Points require a reason and cannot take the score above HPS.</p><label>Points to add<input name="points" type="number" inputmode="decimal" min="0.00000001" step="any" required></label>'}<label>${cancelMode ? 'Cancellation note (optional)' : 'Reason (required)'}<textarea name="reason" rows="3" maxlength="500" ${cancelMode ? '' : 'required'}></textarea></label><p class="points-error" role="alert"></p><div class="stack-actions"><button type="button" class="button" data-points-cancel>Close</button>${!cancelMode && hasPoints ? '<button type="button" class="button button-danger" data-points-remove>Cancel added points</button>' : ''}<button type="submit" class="button ${cancelMode ? 'button-danger' : 'button-primary'}" ${!cancelMode && (!valid || !Number.isFinite(maximum) || remaining <= 0) ? 'disabled' : ''}>${cancelMode ? 'Restore raw score' : 'Apply points'}</button></div></form>`;
+    dialog.innerHTML = `<form novalidate><h2>${cancelMode ? 'Cancel added points' : 'Add score points'}</h2><p>${escapeHtml(learner.name || 'Unnamed learner')} · ${kind.toUpperCase()} ${index + 1}</p><p>Current score: <strong>${safeValue(score)}</strong> / ${safeValue(period[kind + 'Hps'][index] || 'No HPS')}${hasPoints ? ` · Original raw score: <strong>${safeValue(ledger.raw)}</strong>` : ''}</p>${cancelMode ? '<p>Restore the raw score. Cancelled additions remain in the report history.</p>' : '<label>Points to add<input name="points" type="number" inputmode="decimal" min="0.00000001" step="any" required></label>'}<label>${cancelMode ? 'Cancellation note (optional)' : 'Reason (required)'}<textarea name="reason" rows="3" maxlength="500" ${cancelMode ? '' : 'required'}></textarea></label><p class="points-error" role="alert"></p><div class="stack-actions"><button type="button" class="button" data-points-cancel>Close</button>${!cancelMode && hasPoints ? '<button type="button" class="button button-danger" data-points-remove>Cancel added points</button>' : ''}<button type="submit" class="button ${cancelMode ? 'button-danger' : 'button-primary'}" ${!cancelMode && (!valid || !Number.isFinite(maximum) || remaining <= 0) ? 'disabled' : ''}>${cancelMode ? 'Restore raw score' : 'Apply points'}</button></div></form>`;
     const error = dialog.querySelector('.points-error');
     if (!cancelMode && !valid) error.textContent = 'Enter a numeric raw score first. Attendance codes and blanks cannot receive points.';
     else if (!cancelMode && remaining <= 0) error.textContent = 'This score is at or above HPS. You can still cancel its added points.';
@@ -1714,7 +1719,7 @@
       return `<td class="${borderClass}"><input type="number" min="0" step="any" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(value)}" aria-label="${kind.toUpperCase()} ${index + 1} highest possible score" ${period.locked ? "disabled" : ""}></td>`;
     }).join("");
     const { numbering } = computeLearnerNumbering(period.roster);
-    
+
     const wwLen = period.wwDates.length;
     const ptLen = period.ptDates.length;
     const qaLen = period.qaDates.length;
@@ -1722,8 +1727,8 @@
 
     const sectionLocked = sectionHasLockedPeriod(section);
     const rows = period.roster.map((learner, rowIndex) => renderLearnerRow(learner, rowIndex, period, section, numbering[rowIndex], period.locked)).join("");
-    
-    return `<div class="table-wrap" role="region" aria-label="Scrollable grade sheet" aria-describedby="sheetScrollHint" tabindex="${concealed ? "-1" : "0"}" ${concealed ? "hidden" : ""}><table class="record-table compact-record"><caption class="sr-only">Scores, highest possible scores, and calculated grades for ${escapeHtml(section.subject)}. Attendance codes and editing guidance are in Grade sheet help.</caption><thead>
+
+    return `<div class="table-wrap" role="region" aria-label="Scrollable grade sheet" tabindex="${concealed ? "-1" : "0"}" ${concealed ? "hidden" : ""}><table class="record-table compact-record"><caption class="sr-only">Scores, highest possible scores, and calculated grades for ${escapeHtml(section.subject)}. Attendance codes and editing guidance are in Grade sheet help.</caption><thead>
       <tr class="component-row">
         <th class="number-cell" scope="col" rowspan="3">#</th>
         <th class="name-cell" scope="col" rowspan="3">Learner name</th>
@@ -1782,7 +1787,7 @@
         <td>${period[`${kind}Dates`][index] && !calendarDate(period[`${kind}Dates`][index]) ? `<small class="legacy-date">${safeValue(period[`${kind}Dates`][index])}</small>` : ""}<input type="date" data-calendar-date data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(period[`${kind}Dates`][index]))}" aria-label="${number} date" ${disabled}></td>
         <td><input type="number" min="0" step="any" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(hps)}" aria-label="${number} highest possible score" ${disabled}></td></tr>`;
     })).join("");
-    return `<section class="activity-register" aria-labelledby="activityRegisterTitle"><div class="activity-register-heading"><div><p class="eyebrow">Assessment transparency</p><h3 id="activityRegisterTitle">${state.calendarMode === "trimester" ? "Term" : "Quarter"} activity register</h3></div><p>One row per score column. Dates and HPS are shared with the grade sheet above.</p></div><div class="activity-register-scroll"><table><caption class="sr-only">Activity title, competency, topic, date, and HPS for ${escapeHtml(section.subject)} ${escapeHtml(period.name)}</caption><thead><tr><th scope="col">Score column</th><th scope="col">Activity title</th><th scope="col">Learning competency</th><th scope="col">Topic</th><th scope="col">Date</th><th scope="col">HPS</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    return `<section class="activity-register" aria-labelledby="activityRegisterTitle"><div class="activity-register-heading"><div><p class="eyebrow">Assessment transparency</p><h3 id="activityRegisterTitle">${state.calendarMode === "trimester" ? "Term" : "Quarter"} activity register</h3></div></div><div class="activity-register-scroll"><table><caption class="sr-only">Activity title, competency, topic, date, and HPS for ${escapeHtml(section.subject)} ${escapeHtml(period.name)}</caption><thead><tr><th scope="col">Score column</th><th scope="col">Activity title</th><th scope="col">Learning competency</th><th scope="col">Topic</th><th scope="col">Date</th><th scope="col">HPS</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
 
   function renderLearnerRow(learner, rowIndex, period, section, numDisplay, periodLocked) {
@@ -2174,7 +2179,7 @@
         const cell = worksheet[`${excelColumn(col)}${excelRow}`];
         if (cell && cell.t === "n") cell.z = "0.000";
       });
-      
+
       // Final grade and descriptor share the existing calculation result.
       if (Number.isFinite(result.initial.transmuted)) {
         if (!trimester) worksheet[`${excelColumn(transmutedCol)}${excelRow}`] = { t: "n", v: result.initial.transmuted };
@@ -2188,7 +2193,7 @@
     const palette = { ww: "FFF0B3", pt: "D9EAF7", qa: "F7D3D0", gray: "EEF1F4", maroon: "6D1F32", gold: "D9A72E", goldLight: "FBF0CD", navy: "1E3853" };
     const baseStyle = { font: { name: "Arial", sz: 9, color: { rgb: "1E293B" } }, alignment: { vertical: "center", horizontal: "center", wrapText: true }, border: { top: border, bottom: border, left: border, right: border } };
     const fillFor = (col) => col >= wwStart && col < ptStart ? palette.ww : col >= ptStart && col < qaStart ? palette.pt : col >= qaStart && col < gradeCol ? palette.qa : col === gradeCol ? palette.goldLight : col === transmutedCol ? "FDEBD0" : "FFFFFF";
-    
+
     for (let row = headerRow - 1; row < matrix.length; row += 1) {
       for (let col = 0; col <= lastCol; col += 1) {
         const address = `${excelColumn(col)}${row + 1}`;
@@ -2294,7 +2299,7 @@
         <div><p class="eyebrow">Official school format</p><h2 id="officialExportTitle">Export to Official E-Gradesheet</h2></div>
         ${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}
       </div>
-      <p class="official-export-intro">This export uses the attached CST-R Form 1 layout and the live data from <strong>${escapeHtml(section.subject)}</strong>${section.section ? ` for <strong>${escapeHtml(section.section)}</strong>` : ""}. It includes the first ${periodCount === 4 ? "four grading periods" : "three terms"} and the computed final grade.</p>
+      <p class="official-export-intro">CST-R Form 1 · <strong>${escapeHtml(section.subject)}</strong>${section.section ? ` for <strong>${escapeHtml(section.section)}</strong>` : ""} · ${periodCount === 4 ? "Four grading periods" : "Three terms"} and final grade.</p>
       <div class="settings-grid official-export-grid">
         <label>School year
           <input id="officialSchoolYear" value="${safeValue(currentSchoolYear())}" inputmode="numeric" placeholder="2026-2027" aria-describedby="officialExportAccuracy">
@@ -2306,9 +2311,9 @@
           <input id="officialTeacherName" value="${safeValue(state.teacher.name || currentUserName() || "")}" placeholder="Teacher's full name" aria-describedby="officialExportAccuracy">
         </label>
       </div>
-      <p id="officialExportAccuracy" class="official-export-accuracy">Check these official details before downloading. Blank or incomplete grades stay blank in the export; the exporter never invents missing scores.</p>
+      <p id="officialExportAccuracy" class="official-export-accuracy">Incomplete grades remain blank.</p>
       <p id="officialExportMessage" class="official-export-message" role="status" aria-live="polite"></p>
-      <div class="official-export-format-note"><strong>Output:</strong> Editable Word tables or searchable vector PDF; US Letter portrait, CST-R Form 1 headings, official 1-${periodCount} and F rows, principal and teacher signature area, and the selected class's current computed grades.</div>
+      <div class="official-export-format-note"><strong>Output:</strong> Word / PDF · US Letter portrait · CST-R Form 1.</div>
       <div class="stack-actions official-export-actions">
         <button type="button" class="button button-secondary" data-action="export-official-word"><span data-action-emphasis>Save Word</span> <span data-action-secondary>(.docx)</span></button>
         <button type="button" class="button button-primary" data-action="export-official-pdf"><span data-action-emphasis>Save PDF</span> <span data-action-secondary>(.pdf)</span></button>
@@ -2645,7 +2650,7 @@
       const count=Math.max(state.calendarMode==='trimester'?3:4,...entries.map(e=>reportSlot(section,e.period,e.periodIndex)+1));
       const slots=Array.from({length:count},(_,slot)=>({slot,label:reportSlotLabel(section,slot),entries:entries.filter(e=>reportSlot(section,e.period,e.periodIndex)===slot)}));
       const first=Math.max(0,slots.findIndex(s=>s.entries.length));
-      return `<section class="student-perf-block"><h3>${escapeHtml(entries[0].learner.name)} · ${escapeHtml(section.subject)} · ${escapeHtml(section.section || section.level)}</h3>${ambiguous ? `<p role="alert">Same-name match ${occurrence + 1}: confirm roster row ${entries[0].rowIndex + 1} and class before sharing.</p>` : ''}<div class="report-quarter-tabs" role="tablist" aria-label="Report periods">${slots.map(({slot,label})=>`<button type="button" class="tab" role="tab" id="report-tab-${block}-${slot}" aria-controls="report-panel-${block}-${slot}" aria-selected="${slot===first}" tabindex="${slot===first?0:-1}" data-action="report-period" data-report-block="${block}" data-slot="${slot}">${escapeHtml(label)}</button>`).join('')}</div>${slots.map(({slot,label,entries:chosen})=>`<div role="tabpanel" id="report-panel-${block}-${slot}" aria-labelledby="report-tab-${block}-${slot}" ${slot===first?'':'hidden'}>${chosen.length ? `<div class="student-report-actions"><p>${escapeHtml(label)} · ${chosen[0].complete?'Complete':'Provisional'}</p><button type="button" class="button button-primary" data-action="export-student-png" data-report-id="${block}-${slot}" data-report-name="${escapeHtml(entries[0].learner.name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(label)}">${icon('download')} Save ${escapeHtml(label)} PNG</button></div>${chosen.length>1?'<p role="alert">Multiple records use this period label. Review period settings before sharing.</p>':''}<div class="report-readable">${chosen.map(renderReportResultHtml).join("")}${renderDetailedChart(chosen,section)}${chosen.map(entry=>renderScoreLedgerHtml(entry.period,entry.learner)).join("")}<p class="report-footnote">A = Absent (zero), L = Late (excluded), M = Missing (zero), E = Excused (excluded). Added points and their reasons appear beneath the activity. Missing entries remain provisional.</p></div>${renderStudentReportSvg(section,chosen,`${block}-${slot}`)}` : `<p class="empty-report">${escapeHtml(label)} has no recorded scores for this learner. Add the period and learner in the grade sheet; no grades have been inferred.</p>`}</div>`).join('')}</section>`;
+      return `<section class="student-perf-block"><h3>${escapeHtml(entries[0].learner.name)} · ${escapeHtml(section.subject)} · ${escapeHtml(section.section || section.level)}</h3>${ambiguous ? `<p role="alert">Same-name match ${occurrence + 1}: confirm roster row ${entries[0].rowIndex + 1} and class before sharing.</p>` : ''}<div class="report-quarter-tabs" role="tablist" aria-label="Report periods">${slots.map(({slot,label})=>`<button type="button" class="tab" role="tab" id="report-tab-${block}-${slot}" aria-controls="report-panel-${block}-${slot}" aria-selected="${slot===first}" tabindex="${slot===first?0:-1}" data-action="report-period" data-report-block="${block}" data-slot="${slot}">${escapeHtml(label)}</button>`).join('')}</div>${slots.map(({slot,label,entries:chosen})=>`<div role="tabpanel" id="report-panel-${block}-${slot}" aria-labelledby="report-tab-${block}-${slot}" ${slot===first?'':'hidden'}>${chosen.length ? `<div class="student-report-actions"><p>${escapeHtml(label)} · ${chosen[0].complete?'Complete':'Provisional'}</p><button type="button" class="button button-primary" data-action="export-student-png" data-report-id="${block}-${slot}" data-report-name="${escapeHtml(entries[0].learner.name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(label)}">${icon('download')} Save ${escapeHtml(label)} PNG</button></div>${chosen.length>1?'<p role="alert">Multiple records use this period label. Review period settings before sharing.</p>':''}<div class="report-readable">${chosen.map(renderReportResultHtml).join("")}${renderDetailedChart(chosen,section)}${chosen.map(entry=>renderScoreLedgerHtml(entry.period,entry.learner)).join("")}<p class="report-footnote">A = Absent (zero), L = Late (excluded), M = Missing (zero), E = Excused (excluded). Missing entries remain provisional.</p></div>${renderStudentReportSvg(section,chosen,`${block}-${slot}`)}` : `<p class="empty-report">${escapeHtml(label)} · No recorded scores.</p>`}</div>`).join('')}</section>`;
     }).join('');
     showSearchModal(blocks,true);
   }
@@ -2668,7 +2673,7 @@
 
   function renderReportResultHtml(entry) {
     const term = state.calendarMode === 'trimester';
-    return `<section class="student-result-priority"><p>${escapeHtml(entry.period.name)}</p><div><span>${term ? 'Term grade' : 'Final transmuted grade'}</span><strong>${term ? format(entry.result.initial.rounded,3) : format(entry.result.initial.transmuted,0)}</strong></div><p>${escapeHtml(entry.result.initial.descriptor)} · ${entry.complete ? 'Complete requirements' : 'Provisional · incomplete requirements'}</p><small>Initial grade: ${format(entry.result.initial.rounded,3)}</small></section>`;
+    return `<section class="student-result-priority"><p>${escapeHtml(entry.period.name)}</p><div><span>${term ? 'Term grade' : 'Final transmuted grade'}</span><strong>${term ? format(entry.result.initial.rounded,3) : format(entry.result.initial.transmuted,0)}</strong></div><p>${renderDescriptorBadge(entry.result.initial.descriptor)} · ${entry.complete ? 'Complete requirements' : 'Provisional · incomplete requirements'}</p><small>Initial grade: ${format(entry.result.initial.rounded,3)}</small></section>`;
   }
   function renderStudentReportSvg(section, entries, reportId) {
     const width=960, ink='#042134', muted='#4d5960', accent='#BB1414', orange='#FFA322';
@@ -2684,7 +2689,7 @@
     classLines.forEach(line=>{body+=text(44,metaY,line,14,'#e1e8ed');metaY+=20;});
     body+=text(680,58,term?'Term grade':'Final transmuted grade',14,'#fff',600);
     body+=text(680,145,term?format(first.result.initial.rounded,3):format(first.result.initial.transmuted,0),72,orange,700,'data-grade-emphasis="true"');
-    reportLines(first.result.initial.descriptor,25).forEach((line,i)=>body+=text(682,179+i*18,line,14,'#fff',600));
+    reportLines(first.result.initial.descriptor,25).forEach((line,i)=>body+=text(682,179+i*18,line,14,descriptorReportColor(first.result.initial.descriptor),600));
     let y=headerHeight+28;
     body+=text(44,y,first.complete?'Complete requirements':'Provisional · incomplete requirements',13,first.complete?'#1d6242':accent,700);
     body+=text(916,y,`Generated ${new Date().toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}`,12,muted,400,'text-anchor="end"');y+=28;
@@ -2705,8 +2710,7 @@
         body+=text(x+268,y+50,`${format(c.weighted,3)} WS`,12,muted,500,'text-anchor="end"');
       });y+=113;
       body+=renderChartContent([entry],section,y);y+=306;
-      body+=text(44,y,'Activity record',20,ink,700);y+=25;
-      body+=text(44,y,'Original marks, additions and explanations are shown separately.',12,muted);y+=29;
+      body+=text(44,y,'Activity record',20,ink,700);y+=36;
       body+=`<rect x="44" y="${y-18}" width="872" height="30" fill="${ink}"/>`;
       [[54,'Activity / learning context'],[437,'Date'],[573,'Raw'],[655,'Added'],[748,'Score'],[848,'HPS']].forEach(([x,v])=>body+=text(x,y+2,v,12,'#fff',700));y+=38;
       let lastKind='';
@@ -2728,7 +2732,7 @@
         y+=15;
       });y+=20;
     });
-    ['* Added points are separate from the original raw score. Cancelled additions remain in history.','A = Absent (zero); L = Late (excluded); M = Missing (zero); E = Excused (excluded).','HPS = highest possible score; WS = weighted score. Missing requirements keep a grade provisional.','Unofficial class record · Confirm learner identity and grading settings before sharing.'].forEach(line=>{body+=text(44,y,line,12,muted);y+=21;});
+    ['* Added points are separate from the original raw score. Cancelled additions remain in history.','A = Absent (zero); L = Late (excluded); M = Missing (zero); E = Excused (excluded).','HPS = highest possible score; WS = weighted score. Missing requirements keep a grade provisional.','CST-R · Individual grade report'].forEach(line=>{body+=text(44,y,line,12,muted);y+=21;});
     const height=y+24;
     return `<svg xmlns="http://www.w3.org/2000/svg" class="student-report-svg" data-report-id="${reportId}" width="960" height="${height}" viewBox="0 0 960 ${height}" role="img" aria-label="Comprehensive grade report for ${escapeHtml(first.learner.name)}, ${escapeHtml(entries.map(e=>e.period.name).join(', '))}"><rect width="960" height="${height}" fill="#fff"/>${body}</svg>`;
   }
@@ -2801,7 +2805,7 @@
     modal.innerHTML = `<section class="modal welcome-modal-card" role="dialog" aria-modal="true" aria-labelledby="welcomeModalTitle">
       <p class="eyebrow">First time on this device</p>
       <h2 id="welcomeModalTitle">Before you begin</h2>
-      <p class="welcome-modal-subtitle">This independent, unofficial tool helps you manage classes, scores, and grade exports. Confirm the grading rules and weights with your school, review calculated grades before submission, and check that changes are saved before switching devices.</p>
+      <p class="welcome-modal-subtitle">Your classes, assessment records, and grade reports.</p>
       <div class="stack-actions" style="justify-content:flex-end; margin-top:20px;">${button("Got it, let's start", "close-modal", "button button-primary")}</div>
     </section>`;
     document.body.append(modal);
@@ -2844,7 +2848,7 @@
               </label>
             </div>
             <p id="addClassWeightTotal" class="form-note"></p>
-            <p class="form-note">Quarterly Assessment keeps its built-in Summative Test 1 / Summative Test 2 / Term Exam split of 30% / 30% / 40% — only the overall WW / PT / QA shares above are yours to set.</p>
+            <p class="form-note">Exam split: ST1 30% · ST2 30% · Term Exam 40%.</p>
           </div>
           <label>Section Name
             <input id="addClassSection" placeholder="e.g. Saint Alfonso de Orozco">
@@ -2913,7 +2917,7 @@
               </label>
             </div>
             <p id="editSectionWeightTotal" class="form-note"></p>
-            <p class="form-note">Quarterly Assessment keeps its built-in Summative Test 1 / Summative Test 2 / Term Exam split of 30% / 30% / 40% — only the overall WW / PT / QA shares above are yours to set.</p>
+            <p class="form-note">Exam split: ST1 30% · ST2 30% · Term Exam 40%.</p>
           </div>
           <label>Section Name <input id="editSectionSection" value="${safeValue(section.section)}" placeholder="e.g. Saint Alfonso de Orozco"></label>
           <label>Color Code Theme
@@ -3036,19 +3040,19 @@
       pt: learner.pt.map(() => ""),
       qa: learner.qa.map(() => "")
     } : learner, period, section.weights);
-    
+
     const wwTot = row.querySelector(".summary-ww-total"); if (wwTot) wwTot.textContent = scoreTotal(result.ww);
     const wwPs = row.querySelector(".summary-ww-ps"); if (wwPs) wwPs.textContent = format(result.ww.percentage, 3);
     const wwWs = row.querySelector(".summary-ww-ws"); if (wwWs) wwWs.textContent = format(result.ww.weighted, 3);
-    
+
     const ptTot = row.querySelector(".summary-pt-total"); if (ptTot) ptTot.textContent = scoreTotal(result.pt);
     const ptPs = row.querySelector(".summary-pt-ps"); if (ptPs) ptPs.textContent = format(result.pt.percentage, 3);
     const ptWs = row.querySelector(".summary-pt-ws"); if (ptWs) ptWs.textContent = format(result.pt.weighted, 3);
-    
+
     const qaTot = row.querySelector(".summary-qa-total"); if (qaTot) qaTot.textContent = scoreTotal(result.qa);
     const qaPs = row.querySelector(".summary-qa-ps"); if (qaPs) qaPs.textContent = format(result.qa.percentage, 3);
     const qaWs = row.querySelector(".summary-qa-ws"); if (qaWs) qaWs.textContent = format(result.qa.weighted, 3);
-    
+
     const initCell = row.querySelector(".summary-initial"); if (initCell) initCell.textContent = format(result.initial.rounded, 3);
     const transCell = row.querySelector(".summary-transmuted"); if (transCell) transCell.textContent = format(result.initial.transmuted, 0);
     const descCell = row.querySelector(".summary-descriptor"); if (descCell) descCell.innerHTML = renderDescriptorBadge(result.initial.descriptor);
@@ -3339,7 +3343,7 @@
 
   function renderVersionHistoryList() {
     const history = loadVersionHistory();
-    if (!history.length) return `<p class="settings-note">No previous versions saved yet on this device. A restore point is captured automatically each time changes are saved.</p>`;
+    if (!history.length) return `<p class="settings-note">No restore points.</p>`;
     const rows = history.slice().reverse().map((entry, reversedIndex) => {
       const index = history.length - 1 - reversedIndex; // real index into the stored array
       const when = new Date(entry.savedAt);
@@ -3379,7 +3383,7 @@
           <button type="submit" class="button button-primary" data-action="change-password" style="margin-top: 10px;">Change Password</button>
         </form>
       ` : `
-        <p class="settings-note">This account currently only signs in through Google. Set a password below to also be able to type in your email and password directly, like a typical login.</p>
+        <p class="settings-note">Google sign-in · optional password access.</p>
         <form id="setPasswordForm" class="legacy-login-box" style="margin-top: 10px;">
           <label class="field-label" style="text-align: left;">New Password
             <input id="setPassword" type="password" autocomplete="new-password" placeholder="At least 12 characters">
@@ -3465,18 +3469,18 @@
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
     const syncStatusLine = !isSyncConfigured()
-      ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> Live sync isn't set up yet. See FIREBASE_SETUP.md in the repo, fill in ASSETS/firebase-sync.js, and redeploy.</p>`
+      ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> Cloud sync unavailable.</p>`
       : isStale
         ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> Another device saved changes here${pendingRemoteAt ? ` at ${safeValue(new Date(pendingRemoteAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}` : ""} while you had unsaved edits. Choose which version to keep:</p>
            <div class="stack-actions">${button("Keep the OTHER device's version", "take-remote-version", "button button-primary")} ${button("Keep THIS device's version", "keep-local-version")}</div>`
-        : `<p class="settings-note"> Live sync connected. Changes saved here appear on every other device automatically — nothing to type in.</p>`;
+        : `<p class="settings-note"> Cloud sync connected.</p>`;
     modal.innerHTML = `<section class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle"><div class="section-heading"><div><p class="eyebrow">Workspace preferences</p><h2 id="settingsTitle">Settings</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
       ${syncStatusLine}
       ${lastLoadError ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> ${safeValue(lastLoadError)}</p>` : ""}
       ${renderAccountSection()}
-      <section class="recovery-tools"><h3>Private recovery</h3><p>Drafts and up to eight checkpoints stay in this tab only. Logout clears them. Download an encrypted backup for durable recovery; keep the passphrase separately.</p><div class="stack-actions"><button type="button" class="button button-secondary" data-review-action="backup">Download encrypted backup</button><button type="button" class="button button-secondary" data-review-action="import">Restore encrypted backup</button><button type="button" class="button button-secondary" data-review-action="backup-cloud" ${!pendingRemoteState ? "disabled" : ""}>Back up conflicting cloud version</button><button type="button" class="button button-danger" data-review-action="clear">Clear local recovery</button></div><p><a href="mailto:SANCHEZRAMIL2202@GMAIL.COM">Developer support and privacy requests</a>. Do not email passwords or student records.</p></section>
+      <section class="recovery-tools"><h3>Private recovery</h3><p>Tab recovery clears on logout. Encrypted backups require their passphrase.</p><div class="stack-actions"><button type="button" class="button button-secondary" data-review-action="backup">Download encrypted backup</button><button type="button" class="button button-secondary" data-review-action="import">Restore encrypted backup</button><button type="button" class="button button-secondary" data-review-action="backup-cloud" ${!pendingRemoteState ? "disabled" : ""}>Back up conflicting cloud version</button><button type="button" class="button button-danger" data-review-action="clear">Clear local recovery</button></div><p><a href="mailto:SANCHEZRAMIL2202@GMAIL.COM">Developer support and privacy requests</a>. Do not email passwords or student records.</p></section>
       <div class="section-heading" style="margin-top: 22px;"><div><p class="eyebrow">Recovery</p><h2 style="font-size: 1.1rem;">Restore a previous version</h2></div></div>
-      <p class="settings-note">Every time changes are saved, the state just before that save is kept here on this device — use this if a value was cleared or deleted by accident. Restoring loads and saves that version when connected. Recovery checkpoints stay in this tab and are cleared on logout. Download an encrypted backup before closing the tab if you need durable recovery.</p>
+      <p class="settings-note">Restoring replaces the current workspace and saves it when connected. Checkpoints stay in this tab until logout.</p>
       ${renderVersionHistoryList()}
       </section>`;
     document.body.append(modal);
@@ -3996,7 +4000,7 @@
       setStatus("Subject and grading weights updated.");
       return;
     }
-    
+
     if (action === "google-login") {
       performGoogleLogin();
     }
@@ -4053,7 +4057,7 @@
         window.CSTRSync.signOut().then(() => onboarding?.remove()).catch(error => showSaveToast(`Could not sign out: ${error.message}`, "error"));
       } else onboarding?.remove();
     }
-    
+
     if (action === "add-col") {
       changeColumnCount(target.dataset.kind, 1);
     }
@@ -4151,10 +4155,10 @@
       }
       const isSHS = String(level).includes("11") || String(level).includes("12");
       const group = isSHS ? "SHS" : "JHS";
-      
+
       const newId = "class-" + Date.now();
       const newClass = { id: newId, group, level, subject, section: sectionName, weights, theme, accent: theme, rosterSize: 50, archived: false };
-      
+
       activeRegistry().push(newClass);
       activeSections()[newId] = { periods: [initialPeriod(newClass, state.calendarMode)] };
       activeGroup = group;
@@ -4195,10 +4199,10 @@
         const theme = document.querySelector("#editSectionTheme").value;
         section.theme = theme;
         section.accent = theme;
-        
+
         const isSHS = String(section.level).includes("11") || String(section.level).includes("12");
         section.group = isSHS ? "SHS" : "JHS";
-        
+
         markStateDirty();
         render();
         setStatus(`Section "${section.subject}" updated. Grading weights: ${section.weights.join("/")}%.`);
@@ -4442,7 +4446,7 @@
   app.addEventListener("change", (event) => {
     if (event.target.id === "photoInput") handlePhoto(event.target.files[0]);
     if (event.target.dataset.teacher !== undefined) { state.teacher[event.target.dataset.teacher] = event.target.value; markStateDirty(); }
-    
+
     if (event.target.dataset.action === "change-sheet-subject") {
       const section = currentSection();
       const val = event.target.value;
