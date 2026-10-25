@@ -1,0 +1,166 @@
+/* Grade-sheet readouts: calculated results are visually separate from score inputs.
+   Uses existing semantic cells; no grading, input, or export behavior changes. */
+@media screen {
+  :root {
+    --sheet-result-ink: #183447;
+    --sheet-result-total: #eaf0f4;
+    --sheet-result-percent: #e1edf4;
+    --sheet-result-weighted: #cbdfea;
+    --sheet-result-header: #25485d;
+    --sheet-result-on-header: #ffffff;
+    --sheet-result-initial: #dfe6eb;
+    --sheet-result-initial-header: #34434e;
+    --sheet-result-final: #f5e1e6;
+    --sheet-result-final-ink: #7c1732;
+    --sheet-result-final-header: #7c1732;
+    --sheet-result-descriptor: #f0f3f5;
+    --sheet-result-descriptor-header: #34434e;
+    --sheet-result-divider: #ffffff;
+    --sheet-result-size: .8125rem;
+    --sheet-result-strong-size: .875rem;
+    --sheet-result-final-size: 1.125rem;
+    --sheet-result-label-size: .75rem;
+  }
+
+  :root[data-theme="dark"] {
+    --sheet-result-ink: #e4eff6;
+    --sheet-result-total: #1d303d;
+    --sheet-result-percent: #203b4c;
+    --sheet-result-weighted: #2b5066;
+    --sheet-result-header: #355c74;
+    --sheet-result-initial: #303e4b;
+    --sheet-result-initial-header: #3b4d5c;
+    --sheet-result-final: #492737;
+    --sheet-result-final-ink: #ffe1e9;
+    --sheet-result-final-header: #792c45;
+    --sheet-result-descriptor: #28333f;
+    --sheet-result-descriptor-header: #3b4d5c;
+    --sheet-result-divider: #14212b;
+  }
+
+  /* Matching header/body fills make each three-column calculation block legible.
+     Adjacent summary headers are always Raw/HPS, Percent, Weighted, regardless
+     of the number of activities in WW, PT, or QA. */
+  :root body #app .record-section .record-table thead th.component-summary {
+    background: var(--sheet-result-total) !important;
+    color: var(--sheet-result-ink) !important;
+    font-size: var(--sheet-result-label-size) !important;
+    font-weight: 700;
+    font-style: normal;
+    min-width: 82px;
+    width: 82px;
+    max-width: none;
+    padding-inline: 6px;
+    white-space: nowrap;
+  }
+  :root body #app .record-section .record-table thead th.component-summary + th.component-summary {
+    background: var(--sheet-result-percent) !important;
+    min-width: 72px;
+    width: 72px;
+  }
+  :root body #app .record-section .record-table thead th.component-summary + th.component-summary + th.component-summary {
+    background: var(--sheet-result-weighted) !important;
+  }
+  :root body #app .record-section .record-table thead .activity-row th.component-summary,
+  :root body #app .record-section .record-table thead .activity-row th.component-summary + th.component-summary,
+  :root body #app .record-section .record-table thead .activity-row th.component-summary + th.component-summary + th.component-summary {
+    background: var(--sheet-result-header) !important;
+    color: var(--sheet-result-on-header) !important;
+  }
+
+  :root body #app .record-section .record-table tbody tr:not(.row-category) > td.summary-cell {
+    background: var(--readout-fill, var(--sheet-result-total)) !important;
+    color: var(--readout-ink, var(--sheet-result-ink)) !important;
+    font-size: var(--sheet-result-size) !important;
+    font-weight: 650;
+    font-style: normal;
+    font-variant-numeric: lining-nums tabular-nums;
+    text-align: center;
+    padding: 4px 6px;
+    min-width: 72px;
+    width: 72px;
+    max-width: none;
+    white-space: nowrap;
+  }
+  :root body #app .record-section .record-table .component-total {
+    --readout-fill: var(--sheet-result-total);
+    min-width: 82px !important;
+    width: 82px !important;
+    border-inline-start: 3px solid var(--sheet-result-divider) !important;
+  }
+  :root body #app .record-section .record-table :is(.summary-ww-ps, .summary-pt-ps, .summary-qa-ps) {
+    --readout-fill: var(--sheet-result-percent);
+  }
+  :root body #app .record-section .record-table tbody tr:not(.row-category) > td:is(.summary-ww-ws, .summary-pt-ws, .summary-qa-ws) {
+    --readout-fill: var(--sheet-result-weighted);
+    font-size: var(--sheet-result-strong-size) !important;
+    font-weight: 750;
+  }
+
+  /* Initial -> reported grade -> descriptor forms the final result block. */
+  :root body #app .record-section .record-table thead :is(.initial-header, .transmuted-header, .descriptor-header) {
+    color: var(--sheet-result-on-header) !important;
+    font-size: var(--sheet-result-label-size) !important;
+    font-weight: 750;
+    font-style: normal;
+    text-transform: none;
+    letter-spacing: normal;
+    padding: 6px 8px;
+    max-width: none;
+    line-height: 1.45;
+  }
+  :root body #app .record-section .record-table thead .initial-header {
+    background: var(--sheet-result-initial-header) !important;
+    min-width: 84px;
+    width: 84px;
+    border-inline-start: 3px solid var(--sheet-result-divider) !important;
+  }
+  :root body #app .record-section .record-table tbody tr:not(.row-category) > td.initial-cell {
+    --readout-fill: var(--sheet-result-initial);
+    font-size: var(--sheet-result-strong-size) !important;
+    font-weight: 750;
+    min-width: 84px;
+    width: 84px;
+    border-inline-start: 3px solid var(--sheet-result-divider) !important;
+  }
+  :root body #app .record-section .record-table thead .transmuted-header {
+    background: var(--sheet-result-final-header) !important;
+    min-width: 104px;
+    width: 104px;
+    border-inline-start-color: var(--sheet-result-final-header) !important;
+  }
+  :root body #app .record-section .record-table tbody tr:not(.row-category) > td.transmuted-cell {
+    --readout-fill: var(--sheet-result-final);
+    --readout-ink: var(--sheet-result-final-ink);
+    font-size: var(--sheet-result-final-size) !important;
+    font-weight: 800;
+    min-width: 104px;
+    width: 104px;
+    line-height: 1.2;
+    border-inline-start-color: var(--sheet-result-final) !important;
+  }
+  :root body #app .record-section .record-table thead .descriptor-header {
+    background: var(--sheet-result-descriptor-header) !important;
+    min-width: 144px;
+    width: 144px;
+  }
+  :root body #app .record-section .record-table tbody tr:not(.row-category) > td.descriptor-cell {
+    --readout-fill: var(--sheet-result-descriptor);
+    min-width: 144px;
+    width: 144px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  :root body #app .record-section .record-table .descriptor-cell .descriptor-badge {
+    font-size: var(--sheet-result-size) !important;
+    font-weight: 750;
+    line-height: 1.35;
+  }
+
+  /* Preserve plain category separator rows; they do not represent learner grades. */
+  :root body #app .record-section .record-table tbody tr.row-category > .summary-cell {
+    background: var(--category-fill) !important;
+    color: transparent !important;
+    border-inline: 0 !important;
+  }
+}
