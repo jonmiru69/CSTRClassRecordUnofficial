@@ -10,12 +10,11 @@
     --sheet-result-on-header: #ffffff;
     --sheet-result-initial: #dfe6eb;
     --sheet-result-initial-header: #34434e;
-    --sheet-result-final: #f5e1e6;
-    --sheet-result-final-ink: #7c1732;
-    --sheet-result-final-header: #7c1732;
+    --sheet-result-final: #dbf0ec;
+    --sheet-result-final-ink: #0a514b;
+    --sheet-result-final-header: #145c56;
     --sheet-result-descriptor: #f0f3f5;
     --sheet-result-descriptor-header: #34434e;
-    --sheet-result-divider: #ffffff;
     --sheet-result-size: .8125rem;
     --sheet-result-strong-size: .875rem;
     --sheet-result-final-size: 1.125rem;
@@ -30,17 +29,22 @@
     --sheet-result-header: #355c74;
     --sheet-result-initial: #303e4b;
     --sheet-result-initial-header: #3b4d5c;
-    --sheet-result-final: #492737;
-    --sheet-result-final-ink: #ffe1e9;
-    --sheet-result-final-header: #792c45;
+    --sheet-result-final: #163d3a;
+    --sheet-result-final-ink: #c0eee4;
+    --sheet-result-final-header: #1c605a;
     --sheet-result-descriptor: #28333f;
     --sheet-result-descriptor-header: #3b4d5c;
-    --sheet-result-divider: #14212b;
   }
 
   /* Matching header/body fills make each three-column calculation block legible.
      Adjacent summary headers are always Raw/HPS, Percent, Weighted, regardless
      of the number of activities in WW, PT, or QA. */
+  :root body #app .record-section .record-table thead :is(.component-summary, .initial-header, .transmuted-header, .descriptor-header),
+  :root body #app .record-section .record-table tbody tr > td.summary-cell {
+    /* Paint to the cell edges. Extra left borders created uncolored strips. */
+    border-inline-start: 0 !important;
+    background-clip: border-box !important;
+  }
   :root body #app .record-section .record-table thead th.component-summary {
     background: var(--sheet-result-total) !important;
     color: var(--sheet-result-ink) !important;
@@ -86,7 +90,6 @@
     --readout-fill: var(--sheet-result-total);
     min-width: 82px !important;
     width: 82px !important;
-    border-inline-start: 3px solid var(--sheet-result-divider) !important;
   }
   :root body #app .record-section .record-table :is(.summary-ww-ps, .summary-pt-ps, .summary-qa-ps) {
     --readout-fill: var(--sheet-result-percent);
@@ -113,7 +116,6 @@
     background: var(--sheet-result-initial-header) !important;
     min-width: 84px;
     width: 84px;
-    border-inline-start: 3px solid var(--sheet-result-divider) !important;
   }
   :root body #app .record-section .record-table tbody tr:not(.row-category) > td.initial-cell {
     --readout-fill: var(--sheet-result-initial);
@@ -121,13 +123,11 @@
     font-weight: 750;
     min-width: 84px;
     width: 84px;
-    border-inline-start: 3px solid var(--sheet-result-divider) !important;
   }
   :root body #app .record-section .record-table thead .transmuted-header {
     background: var(--sheet-result-final-header) !important;
     min-width: 104px;
     width: 104px;
-    border-inline-start-color: var(--sheet-result-final-header) !important;
   }
   :root body #app .record-section .record-table tbody tr:not(.row-category) > td.transmuted-cell {
     --readout-fill: var(--sheet-result-final);
@@ -137,7 +137,6 @@
     min-width: 104px;
     width: 104px;
     line-height: 1.2;
-    border-inline-start-color: var(--sheet-result-final) !important;
   }
   :root body #app .record-section .record-table thead .descriptor-header {
     background: var(--sheet-result-descriptor-header) !important;
