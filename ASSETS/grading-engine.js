@@ -2,7 +2,7 @@
  * Pure, DOM-free grading functions for the CSTR Class Record.
  * Display rounding is deliberately kept separate from calculations.
  * Features:
- * - DepEd Order No. 15, s. 2026 / DepEd Order No. 8, s. 2015 Transmutation Engine
+ * - School workbook calculations and DO 015, s. 2026 subject weights
  * - DepEd Table 11 Qualitative Descriptors
  * - Standard DepEd Subject Weighting Presets
  */
@@ -16,7 +16,7 @@
   // Keep calculations at full precision. This only controls the displayed
   // Initial Grade, which is rounded half-up to three decimal places.
   const FINAL_GRADE_DECIMALS = 3;
-  // Verify whole-number half-up rounding against the zero-based grading rule.
+  // Zero-based grading is an explicit class setting, independent of calendar.
   const ZERO_BASED_GRADE_DECIMALS = 0;
   const QA_INTRA_WEIGHTS = [0.30, 0.30, 0.40];
   // A = Absent, E = Excused, L = Late, M = Missing (present, no excuse)
@@ -40,7 +40,64 @@
     { name: "Music, Arts, Physical Education, and Health (MAPEH)", weights: [20, 60, 20], label: "MAPEH — WW: 20% | PT: 60% | EX: 20%" }
   ];
 
-  // Exact DepEd Transmutation Table (40-tier)
+  const SHS_PRESETS = [
+    { name: "SHS Core Subjects / Other Academic Electives", weights: [20, 50, 30] },
+    { name: "SHS Field Exposure / Arts Apprenticeship / Creative Production and Innovation", weights: [15, 70, 15], examMode: "te-only" },
+    { name: "SHS Arts / Sports / Health and Wellness Electives", weights: [20, 60, 20] },
+    { name: "SHS Research Electives / Design and Innovation", weights: [40, 60, 0] },
+    { name: "SHS TechPro Electives", weights: [15, 65, 20] },
+    { name: "SHS Work Immersion", weights: [20, 80, 0] },
+    // DO 015 s.2026 paragraph 49: Grade 12 outside the Strengthened curriculum.
+    { name: "SHS Grade 12 Legacy - Core Subjects", weights: [25, 50, 25] },
+    { name: "SHS Grade 12 Legacy - Academic Other Subjects", weights: [25, 45, 30] },
+    { name: "SHS Grade 12 Legacy - Academic Immersion / Research / Exhibit / Performance", weights: [35, 40, 25] },
+    { name: "SHS Grade 12 Legacy - TVL / Sports / Arts and Design", weights: [20, 60, 20] }
+  ];
+  SHS_PRESETS.forEach(preset => SUBJECT_PRESETS.push({ ...preset,
+    label: `${preset.name} — WW: ${preset.weights[0]}% | PT: ${preset.weights[1]}% | EX: ${preset.weights[2]}%`
+  }));
+
+  // Annex D, Tables 2 and 3. Roles are explicitly editable in the activity register.
+  function subjectRules(subjectName) {
+    const name = String(subjectName || "").trim().toLowerCase();
+    const preset = SUBJECT_PRESETS.find(item => item.name.toLowerCase() === name);
+    const valuesEducation = /\bgmrc\b|values education|good manners/.test(name);
+    const teOnly = preset?.examMode === "te-only" || /field exposure|arts apprenticeship|creative production/.test(name);
+    return {
+      examMode: teOnly ? "te-only" : "st1-st2-te",
+      domains: valuesEducation ? {
+        ww: [{ id: "cognitive", share: .5 }, { id: "affective", share: .5 }],
+        pt: [{ id: "cognitive", share: .2 }, { id: "affective", share: .2 }, { id: "behavioral", share: .6 }]
+      } : null
+    };
+  }
+
+  function defaultRole(kind, index, subjectName) {
+    if (kind !== "qa") return "";
+    if (subjectRules(subjectName).examMode === "te-only") return "te";
+    return ["st1", "st2", "te"][index] || "";
+  }
+
+  function gradingIssue(section) {
+    const category = section?.gradingCategory || section?.subject || "";
+    const preset = SUBJECT_PRESETS.find(item => item.name === category);
+    if (preset && section.weights.some((weight,index)=>Math.abs(weight-preset.weights[index])>1e-8)) return `The selected ${preset.name} category requires WW/PT/EX ${preset.weights.join("/")}%. Update the class settings.`;
+    if (section?.group === "SHS" && category !== "custom" && (!preset || !category.startsWith("SHS "))) return "Choose the SHS subject category in Edit Class. Core, specialized, Research and Work Immersion have different rules. Grade 12 outside the Strengthened curriculum has separate legacy categories.";
+    if (section?.group === "JHS" && category.startsWith("SHS ")) return "Choose a JHS subject category for this class. SHS categories have different grading requirements.";
+    return "";
+  }
+
+  function componentOptions(section, period, kind) {
+    const rules = subjectRules(section?.gradingCategory || section?.subject);
+    const groups = kind === "qa"
+      ? rules.examMode === "te-only" ? [{ id: "te", share: 1 }]
+        : [{ id: "st1", share: .3 }, { id: "st2", share: .3 }, { id: "te", share: .4 }]
+      : rules.domains?.[kind];
+    return { groups, roles: (period?.[kind + "Hps"] || []).map((_, index) =>
+      period?.activityMeta?.[kind]?.[index]?.role || defaultRole(kind, index, section?.gradingCategory || section?.subject)) };
+  }
+
+  // Exact DepEd Transmutation Table (41 grade values, 60 through 100)
   const TRANSMUTATION_TABLE = [
     { min: 99.50, max: 100.00, grade: 100 },
     { min: 98.32, max: 99.49,  grade: 99 },
@@ -106,7 +163,8 @@
   }
 
   function numberOrNull(value) {
-    if (value === "" || value === null || value === undefined) return null;
+    if (typeof value !== "number" && typeof value !== "string") return null;
+    if (typeof value === "string" && !value.trim()) return null;
     if (isAttendanceCode(value)) return null;
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
@@ -115,7 +173,8 @@
   function roundHalfUp(value, decimals) {
     if (!Number.isFinite(value)) return null;
     const factor = 10 ** decimals;
-    return Math.floor((value * factor) + 0.5 + Number.EPSILON) / factor;
+    const scaled = value * factor;
+    return Math.floor(scaled + 0.5 + Number.EPSILON * Math.max(1, Math.abs(scaled)) * 2) / factor;
   }
 
   function format(value, decimals) {
@@ -124,24 +183,24 @@
   }
 
   function matchSubjectWeights(subjectName) {
-    if (!subjectName || typeof subjectName !== "string") return [20, 50, 30];
-    const clean = subjectName.trim().toLowerCase();
-    for (const preset of SUBJECT_PRESETS) {
-      if (clean === preset.name.toLowerCase()) return [...preset.weights];
-    }
-    if (clean.includes("mapeh") || clean.includes("music") || clean.includes("arts") || clean.includes("physical education") || clean.includes("health")) {
-      return [20, 60, 20];
-    }
-    if (clean.includes("epp") || clean.includes("tle") || clean.includes("pangkabuhayan") || clean.includes("livelihood")) {
-      return [20, 60, 20];
-    }
+    const clean = String(subjectName || "").trim().toLowerCase();
+    const preset = SUBJECT_PRESETS.find(item => clean === item.name.toLowerCase());
+    if (preset) return [...preset.weights];
+    // Word boundaries avoid matches such as “Research Methods” becoming MAPEH.
+    if (/\bwork immersion\b/.test(clean)) return [20, 80, 0];
+    if (/\bresearch\b|design and innovation/.test(clean)) return [40, 60, 0];
+    if (/field exposure|arts apprenticeship|creative production/.test(clean)) return [15, 70, 15];
+    if (/\btechpro\b/.test(clean)) return [15, 65, 20];
+    if (/\bmapeh\b|\bmusic\b|\barts\b|physical education|\bhealth\b|\bsports\b/.test(clean)) return [20, 60, 20];
+    if (/\bepp\b|\btle\b|pangkabuhayan|livelihood/.test(clean)) return [20, 60, 20];
     return [20, 50, 30];
   }
 
   function transmuteGrade(initialScore) {
     if (initialScore === null || initialScore === undefined || !Number.isFinite(initialScore)) return null;
-    // Round to 2 decimal places to avoid floating point precision artifacts at tier boundaries
-    const rounded = Math.round((initialScore + Number.EPSILON) * 100) / 100;
+    // Remove only binary arithmetic noise at 12 decimal places. Never use
+    // the displayed 2/3 decimals to promote an IG below the published cutoff.
+    const rounded = Math.round(initialScore * 1e12) / 1e12;
     for (const entry of TRANSMUTATION_TABLE) {
       if (rounded >= entry.min) return entry.grade;
     }
@@ -157,78 +216,49 @@
     return "Emerging";
   }
 
-  function calculateComponent(rawScores, hpsScores, componentWeight) {
-    let rawTotal = 0;
-    let hpsTotal = 0;
-    let used = 0;
-
-    rawScores.forEach((rawValue, index) => {
-      const hps = numberOrNull(hpsScores[index]);
-      if (hps === null || hps <= 0) return;
-      if (isZeroScoreCode(rawValue)) {
-        // Absent / Missing (no excuse): counts as zero against this item's HPS.
-        rawTotal += 0;
-        hpsTotal += hps;
-        used += 1;
-        return;
-      }
-      if (isExcludedCode(rawValue)) return; // Excused / Late: excluded entirely, like a blank slot.
-      const raw = numberOrNull(rawValue);
-      if (raw === null) return;
-      rawTotal += raw;
-      hpsTotal += hps;
-      used += 1;
+  const blank = value => value === null || value === undefined || (typeof value === "string" && !value.trim());
+  function calculateComponent(rawScores, hpsScores, componentWeight, options) {
+    if (componentWeight === 0) return { rawTotal: 0, hpsTotal: 0, percentage: null, weighted: 0, used: 0, missing: 0 };
+    const groups = options?.groups || [{ id: "all", share: 1 }];
+    const buckets = groups.map(group => ({ ...group, raw: 0, hps: 0, configured: 0 }));
+    let rawTotal = 0, hpsTotal = 0, used = 0, missing = 0, error = null;
+    hpsScores.forEach((hpsValue, index) => {
+      const rawValue = rawScores[index], hps = numberOrNull(hpsValue);
+      if (blank(hpsValue) && blank(rawValue)) return; // Unused activity column.
+      if (hps === null || hps <= 0) { error = "Set a positive HPS for every active activity."; return; }
+      const role = options?.groups ? options.roles?.[index] : "all";
+      const bucket = buckets.find(group => group.id === role);
+      if (!bucket) { error = "Assign the assessment group or domain for every active activity."; return; }
+      bucket.configured++;
+      if (isExcludedCode(rawValue)) return; // E/L remove this activity only for this learner.
+      let raw = isZeroScoreCode(rawValue) || blank(rawValue) ? 0 : numberOrNull(rawValue);
+      if (raw === null || raw < 0 || raw > hps) { error = "Scores must be between zero and HPS."; return; }
+      if (blank(rawValue)) missing++;
+      bucket.raw += raw; bucket.hps += hps;
+      rawTotal += raw; hpsTotal += hps; used++;
     });
-
-    if (!used || hpsTotal <= 0) {
-      return { rawTotal, hpsTotal, percentage: null, weighted: null, used };
-    }
-    const percentage = (rawTotal / hpsTotal) * 100;
-    return {
-      rawTotal,
-      hpsTotal,
-      percentage,
-      weighted: percentage * (componentWeight / 100),
-      used
-    };
+    // Do not silently change 30/30/40 into a uniform or partial exam calculation.
+    if (buckets.some(group => !group.configured)) error ||= "Configure HPS for every required assessment group or domain.";
+    if (error || !used || hpsTotal <= 0) return { rawTotal, hpsTotal, percentage: null, weighted: null, used, missing, error };
+    const active = buckets.filter(group => group.hps > 0);
+    const activeShare = active.reduce((sum, group) => sum + group.share, 0);
+    const percentage = active.reduce((sum, group) => sum + group.raw / group.hps * 100 * group.share, 0) / activeShare;
+    return { rawTotal, hpsTotal, percentage, weighted: percentage * componentWeight / 100, used, missing,
+      groups: buckets.map(group => ({ ...group, percentage: group.hps > 0 ? group.raw / group.hps * 100 : null })) };
   }
 
-  // QA Support: Normalized 30 / 30 / 40 weights for 3 slots, or standard component normalization
-  function calculateQuarterlyAssessment(rawScores, hpsScores, componentWeight) {
-    if (rawScores.length === 3) {
-      let weightedPercentage = 0;
-      let activeIntraWeight = 0;
-      let rawTotal = 0;
-      let hpsTotal = 0;
-      let used = 0;
+  function calculateQuarterlyAssessment(rawScores, hpsScores, componentWeight, options) {
+    const settings = options || { groups: [{ id: "st1", share: .3 }, { id: "st2", share: .3 }, { id: "te", share: .4 }], roles: rawScores.map((_, index) => defaultRole("qa", index)) };
+    return calculateComponent(rawScores, hpsScores, componentWeight, settings);
+  }
 
-      QA_INTRA_WEIGHTS.forEach((intraWeight, index) => {
-        const hps = numberOrNull(hpsScores[index]);
-        if (hps === null || hps <= 0) return;
-        let raw;
-        if (isZeroScoreCode(rawScores[index])) {
-          raw = 0; // Absent / Missing (no excuse): counts as zero against this item's HPS.
-        } else if (isExcludedCode(rawScores[index])) {
-          return; // Excused / Late: excluded entirely, like a blank slot.
-        } else {
-          raw = numberOrNull(rawScores[index]);
-          if (raw === null) return;
-        }
-        weightedPercentage += ((raw / hps) * 100) * intraWeight;
-        activeIntraWeight += intraWeight;
-        rawTotal += raw;
-        hpsTotal += hps;
-        used += 1;
-      });
-
-      if (!used || activeIntraWeight <= 0) {
-        return { rawTotal, hpsTotal, percentage: null, weighted: null, used };
-      }
-      const percentage = weightedPercentage / activeIntraWeight;
-      return { rawTotal, hpsTotal, percentage, weighted: percentage * (componentWeight / 100), used };
-    }
-    
-    return calculateComponent(rawScores, hpsScores, componentWeight);
+  function calculateLearner(learner, period, section) {
+    const ww = calculateComponent(learner.ww, period.wwHps, section.weights[0], componentOptions(section, period, "ww"));
+    const pt = calculateComponent(learner.pt, period.ptHps, section.weights[1], componentOptions(section, period, "pt"));
+    const qa = calculateQuarterlyAssessment(learner.qa, period.qaHps, section.weights[2], componentOptions(section, period, "qa"));
+    const issue = gradingIssue(section);
+    const initial = issue ? { precise: null, rounded: null, transmuted: null, descriptor: "—", error: issue } : calculateInitialGrade(ww, pt, qa, { transmute: section.gradingMode !== "zero-based" });
+    return { ww, pt, qa, initial };
   }
 
   function calculateInitialGrade(writtenWork, performanceTask, quarterlyAssessment, options) {
@@ -237,7 +267,7 @@
     if (parts.some((value) => !Number.isFinite(value))) return { precise: null, rounded: null, transmuted: null, descriptor: "—" };
     const precise = parts.reduce((sum, value) => sum + value, 0);
     const rounded = roundHalfUp(precise, FINAL_GRADE_DECIMALS);
-    const transmuted = transmute ? transmuteGrade(precise) : roundHalfUp(precise, ZERO_BASED_GRADE_DECIMALS);
+    const transmuted = transmute ? transmuteGrade(precise) : roundHalfUp(Math.round(precise * 1e12) / 1e12, ZERO_BASED_GRADE_DECIMALS);
     const descriptor = getGradeDescriptor(transmuted);
     return { precise, rounded, transmuted, descriptor };
   }
@@ -268,6 +298,12 @@
     ZERO_SCORE_CODES,
     EXCLUDED_CODES,
     SUBJECT_PRESETS,
+    SHS_PRESETS,
+    subjectRules,
+    defaultRole,
+    componentOptions,
+    gradingIssue,
+    calculateLearner,
     TRANSMUTATION_TABLE,
     numberOrNull,
     roundHalfUp,

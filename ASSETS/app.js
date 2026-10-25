@@ -29,8 +29,8 @@
   const TRIMESTER_TERM_NAMES = ["Term 1", "Term 2", "Term 3"];
   const TRIMESTER_APPLIES_TO_SHS_SEPARATELY = false;
   const TRIMESTER_SHS_TERM_NAMES = ["Term 1", "Term 2", "Term 3"];
-  // Verify whether zero-based grading is tied to the trimester calendar.
-  const TRIMESTER_USES_ZERO_BASED_GRADING = true;
+  // Calendar and reported-grade policy are independent class settings.
+  const usesTransmutation = section => section?.gradingMode !== "zero-based";
   // Verify whether the final grade is an equal average of the three term grades.
   const TRIMESTER_FINAL_GRADE_WEIGHTS = [1, 1, 1];
 
@@ -450,6 +450,7 @@
     if (!Array.isArray(entry.weights) || entry.weights.length !== 3) {
       entry.weights = matchSubjectWeights(entry.subject);
     }
+    if (!["school-transmutation", "zero-based"].includes(entry.gradingMode)) entry.gradingMode = "school-transmutation";
     return entry;
   }
 
@@ -483,7 +484,7 @@
           qaHps: fitArray(period.qaHps, qaLen),
           activityMeta: Object.fromEntries(["ww", "pt", "qa"].map((kind) => [kind, Array.from({ length: kind === "ww" ? wwLen : kind === "pt" ? ptLen : qaLen }, (_, index) => {
             const item = period.activityMeta?.[kind]?.[index];
-            return { title: typeof item?.title === "string" ? item.title : "", competency: typeof item?.competency === "string" ? item.competency : "", topic: typeof item?.topic === "string" ? item.topic : "" };
+            return { title: typeof item?.title === "string" ? item.title : "", competency: typeof item?.competency === "string" ? item.competency : "", topic: typeof item?.topic === "string" ? item.topic : "", role: typeof item?.role === "string" ? item.role : window.CSTRGrading.defaultRole(kind, index, section.gradingCategory || section.subject) };
           })])),
           roster: Array.from({ length: Array.isArray(period.roster) && period.roster.length ? period.roster.length : (section.rosterSize || 50) }, (_, index) => {
             const learner = Array.isArray(period.roster) ? period.roster[index] : null;
@@ -696,7 +697,11 @@
   }
 
   function recordCompletion(period) {
-    return window.CSTRRecordTools.completion(recordablePeriod(period));
+    const section = activeRegistry().find(item => activeSections()[item.id]?.periods?.includes(period)) || currentSection();
+    const learners = (period?.roster || []).filter(item=>String(item.name||"").trim()&&!getRowCategory(item));
+    const status = window.CSTRRecordTools.completion(recordablePeriod(period),section?.weights);
+    status.complete = status.complete && learners.every(learner=>isLearnerAssessmentComplete(learner,period,section));
+    return status;
   }
 
   function adjustRecordHps(period, kind, index, previous, next) {
@@ -830,10 +835,17 @@
   // Scores remain text while a teacher is typing so partial decimals stay
   // usable. This only drives integrity feedback; grading formulas stay intact.
   function getPeriodInputIntegrity(period) {
-    const issues = { invalidHps: 0, invalidScores: 0, aboveHps: 0 };
+    const issues = { invalidHps: 0, invalidScores: 0, aboveHps: 0, missingHps: 0, invalidGroups: 0 };
     if (!period) return issues;
-    ["ww", "pt", "qa"].forEach((kind) => {
+    const section = activeRegistry().find(item => activeSections()[item.id]?.periods?.includes(period)) || currentSection();
+    ["ww", "pt", "qa"].forEach((kind, componentIndex) => {
+      if (section?.weights[componentIndex] === 0) return;
       const hpsValues = period[`${kind}Hps`] || [];
+      const options = window.CSTRGrading.componentOptions(section,period,kind);
+      if (options.groups && hpsValues.some(value=>Number(value)>0)) {
+        issues.invalidGroups += hpsValues.filter((value,index)=>Number(value)>0&&!options.groups.some(group=>group.id===options.roles[index])).length;
+        issues.invalidGroups += options.groups.filter(group=>!hpsValues.some((value,index)=>Number(value)>0&&options.roles[index]===group.id)).length;
+      }
       hpsValues.forEach((value) => {
         if (value === "" || value === null || value === undefined) return;
         const hps = Number(value);
@@ -842,7 +854,9 @@
       (period.roster || []).forEach((learner) => {
         if (getRowCategory(learner)) return;
         (learner[kind] || []).forEach((value, index) => {
-          if (value === "" || value === null || value === undefined || isAttendanceCode(value)) return;
+          if (value === "" || value === null || value === undefined) return;
+          if (!(Number(hpsValues[index]) > 0)) issues.missingHps += 1;
+          if (isAttendanceCode(value)) return;
           const score = Number(value);
           if (!Number.isFinite(score) || score < 0) {
             issues.invalidScores += 1;
@@ -857,13 +871,15 @@
   }
 
   function hasPeriodInputIssues(issues) {
-    return issues.invalidHps > 0 || issues.invalidScores > 0 || issues.aboveHps > 0;
+    return issues.invalidHps > 0 || issues.invalidScores > 0 || issues.aboveHps > 0 || issues.missingHps > 0 || issues.invalidGroups > 0;
   }
 
   function periodInputIssueMessage(issues) {
     const parts = [];
     if (issues.invalidHps) parts.push(`${issues.invalidHps} invalid HPS value${issues.invalidHps === 1 ? "" : "s"}`);
     if (issues.invalidScores) parts.push(`${issues.invalidScores} invalid score${issues.invalidScores === 1 ? "" : "s"}`);
+    if (issues.missingHps) parts.push(`${issues.missingHps} mark(s) without a positive HPS`);
+    if (issues.invalidGroups) parts.push(`${issues.invalidGroups} assessment group/domain assignment(s) or HPS total(s) missing`);
     if (issues.aboveHps) parts.push(`${issues.aboveHps} score${issues.aboveHps === 1 ? "" : "s"} above HPS`);
     return parts.join("; ");
   }
@@ -1275,7 +1291,7 @@
           <div class="sidebar-mode-switch" role="group" aria-label="Grading system">
             <p class="sidebar-label">Grading system</p>
             <button class="sidebar-link sidebar-mode-option" type="button" data-action="select-calendar-mode" data-mode="legacy" aria-label="Quarterly / Semestral mode" aria-pressed="${state.calendarMode === "legacy"}" title="Quarterly / Semestral mode">${icon("calendar")}<span>Quarterly / Semestral</span></button>
-            <button class="sidebar-link sidebar-mode-option" type="button" data-action="select-calendar-mode" data-mode="trimester" aria-label="Trimester (Zero-Based) mode" aria-pressed="${state.calendarMode === "trimester"}" title="Trimester (Zero-Based) mode">${icon("terms")}<span>Trimester (Zero-Based)</span></button>
+            <button class="sidebar-link sidebar-mode-option" type="button" data-action="select-calendar-mode" data-mode="trimester" aria-label="Trimester mode" aria-pressed="${state.calendarMode === "trimester"}" title="Trimester mode">${icon("terms")}<span>Trimester</span></button>
           </div>
         </nav>
         <section class="sidebar-search-block" aria-label="Find a learner"><p class="sidebar-label">Learner lookup</p>
@@ -1343,7 +1359,7 @@
         <div class="owner-intro">
           <p class="eyebrow">Teacher profile</p>
           <h2 id="ownerTitle">Teacher details</h2>
-          <p class="owner-context">${state.calendarMode === "trimester" ? "Trimester (Zero-Based)" : "Quarterly / Semestral"} workspace</p>
+          <p class="owner-context">${state.calendarMode === "trimester" ? "Trimester" : "Quarterly / Semestral"} workspace</p>
           <input id="photoInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" hidden>
           <button class="photo-frame" type="button" data-action="choose-photo" data-has-photo="${Boolean(state.photo)}" aria-label="${state.photo ? "Change" : "Upload"} teacher photo" title="${state.photo ? "Change" : "Upload"} teacher photo">${portrait}</button>
         </div>
@@ -1362,7 +1378,7 @@
           </div></div>
         </div>
       </section>
-      <div class="workspace-intro"><div><h2>Your teaching desk</h2><p>${state.calendarMode === "trimester" ? "Trimester · Zero-based grading" : "Quarterly / Semestral grading"}.</p></div>${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}</div>
+      <div class="workspace-intro"><div><h2>Your teaching desk</h2><p>${state.calendarMode === "trimester" ? "Trimester" : "Quarterly / Semestral grading"}.</p></div>${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}</div>
 
       <div class="metric-grid" aria-label="Class record overview">
         <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
@@ -1443,7 +1459,8 @@
     const sectionColorHex = themeColorHex(section.accent || section.theme);
     const sectionLocked = sectionHasLockedPeriod(section);
     const inputIntegrity = getPeriodInputIntegrity(period);
-    const integrityNote = hasPeriodInputIssues(inputIntegrity)
+    const gradingIssue = window.CSTRGrading.gradingIssue(section);
+    const integrityNote = gradingIssue ? `<p class="integrity-note" role="status">${escapeHtml(gradingIssue)}</p>` : hasPeriodInputIssues(inputIntegrity)
       ? `<p class="integrity-note" role="status"><strong>Review needed before locking:</strong> ${escapeHtml(periodInputIssueMessage(inputIntegrity))}.</p>`
       : "";
 
@@ -1462,7 +1479,7 @@
           </details><div class="class-weights" tabindex="0" aria-label="${escapeHtml(section.subject)} grading weights: Written Works ${section.weights[0]}%, Performance Tasks ${section.weights[1]}%, ${state.calendarMode === "trimester" ? "Term" : "Quarterly"} Assessment ${section.weights[2]}%"><span aria-hidden="true">${icon("info")}</span><div class="class-weights-popover" role="tooltip"><strong>${escapeHtml(section.subject)} grading weights</strong><span>Written Works ${section.weights[0]}%</span><span>Performance Tasks ${section.weights[1]}%</span><span>${state.calendarMode === "trimester" ? "Term" : "Quarterly"} Assessment ${section.weights[2]}%</span></div></div></div>
           <p class="class-level">${escapeHtml(section.level)}</p>
           <h2 class="class-name" title="${escapeHtml(section.section || section.level)}">${escapeHtml(section.section || section.level)}</h2>
-          <div class="class-context-line"><span id="liveLearnerCount">${totalLearners} learner${totalLearners === 1 ? "" : "s"}</span><span>${escapeHtml(section.subject)}</span></div>
+          <div class="class-context-line"><span id="liveLearnerCount">${totalLearners} learner${totalLearners === 1 ? "" : "s"}</span><span>${escapeHtml(section.subject)}</span><span>${usesTransmutation(section) ? "School transmutation" : "Zero-based grading"}</span></div>
         </div>
         <div class="class-period-area">
           <div class="period-tabs" role="group" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-pressed="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index, state.calendarMode))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${recordCompletion(entry).complete ? "Complete" : "In progress"}">${recordCompletion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
@@ -1490,7 +1507,7 @@
           <h3>Keyboard &amp; selection</h3>
           <p>Drag to select · Ctrl+C copy · Ctrl+X cut · Ctrl+V paste · Delete clear.</p>
           <p>Enter / Tab fills the selection from its first cell.</p>
-          <h3>Score legend</h3><dl><dt>Red outline</dt><dd>Score above HPS or invalid value. Correct before finalizing.</dd><dt>A — Absent · M — Missing</dt><dd>Counted as zero against HPS.</dd><dt>E — Excused · L — Late</dt><dd>Excluded from the grade calculation.</dd><dt>${state.calendarMode === "trimester" ? "Term assessment" : "Quarterly assessment"}</dt><dd>With three QA slots, ST1/ST2/Term Exam use 30%/30%/40%, normalized to included entries. Other slot counts use the existing uniform calculation.</dd></dl>
+          <h3>Score legend</h3><dl><dt>Red outline</dt><dd>Score above HPS or invalid value. Correct before finalizing.</dd><dt>A — Absent · M — Missing</dt><dd>Counted as zero against HPS.</dd><dt>E — Excused · L — Late</dt><dd>Excluded from the grade calculation.</dd><dt>${state.calendarMode === "trimester" ? "Term assessment" : "Quarterly assessment"}</dt><dd>Assign ST1, ST2 or TE in the activity register. Each group pools its own raw scores and HPS, then contributes 30%, 30% or 40%. E/L remove an activity only for that learner. TE-only SHS subjects use 100% TE. Blank marks count as zero against configured HPS; unused columns with no HPS do not count.</dd></dl>
           <p>Complete: all named learners have entries for every activity, with valid HPS.</p>
           <p>Lowering HPS caps scores above it when you leave the field. Restoring the original HPS restores those original scores unless you explicitly edited them afterward.</p>
         </div></details>
@@ -1566,7 +1583,7 @@
       : rankedMeans.length ? `Only ${rankedMeans[0].label} has a recorded component percentage so far.` : "No component percentages are available yet.";
     const cards = entries.map(({ period: entryPeriod, periodIndex, result, complete }) => {
       const active = periodIndex === activePeriodIndex;
-      const gradeLabel = state.calendarMode === "trimester" ? "Term grade" : "Initial grade";
+      const gradeLabel = "Initial grade";
       const components = categories.map(cat => `<div class="report-component report-${cat.key}"><strong>${escapeHtml(cat.label)}</strong><span>${pct(result[cat.key].percentage)} · ${Number.isFinite(result[cat.key].weighted) ? `${format(result[cat.key].weighted, 2)} weighted` : "— weighted"}</span><small>${scoreTotal(result[cat.key])} raw / HPS</small></div>`).join("");
       const inputs = active ? `<div class="report-edit-scores"><h4>Edit ${escapeHtml(entryPeriod.name)} activities and scores</h4><div class="report-score-groups">${categories.map(cat => `<fieldset class="report-score-group report-${cat.key}"><legend>${escapeHtml(cat.label)}</legend><div class="report-score-grid">${learner[cat.key].map((value, index) => {
         const hps = entryPeriod[cat.key + "Hps"][index];
@@ -1577,13 +1594,13 @@
         const locked = entryPeriod.locked ? "disabled" : "";
         const hpsLabel = hps === "" || hps === null || hps === undefined ? "—" : String(hps);
         return `<div class="report-activity-row" data-report-kind="${cat.key}" data-report-index="${index}">
-          <div class="report-activity-name"><strong>${slot}</strong><label>Activity title<textarea class="activity-register-input" rows="1" data-activity-kind="${cat.key}" data-activity-index="${index}" data-activity-field="title" aria-label="${slot} activity title" placeholder="Activity title" ${locked}>${safeValue(info.title)}</textarea></label></div>
+          <div class="report-activity-name"><strong>${slot}</strong>${renderActivityRole(section,entryPeriod,cat.key,index)}<label>Activity title<textarea class="activity-register-input" rows="1" data-activity-kind="${cat.key}" data-activity-index="${index}" data-activity-field="title" aria-label="${slot} activity title" placeholder="Activity title" ${locked}>${safeValue(info.title)}</textarea></label></div>
           <label>Date<input type="date" data-calendar-date data-date="${cat.key}" data-index="${index}" value="${safeValue(calendarDate(date))}" aria-label="${slot} date" placeholder="Date" ${locked}></label>
           <label>HPS<input type="number" min="0" step="any" inputmode="decimal" data-hps="${cat.key}" data-index="${index}" value="${safeValue(hps)}" aria-label="${slot} highest possible score" ${locked}></label>
           <label>Score <small class="score-hps">/ ${escapeHtml(hpsLabel)}</small><input type="text" inputmode="text" autocomplete="off" maxlength="6" data-score="${cat.key}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(value)}" aria-label="${slot} score for ${escapeHtml(learner.name.trim() || `Learner ${rowIndex + 1}`)}" aria-invalid="${invalid}" class="${invalid ? "invalid" : ""}" data-mark="${safeValue(String(value).toUpperCase())}" ${locked}>${scoreAdjustmentControl(learner, cat.key, rowIndex, index, entryPeriod.locked)}</label>
         </div>`;
       }).join("")}</div></fieldset>`).join("")}</div></div>` : `<button type="button" class="button button-secondary report-switch-period" data-action="select-period" data-period="${periodIndex}">Open this period to edit</button>${renderScoreLedgerHtml(entryPeriod, entries.find(e => e.period === entryPeriod).learner)}`;
-      return `<article class="report-period-card ${active ? "is-current" : ""}"><div data-report-live="period-${periodIndex}"><div class="report-period-heading"><h3>${escapeHtml(entryPeriod.name)}</h3><span class="report-status ${complete ? "is-complete" : ""}">${complete ? "Complete requirements" : "Provisional · incomplete requirements"}</span></div><div class="report-grades"><div class="${state.calendarMode === "trimester" ? "report-final-grade" : ""}"><small>${gradeLabel}</small><strong>${format(result.initial.rounded, 3)}</strong></div><div class="${state.calendarMode === "trimester" ? "" : "report-final-grade"}"><small>${state.calendarMode === "trimester" ? "Transmutation" : "Final transmuted"}</small><strong>${state.calendarMode === "trimester" ? "Not used" : format(result.initial.transmuted, 0)}</strong></div><div><small>Qualitative descriptor</small><strong>${renderDescriptorBadge(result.initial.descriptor)}</strong></div></div><div class="report-components">${components}</div></div>${inputs}${active ? `<div data-report-live="ledger-${periodIndex}">${renderScoreLedgerHtml(entryPeriod, learner)}</div>` : ""}</article>`;
+      return `<article class="report-period-card ${active ? "is-current" : ""}"><div data-report-live="period-${periodIndex}"><div class="report-period-heading"><h3>${escapeHtml(entryPeriod.name)}</h3><span class="report-status ${complete ? "is-complete" : ""}">${complete ? "Complete requirements" : "Provisional · incomplete requirements"}</span></div><div class="report-grades"><div class=""><small>${gradeLabel}</small><strong>${format(result.initial.rounded, 3)}</strong></div><div class="report-final-grade"><small>${usesTransmutation(section) ? "Final transmuted" : "Reported grade"}</small><strong>${format(result.initial.transmuted, 0)}</strong></div><div><small>Qualitative descriptor</small><strong>${renderDescriptorBadge(result.initial.descriptor)}</strong></div></div><div class="report-components">${components}</div></div>${inputs}${active ? `<div data-report-live="ledger-${periodIndex}">${renderScoreLedgerHtml(entryPeriod, learner)}</div>` : ""}</article>`;
     }).join("");
     return `<section class="editable-student-report" aria-label="Editable individual grade report"><div class="report-heading"><p>Individual grade report</p><label>Learner name<input data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}></label><span>${escapeHtml(section.level)} · ${escapeHtml(section.subject)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</span></div>${reportExport}<div data-report-live="overview">${chart}<h3>Component means across recorded periods</h3><div class="report-means">${means}</div><p class="report-interpretation">${escapeHtml(interpretation)}</p></div><div class="report-periods">${cards}</div><p class="report-footnote">Component means are unweighted averages of available period percentages; they are not final grades. A/M count as zero. E/L are excluded. Grades are provisional when requirements are incomplete.</p></section>`;
   }
@@ -1723,7 +1740,12 @@
     const wwLen = period.wwDates.length;
     const ptLen = period.ptDates.length;
     const qaLen = period.qaDates.length;
-    const qaLabels = qaLen === 3 ? ["ST 1 (30%)", "ST 2 (30%)", "Term Exam (40%)"] : [];
+    const examOptions = window.CSTRGrading.componentOptions(section,period,"qa");
+    const qaLabels = period.qaHps.map((_,index) => {
+      if (section.weights[2] === 0) return "No exam component";
+      const group = examOptions.groups.find(group=>group.id===examOptions.roles[index]);
+      return group ? `${group.id.toUpperCase()} (group ${Math.round(group.share*100)}%)` : "Choose exam group";
+    });
 
     const sectionLocked = sectionHasLockedPeriod(section);
     const rows = period.roster.map((learner, rowIndex) => renderLearnerRow(learner, rowIndex, period, section, numbering[rowIndex], period.locked)).join("");
@@ -1747,8 +1769,8 @@
           <button type="button" class="col-btn" data-action="add-col" data-kind="qa" title="Add assessment column" aria-label="Add assessment column" ${period.locked ? "disabled" : ""}>+</button>
           <button type="button" class="col-btn" data-action="remove-col" data-kind="qa" title="Remove assessment column" aria-label="Remove assessment column" ${period.locked ? "disabled" : ""}>-</button>
         </th>
-        <th class="initial-header" scope="col" rowspan="3">${state.calendarMode === "trimester" ? "Term<br>Grade" : "Initial<br>Grade"}</th>
-        ${state.calendarMode === "trimester" ? "" : '<th class="transmuted-header" scope="col" rowspan="3">Final Transmuted<br>Grade</th>'}
+        <th class="initial-header" scope="col" rowspan="3">Initial<br>Grade</th>
+        ${`<th class="transmuted-header" scope="col" rowspan="3">${usesTransmutation(section) ? "Transmuted" : "Reported"}<br>Grade</th>`}
         <th class="descriptor-header" scope="col" rowspan="3">Qualitative<br>Descriptor</th>
       </tr>
       <tr class="activity-row">
@@ -1765,9 +1787,17 @@
         <th class="number-cell" aria-hidden="true"></th><th class="name-cell" scope="row">Enter HPS</th>
         ${hpsInputs("ww", period.wwHps)}<td colspan="3">&nbsp;</td>
         ${hpsInputs("pt", period.ptHps)}<td colspan="3">&nbsp;</td>
-        ${hpsInputs("qa", period.qaHps)}<td colspan="3">&nbsp;</td><td colspan="${state.calendarMode === "trimester" ? 2 : 3}">&nbsp;</td>
+        ${hpsInputs("qa", period.qaHps)}<td colspan="3">&nbsp;</td><td colspan="3">&nbsp;</td>
       </tr>
       </thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  function renderActivityRole(section, period, kind, index) {
+    const options = window.CSTRGrading.componentOptions(section, period, kind);
+    if (section.weights[["ww","pt","qa"].indexOf(kind)] === 0) return "<small>No exam component</small>";
+    if (!options.groups) return "";
+    const current = options.roles[index];
+    return `<label>Assessment group<select data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="role" aria-label="${kind.toUpperCase()} ${index+1} assessment group" ${period.locked ? "disabled" : ""}><option value="">Choose group</option>${options.groups.map(group=>`<option value="${group.id}" ${current===group.id?"selected":""}>${escapeHtml(group.id.toUpperCase())} (${Math.round(group.share*100)}%)</option>`).join("")}</select></label>`;
   }
 
   function renderActivityRegister(section, period) {
@@ -1780,7 +1810,7 @@
       const info = period.activityMeta[kind][index];
       const number = `${kind.toUpperCase()} ${index + 1}`;
       const disabled = period.locked ? "disabled" : "";
-      return `<tr><th scope="row"><span class="activity-kind">${escapeHtml(label)}</span><strong>${number}</strong></th>
+      return `<tr><th scope="row"><span class="activity-kind">${escapeHtml(label)}</span><strong>${number}</strong>${renderActivityRole(section,period,kind,index)}</th>
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" placeholder="Activity title" aria-label="${number} title" ${disabled}>${safeValue(info.title)}</textarea></td>
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="competency" placeholder="Learning competency" aria-label="${number} competency" ${disabled}>${safeValue(info.competency)}</textarea></td>
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="topic" placeholder="Topic" aria-label="${number} topic" ${disabled}>${safeValue(info.topic)}</textarea></td>
@@ -1813,15 +1843,16 @@
       qa: learner.qa.map(() => "")
     } : learner, period, section.weights);
     const deleteRowBtn = cat ? "" : `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${periodLocked ? "Unlock this grading period to delete rows" : "Remove this learner row from this grading period only"}" aria-label="Delete learner ${rowIndex + 1} row" ${periodLocked ? "disabled" : ""}>${icon("trash")}</button>`;
-    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" title="${learnerLabel}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td>${state.calendarMode === "trimester" ? "" : `<td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td>`}<td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
+    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" title="${learnerLabel}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td><td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td><td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
   }
 
   function learnerResult(learner, period, weights) {
-    const ww = calculateComponent(learner.ww, period.wwHps, weights[0]);
-    const pt = calculateComponent(learner.pt, period.ptHps, weights[1]);
-    const qa = calculateQuarterlyAssessment(learner.qa, period.qaHps, weights[2]);
-    const transmute = state.calendarMode !== "trimester" || !TRIMESTER_USES_ZERO_BASED_GRADING;
-    return { ww, pt, qa, initial: calculateInitialGrade(ww, pt, qa, { transmute }) };
+    const section = currentSection();
+    const result = window.CSTRGrading.calculateLearner(learner, period, { ...section, weights });
+    if (!String(learner.name || "").trim() || getRowCategory(learner)) {
+      result.initial = { precise: null, rounded: null, transmuted: null, descriptor: "—" };
+    }
+    return result;
   }
 
   function formatScore(value) {
@@ -2033,7 +2064,7 @@
       for (let index = 0; index < amount; index += 1) {
         dates.push("");
         hps.push("");
-        period.activityMeta[kind].push({ title: "", competency: "", topic: "" });
+        period.activityMeta[kind].push({ title: "", competency: "", topic: "", role: window.CSTRGrading.defaultRole(kind, dates.length - 1, currentSection().gradingCategory || currentSection().subject) });
         period.roster.forEach((learner) => learner[kind].push(""));
       }
       markStateDirty();
@@ -2080,197 +2111,40 @@
     return Number.isFinite(numeric) ? numeric : String(value);
   }
 
-  function componentExcelFormulas(startCol, length, excelRow, hpsRow, weight, isWeightedQa) {
-    const first = excelColumn(startCol);
-    const last = excelColumn(startCol + length - 1);
-    const scores = `${first}${excelRow}:${last}${excelRow}`;
-    const hps = `${first}$${hpsRow}:${last}$${hpsRow}`;
-    const counted = `(ISNUMBER(${scores})+(UPPER(${scores})="A")+(UPPER(${scores})="M"))`;
-    const valid = `SUMPRODUCT(${counted},--ISNUMBER(${hps}),--(${hps}>0))`;
-    const raw = `SUMPRODUCT(N(${scores}),--ISNUMBER(${hps}),--(${hps}>0))`;
-    const possible = `SUMPRODUCT(${counted},--ISNUMBER(${hps}),--(${hps}>0),${hps})`;
-    const total = `IFERROR(IF(${valid}=0,"",TEXT(${raw},"0.##")&" / "&TEXT(${possible},"0.##")),"")`;
-    let percentage = `IFERROR(IF(${valid}=0,"",${raw}/${possible}*100),"")`;
-    if (isWeightedQa && length === 3) {
-      const intraWeights = `{0.3,0.3,0.4}`;
-      const activeWeight = `SUMPRODUCT(${intraWeights},${counted},--ISNUMBER(${hps}),--(${hps}>0))`;
-      percentage = `IFERROR(IF(${activeWeight}=0,"",SUMPRODUCT(${intraWeights},IFERROR(N(${scores})/${hps},0))/${activeWeight}*100),"")`;
-    }
-    return { total, percentage, weighted: `IFERROR(${percentage}*${weight}/100,"")` };
+  function renderExcelExportModal() {
+    const section = currentSection();
+    if (!section) return;
+    document.querySelector(".modal-backdrop")?.remove();
+    const settings = section.excelSettings || {};
+    const modal = document.createElement("div"); modal.className = "modal-backdrop";
+    const fields = [
+      ["schoolYear", "School year", settings.schoolYear || currentSchoolYear()],
+      ["teacherName", "Subject teacher", settings.teacherName || state.teacher.name || currentUserName() || ""],
+      ["checkerName", "Subject area coordinator", settings.checkerName || ""],
+      ["reviewerName", section.group === "SHS" ? "SHS coordinator" : "JHS coordinator", settings.reviewerName || ""],
+      ["principalName", "Principal", settings.principalName || ""]
+    ];
+    modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="excelExportTitle"><div class="section-heading"><h2 id="excelExportTitle">Export school Excel record</h2>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div><p>${escapeHtml(section.subject)} · ${escapeHtml(currentPeriod().name)} · WW ${section.weights[0]}% / PT ${section.weights[1]}% / EX ${section.weights[2]}%</p><p>Scores and HPS remain editable. Excel recalculates the grades using the selected subject’s required weights. Unentered marks count as zero against configured HPS; A/M count as zero; E/L exclude that activity for that learner. A completely unused column has no HPS and does not count.</p><div class="settings-grid">${fields.map(([key,label,value])=>`<label>${label}<input data-excel-meta="${key}" value="${safeValue(value)}"></label>`).join("")}</div><p>Leave unavailable signatories blank. Review provisional grades before submission.</p><p id="excelExportMessage" role="status"></p><div class="stack-actions"><button type="button" class="button button-primary" data-action="download-school-excel">Save Excel (.xlsx)</button></div></section>`;
+    document.body.appendChild(modal);
   }
 
   async function exportCurrentSheet() {
-    try { await window.CSTRAssets.ensure("excel"); } catch (error) { setStatus(error.message, "error"); return; }
-    if (!window.XLSX) {
-      setStatus("The Excel exporter is still loading. Please try again in a moment.", "error");
-      return;
-    }
-    const section = currentSection();
-    const period = currentPeriod();
-    const trimester = state.calendarMode === "trimester";
-    const wwLen = period.wwDates.length;
-    const ptLen = period.ptDates.length;
-    const qaLen = period.qaDates.length;
-    const wwStart = 2;
-    const ptStart = wwStart + wwLen + 3;
-    const qaStart = ptStart + ptLen + 3;
-    const gradeCol = qaStart + qaLen + 3;
-    const transmutedCol = trimester ? null : gradeCol + 1;
-    const descriptorCol = trimester ? gradeCol + 1 : gradeCol + 2;
-    const lastCol = descriptorCol;
-    const headerRow = 5;
-    const datesRow = 6;
-    const hpsRow = 7;
-    const firstLearnerRow = 8;
-    const matrix = Array.from({ length: firstLearnerRow - 1 + period.roster.length }, () => Array(lastCol + 1).fill(""));
-    matrix[0][0] = "COLEGIO DE STO. TOMÁS – RECOLETOS, INCORPORATED";
-    matrix[1][0] = "CLASS RECORD — PRINT-READY EXPORT";
-    matrix[2][0] = `${section.level} • ${section.subject}${section.section ? ` • ${section.section}` : ""}`;
-    matrix[3][0] = `Grading period: ${period.name} | Weights: WW ${section.weights[0]}% - PT ${section.weights[1]}% - EX ${section.weights[2]}%`;
-    matrix[3][Math.max(2, lastCol - 3)] = `Teacher: ${state.teacher.name || ""}`;
-    matrix[headerRow - 1][0] = "#";
-    matrix[headerRow - 1][1] = "Learner name";
-    matrix[datesRow - 1][0] = "";
-    matrix[datesRow - 1][1] = "Activity date";
-    matrix[hpsRow - 1][0] = "";
-    matrix[hpsRow - 1][1] = "Highest Possible Score (HPS)";
-    const writeComponentHeader = (start, length, label, weight) => {
-      matrix[headerRow - 1][start] = `${label} (${weight}%)`;
-      matrix[datesRow - 1][start + length] = `Total ${label}`;
-      matrix[datesRow - 1][start + length + 1] = "PS";
-      matrix[datesRow - 1][start + length + 2] = `WS (${weight}%)`;
-    };
-    writeComponentHeader(wwStart, wwLen, "WW", section.weights[0]);
-    writeComponentHeader(ptStart, ptLen, "PT", section.weights[1]);
-    writeComponentHeader(qaStart, qaLen, "QA", section.weights[2]);
-    matrix[headerRow - 1][gradeCol] = trimester ? "Term Grade" : "Initial Grade";
-    if (!trimester) matrix[headerRow - 1][transmutedCol] = "Final Transmuted Grade";
-    matrix[headerRow - 1][descriptorCol] = "Qualitative Descriptor";
-
-    [[wwStart, period.wwDates, period.wwHps], [ptStart, period.ptDates, period.ptHps], [qaStart, period.qaDates, period.qaHps]].forEach(([start, dates, hps]) => {
-      dates.forEach((value, index) => { matrix[datesRow - 1][start + index] = `${start === wwStart ? "WW" : start === ptStart ? "PT" : "QA"} ${index + 1}${value ? "\n" + value : ""}`; });
-      hps.forEach((value, index) => { matrix[hpsRow - 1][start + index] = excelValue(value); });
-    });
-    const { numbering } = computeLearnerNumbering(period.roster);
-    period.roster.forEach((learner, rowIndex) => {
-      const row = firstLearnerRow - 1 + rowIndex;
-      matrix[row][0] = numbering[rowIndex] === "—" ? "" : numbering[rowIndex];
-      matrix[row][1] = learner.name || "";
-      if (getRowCategory(learner)) return;
-      [[wwStart, learner.ww], [ptStart, learner.pt], [qaStart, learner.qa]].forEach(([start, scores]) => scores.forEach((value, index) => { matrix[row][start + index] = excelValue(value); }));
-    });
-    const worksheet = XLSX.utils.aoa_to_sheet(matrix);
-    const setFormula = (address, formula, value, type = "n") => { worksheet[address] = { t: type, f: formula, v: value }; };
-    period.roster.forEach((learner, rowIndex) => {
-      const excelRow = firstLearnerRow + rowIndex;
-      if (getRowCategory(learner)) return;
-      const result = learnerResult(learner, period, section.weights);
-      const ww = componentExcelFormulas(wwStart, wwLen, excelRow, hpsRow, section.weights[0], false);
-      const pt = componentExcelFormulas(ptStart, ptLen, excelRow, hpsRow, section.weights[1], false);
-      const qa = componentExcelFormulas(qaStart, qaLen, excelRow, hpsRow, section.weights[2], true);
-      [[wwStart + wwLen, ww, result.ww], [ptStart + ptLen, pt, result.pt], [qaStart + qaLen, qa, result.qa]].forEach(([start, formulas, component]) => {
-        setFormula(`${excelColumn(start)}${excelRow}`, formulas.total, scoreTotal(component), "s");
-        setFormula(`${excelColumn(start + 1)}${excelRow}`, formulas.percentage, Number.isFinite(component.percentage) ? component.percentage : "", Number.isFinite(component.percentage) ? "n" : "s");
-        setFormula(`${excelColumn(start + 2)}${excelRow}`, formulas.weighted, Number.isFinite(component.weighted) ? component.weighted : "", Number.isFinite(component.weighted) ? "n" : "s");
-      });
-      const wsCells = [excelColumn(wwStart + wwLen + 2), excelColumn(ptStart + ptLen + 2), excelColumn(qaStart + qaLen + 2)].map((col) => `${col}${excelRow}`);
-      setFormula(`${excelColumn(gradeCol)}${excelRow}`, `IF(COUNT(${wsCells.join(",")})<3,"",ROUND(SUM(${wsCells.join(",")}),3))`, Number.isFinite(result.initial.rounded) ? result.initial.rounded : "", Number.isFinite(result.initial.rounded) ? "n" : "s");
-      [wwStart + wwLen + 1, wwStart + wwLen + 2, ptStart + ptLen + 1, ptStart + ptLen + 2, qaStart + qaLen + 1, qaStart + qaLen + 2, gradeCol].forEach((col) => {
-        const cell = worksheet[`${excelColumn(col)}${excelRow}`];
-        if (cell && cell.t === "n") cell.z = "0.000";
-      });
-
-      // Final grade and descriptor share the existing calculation result.
-      if (Number.isFinite(result.initial.transmuted)) {
-        if (!trimester) worksheet[`${excelColumn(transmutedCol)}${excelRow}`] = { t: "n", v: result.initial.transmuted };
-        worksheet[`${excelColumn(descriptorCol)}${excelRow}`] = { t: "s", v: result.initial.descriptor };
-      } else {
-        if (!trimester) worksheet[`${excelColumn(transmutedCol)}${excelRow}`] = { t: "s", v: "" };
-        worksheet[`${excelColumn(descriptorCol)}${excelRow}`] = { t: "s", v: "" };
-      }
-    });
-    const border = { style: "thin", color: { rgb: "B7C2CC" } };
-    const palette = { ww: "FFF0B3", pt: "D9EAF7", qa: "F7D3D0", gray: "EEF1F4", maroon: "6D1F32", gold: "D9A72E", goldLight: "FBF0CD", navy: "1E3853" };
-    const baseStyle = { font: { name: "Arial", sz: 9, color: { rgb: "1E293B" } }, alignment: { vertical: "center", horizontal: "center", wrapText: true }, border: { top: border, bottom: border, left: border, right: border } };
-    const fillFor = (col) => col >= wwStart && col < ptStart ? palette.ww : col >= ptStart && col < qaStart ? palette.pt : col >= qaStart && col < gradeCol ? palette.qa : col === gradeCol ? palette.goldLight : col === transmutedCol ? "FDEBD0" : "FFFFFF";
-
-    for (let row = headerRow - 1; row < matrix.length; row += 1) {
-      for (let col = 0; col <= lastCol; col += 1) {
-        const address = `${excelColumn(col)}${row + 1}`;
-        if (!worksheet[address]) worksheet[address] = { t: "s", v: "" };
-        worksheet[address].s = { ...baseStyle, fill: { fgColor: { rgb: row === hpsRow - 1 ? palette.gray : fillFor(col) }, patternType: "solid" }, alignment: { ...baseStyle.alignment, horizontal: col === 1 || col === descriptorCol ? "left" : "center" } };
-        if (row >= firstLearnerRow - 1 && col > 1 && col < gradeCol && (col === wwStart + wwLen || col === ptStart + ptLen || col === qaStart + qaLen)) worksheet[address].s.fill = { fgColor: { rgb: "F8FAFC" }, patternType: "solid" };
-      }
-    }
-    for (let row = 0; row < 4; row += 1) {
-      const address = `A${row + 1}`;
-      worksheet[address].s = { font: { name: "Arial", sz: row === 0 ? 14 : 10, bold: true, color: { rgb: row < 2 ? "FFFFFF" : palette.navy } }, fill: { fgColor: { rgb: row < 2 ? palette.maroon : "FFFFFF" }, patternType: "solid" }, alignment: { vertical: "center", horizontal: "left" } };
-    }
-    worksheet[`${excelColumn(gradeCol)}${headerRow}`].s = { ...baseStyle, font: { ...baseStyle.font, bold: true }, fill: { fgColor: { rgb: palette.gold }, patternType: "solid" } };
-    if (!trimester) worksheet[`${excelColumn(transmutedCol)}${headerRow}`].s = { ...baseStyle, font: { ...baseStyle.font, bold: true }, fill: { fgColor: { rgb: "F5B041" }, patternType: "solid" } };
-    worksheet[`${excelColumn(descriptorCol)}${headerRow}`].s = { ...baseStyle, font: { ...baseStyle.font, bold: true }, fill: { fgColor: { rgb: "E2E8F0" }, patternType: "solid" } };
-
-    worksheet["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: lastCol } },
-      { s: { r: 2, c: 0 }, e: { r: 2, c: lastCol } },
-      { s: { r: 3, c: 0 }, e: { r: 3, c: Math.max(1, lastCol - 4) } },
-      { s: { r: 4, c: wwStart }, e: { r: 4, c: wwStart + wwLen + 2 } },
-      { s: { r: 4, c: ptStart }, e: { r: 4, c: ptStart + ptLen + 2 } },
-      { s: { r: 4, c: qaStart }, e: { r: 4, c: qaStart + qaLen + 2 } }
-    ];
-    worksheet["!cols"] = Array.from({ length: lastCol + 1 }, (_, col) => ({ wch: col === 0 ? 5 : col === 1 ? 28 : col === gradeCol ? 12 : col === transmutedCol ? 14 : col === descriptorCol ? 15 : 6 }));
-    worksheet["!rows"] = Array.from({ length: matrix.length }, (_, row) => ({ hpt: row < 4 ? 20 : row < firstLearnerRow - 1 ? 28 : 19 }));
-    worksheet["!pageSetup"] = { orientation: "landscape", paperSize: 5, fitToWidth: 1, fitToHeight: 1, horizontalCentered: true };
-    worksheet["!margins"] = { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 };
-    worksheet["!printArea"] = `A1:${excelColumn(lastCol)}${matrix.length}`;
-    worksheet["!sheetViews"] = [{ showGridLines: false }];
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Class Record");
-    workbook.Workbook = { CalcPr: { calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true } };
-    const safeName = `${section.level}-${section.subject}-${section.section || "Section"}-${period.name}`.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
-    period.roster.forEach((learner, index) => {
-      const category = getRowCategory(learner);
-      if (!category) return;
-      const row = firstLearnerRow - 1 + index;
-      worksheet["!merges"].push({ s: { r: row, c: 1 }, e: { r: row, c: lastCol } });
-      for (let col = 0; col <= lastCol; col++) {
-        worksheet[`${excelColumn(col)}${row + 1}`].s = {
-          ...baseStyle, font: { ...baseStyle.font, bold: true, color: { rgb: category === "boys" ? "173F65" : "65325E" } },
-          fill: { patternType: "solid", fgColor: { rgb: category === "boys" ? "D6E7F7" : "EEDCF0" } },
-          alignment: { ...baseStyle.alignment, horizontal: "left" }
-        };
-      }
-    });
-    worksheet["!merges"].push({ s: { r: 3, c: Math.max(2, lastCol - 3) }, e: { r: 3, c: lastCol } });
-    const activityRows = [
-      ["ACTIVITY REGISTER"],
-      [`${section.level} • ${section.section || ""} • ${section.subject} • ${period.name}`],
-      ["Score column", "Activity title", "Learning competency", "Topic", "Date", "HPS"]
-    ];
-    ["ww", "pt", "qa"].forEach(kind => period[`${kind}Hps`].forEach((hps, index) => {
-      const meta = period.activityMeta?.[kind]?.[index] || {};
-      activityRows.push([`${kind.toUpperCase()} ${index + 1}`, meta.title || "", meta.competency || "", meta.topic || "", period[`${kind}Dates`][index] || "", excelValue(hps)]);
-    }));
-    const activities = XLSX.utils.aoa_to_sheet(activityRows);
-    activities["!merges"] = [0, 1].map(r => ({ s: { r, c: 0 }, e: { r, c: 5 } }));
-    activities["!cols"] = [13, 32, 48, 34, 14, 9].map(wch => ({ wch }));
-    activities["!rows"] = activityRows.map((values, row) => ({ hpt: row < 3 ? 26 : Math.max(30, Math.max(...values.map((value, col) => Math.ceil(String(value).length / [13, 32, 48, 34, 14, 9][col]))) * 13 + 8) }));
-    activityRows.forEach((values, row) => values.forEach((_, col) => {
-      activities[XLSX.utils.encode_cell({ r: row, c: col })].s = {
-        ...baseStyle, font: { ...baseStyle.font, sz: row === 0 ? 14 : 10, bold: row < 3, color: { rgb: row === 0 || row === 2 ? "FFFFFF" : "1E293B" } },
-        alignment: { vertical: "center", horizontal: col === 5 ? "center" : "left", wrapText: true },
-        fill: { patternType: "solid", fgColor: { rgb: row === 0 || row === 2 ? palette.maroon : row % 2 ? "F3F5F7" : "FFFFFF" } }
-      };
-    }));
-    XLSX.utils.book_append_sheet(workbook, activities, "Activities");
+    const message = document.querySelector("#excelExportMessage");
+    const button = document.querySelector('[data-action="download-school-excel"]');
     try {
-      await window.CSTRExcelExport.download(workbook, `${safeName || "class-record"}.xlsx`);
-      setStatus("Excel created: page 1 Class Record; page 2 Activities. Print Entire Workbook on Legal (8.5 × 14 in), landscape.");
+      if (button) button.disabled = true;
+      await window.CSTRAssets.ensure("excel");
+      const metadata = Object.fromEntries([...document.querySelectorAll('[data-excel-meta]')].map(input => [input.dataset.excelMeta, input.value.trim()]));
+      if (!/^\d{4}-\d{4}$/.test(metadata.schoolYear) || Number(metadata.schoolYear.slice(5)) !== Number(metadata.schoolYear.slice(0,4))+1) throw new Error("Enter a consecutive school year, for example 2026-2027.");
+      const section = currentSection();
+      await window.CSTRSchoolExcel.download({section,period:currentPeriod(),metadata,calendarMode:state.calendarMode});
+      section.excelSettings = metadata; markStateDirty();
+      document.querySelector(".modal-backdrop")?.remove();
+      setStatus("School Excel record created with live subject-specific formulas. Print the class-record sheet in landscape; headings repeat on continuation pages.");
     } catch (error) {
-      console.error("Excel export failed", error);
+      if (message) message.textContent = error.message;
       setStatus(`Excel export failed: ${error.message}`, "error");
-    }
+    } finally { if (button) button.disabled = false; }
   }
 
   function currentSchoolYear() {
@@ -2547,17 +2421,13 @@
     return recordCompletion(period).complete;
   }
 
-  function isLearnerAssessmentComplete(learner, period) {
-    return ["ww", "pt", "qa"].every((kind) => learner[kind].every((score, index) => {
-      const hpsValue = period[`${kind}Hps`][index];
-      const hpsPresent = hpsValue !== "" && hpsValue !== null && hpsValue !== undefined;
-      const hps = Number(hpsValue);
-      if (!hpsPresent || !Number.isFinite(hps) || hps <= 0) return false;
-      if (isZeroScoreCode(score)) return true;
-      if (isExcludedCode(score)) return true;
-      const raw = Number(score);
-      const scorePresent = score !== "" && score !== null && score !== undefined && !isAttendanceCode(score);
-      return scorePresent && Number.isFinite(raw) && raw >= 0 && raw <= hps;
+  function isLearnerAssessmentComplete(learner, period, section = currentSection()) {
+    const result = window.CSTRGrading.calculateLearner(learner,period,section);
+    if (!Number.isFinite(result.initial.precise)) return false;
+    return ["ww","pt","qa"].every((kind,componentIndex) => section.weights[componentIndex] === 0 || period[kind+"Hps"].every((maximum,index) => {
+      if (!String(maximum ?? "").trim()) return !String(learner[kind][index] ?? "").trim();
+      const score = learner[kind][index];
+      return isAttendanceCode(score) || (String(score ?? "").trim() !== "" && Number.isFinite(Number(score)) && Number(score)>=0 && Number(score)<=Number(maximum));
     }));
   }
 
@@ -2672,13 +2542,13 @@
   });
 
   function renderReportResultHtml(entry) {
-    const term = state.calendarMode === 'trimester';
-    return `<section class="student-result-priority"><p>${escapeHtml(entry.period.name)}</p><div><span>${term ? 'Term grade' : 'Final transmuted grade'}</span><strong>${term ? format(entry.result.initial.rounded,3) : format(entry.result.initial.transmuted,0)}</strong></div><p>${renderDescriptorBadge(entry.result.initial.descriptor)} · ${entry.complete ? 'Complete requirements' : 'Provisional · incomplete requirements'}</p><small>Initial grade: ${format(entry.result.initial.rounded,3)}</small></section>`;
+    const term = !usesTransmutation(currentSection());
+    return `<section class="student-result-priority"><p>${escapeHtml(entry.period.name)}</p><div><span>${term ? 'Reported grade' : 'Final transmuted grade'}</span><strong>${format(entry.result.initial.transmuted,0)}</strong></div><p>${renderDescriptorBadge(entry.result.initial.descriptor)} · ${entry.complete ? 'Complete requirements' : 'Provisional · incomplete requirements'}</p><small>Initial grade: ${format(entry.result.initial.rounded,3)}</small></section>`;
   }
   function renderStudentReportSvg(section, entries, reportId) {
     const width=960, ink='#042134', muted='#4d5960', accent='#BB1414', orange='#FFA322';
     const text=(x,y,value,size=14,color=ink,weight=400,extra='')=>`<text x="${x}" y="${y}" fill="${color}" font-family="Arial, sans-serif" font-size="${size}" font-weight="${weight}" ${extra}>${escapeHtml(value)}</text>`;
-    const term=state.calendarMode==='trimester', first=entries[0];
+    const term=!usesTransmutation(section), first=entries[0];
     const nameLines=reportLines(first.learner.name,31), classLines=reportLines(`${section.level} · ${section.subject} · ${section.section || ''}`,64);
     const titleLines=reportLines(`${first.period.name} · Individual grade report`,70), titleOffset=(titleLines.length-1)*18;
     const headerHeight=Math.max(226,102+nameLines.length*35+classLines.length*20+titleOffset);
@@ -2687,20 +2557,20 @@
     nameLines.forEach((line,i)=>body+=text(44,99+titleOffset+i*35,line,30,'#fff',700));
     let metaY=112+titleOffset+nameLines.length*35;
     classLines.forEach(line=>{body+=text(44,metaY,line,14,'#e1e8ed');metaY+=20;});
-    body+=text(680,58,term?'Term grade':'Final transmuted grade',14,'#fff',600);
-    body+=text(680,145,term?format(first.result.initial.rounded,3):format(first.result.initial.transmuted,0),72,orange,700,'data-grade-emphasis="true"');
+    body+=text(680,58,term?'Reported grade':'Final transmuted grade',14,'#fff',600);
+    body+=text(680,145,format(first.result.initial.transmuted,0),72,orange,700,'data-grade-emphasis="true"');
     reportLines(first.result.initial.descriptor,25).forEach((line,i)=>body+=text(682,179+i*18,line,14,descriptorReportColor(first.result.initial.descriptor),600));
     let y=headerHeight+28;
     body+=text(44,y,first.complete?'Complete requirements':'Provisional · incomplete requirements',13,first.complete?'#1d6242':accent,700);
     body+=text(916,y,`Generated ${new Date().toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}`,12,muted,400,'text-anchor="end"');y+=28;
-    body+=text(44,y,`Initial grade: ${format(first.result.initial.rounded,3)} · ${term?'Zero-based term grading':'Transmutation applied using current class settings'}`,13,muted);y+=28;
+    body+=text(44,y,`Initial grade: ${format(first.result.initial.rounded,3)} · ${term?'Zero-based grading':'Transmutation applied using current class settings'}`,13,muted);y+=28;
     entries.forEach((entry,entryIndex)=>{
       const {period,learner,result,complete}=entry;
       if(entryIndex){
         body+=`<rect x="44" y="${y-20}" width="872" height="78" fill="${ink}"/>`;
-        body+=text(60,y,period.name,17,'#fff',700)+text(60,y+29,term?'Term grade':'Final transmuted grade',13,'#fff')+text(890,y+28,term?format(result.initial.rounded,3):format(result.initial.transmuted,0),34,orange,700,'text-anchor="end"');y+=87;
+        body+=text(60,y,period.name,17,'#fff',700)+text(60,y+29,term?'Reported grade':'Final transmuted grade',13,'#fff')+text(890,y+28,format(result.initial.transmuted,0),34,orange,700,'text-anchor="end"');y+=87;
       }
-      const cats=[{key:'ww',label:'Written Works',color:orange},{key:'pt',label:'Performance Tasks',color:accent},{key:'qa',label:term?'Term Assessment':'Quarterly Assessment',color:ink}];
+      const cats=[{key:'ww',label:'Written Works',color:orange},{key:'pt',label:'Performance Tasks',color:accent},{key:'qa',label:state.calendarMode==='trimester'?'Term Assessment':'Quarterly Assessment',color:ink}];
       cats.forEach((cat,i)=>{
         const x=44+i*294,c=result[cat.key];
         body+=`<rect x="${x}" y="${y}" width="280" height="91" fill="#f2f3f4"/><rect x="${x}" y="${y}" width="280" height="4" fill="${cat.color}"/>`;
@@ -2827,7 +2697,7 @@
           </label>
           <label>Subject / Grading Distribution
             <select id="addClassSubjectPreset">
-              ${SUBJECT_PRESETS.map(p => `<option value="${p.name}">${p.label}</option>`).join("")}
+              ${SUBJECT_PRESETS.map(p => `<option value="${p.name}" ${activeGroup === "SHS" && p.name === "SHS Core Subjects / Other Academic Electives" ? "selected" : ""}>${p.label}</option>`).join("")}
               <option value="custom">Other / Custom Subject...</option>
             </select>
           </label>
@@ -2850,6 +2720,8 @@
             <p id="addClassWeightTotal" class="form-note"></p>
             <p class="form-note">Exam split: ST1 30% · ST2 30% · Term Exam 40%.</p>
           </div>
+          <label>Subject name (optional override)<input id="addClassSubjectName" value="${safeValue("")}" placeholder="Actual subject name for the school record"></label>
+          <label>Reported grade<select id="addClassGradingMode"><option value="school-transmutation" ${"school-transmutation" !== "zero-based" ? "selected" : ""}>School transmutation</option><option value="zero-based" ${"school-transmutation" === "zero-based" ? "selected" : ""}>Zero-based (school-approved class policy)</option></select></label>
           <label>Section Name
             <input id="addClassSection" placeholder="e.g. Saint Alfonso de Orozco">
           </label>
@@ -2884,7 +2756,7 @@
     if (!section) return;
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
-    const isPreset = SUBJECT_PRESETS.some(p => p.name === section.subject);
+    const isPreset = SUBJECT_PRESETS.some(p => p.name === (section.gradingCategory || section.subject));
 
     modal.innerHTML = `
       <section class="modal" role="dialog" aria-modal="true">
@@ -2896,7 +2768,7 @@
           <label>Grade Level <input id="editSectionLevel" value="${safeValue(section.level)}"></label>
           <label>Subject / Grading Distribution
             <select id="editSectionSubjectPreset">
-              ${SUBJECT_PRESETS.map(p => `<option value="${p.name}" ${section.subject === p.name ? "selected" : ""}>${p.label}</option>`).join("")}
+              ${SUBJECT_PRESETS.map(p => `<option value="${p.name}" ${(section.gradingCategory || section.subject) === p.name ? "selected" : ""}>${p.label}</option>`).join("")}
               <option value="custom" ${!isPreset ? "selected" : ""}>Other / Custom Subject...</option>
             </select>
           </label>
@@ -2919,6 +2791,8 @@
             <p id="editSectionWeightTotal" class="form-note"></p>
             <p class="form-note">Exam split: ST1 30% · ST2 30% · Term Exam 40%.</p>
           </div>
+          <label>Subject name (optional override)<input id="editSectionSubjectName" value="${safeValue(section.subject)}" placeholder="Actual subject name for the school record"></label>
+          <label>Reported grade<select id="editSectionGradingMode"><option value="school-transmutation" ${section.gradingMode !== "zero-based" ? "selected" : ""}>School transmutation</option><option value="zero-based" ${section.gradingMode === "zero-based" ? "selected" : ""}>Zero-based (school-approved class policy)</option></select></label>
           <label>Section Name <input id="editSectionSection" value="${safeValue(section.section)}" placeholder="e.g. Saint Alfonso de Orozco"></label>
           <label>Color Code Theme
             <select id="editSectionTheme">
@@ -2991,7 +2865,7 @@
     modal.className = "modal-backdrop";
     modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="trimesterSwitchTitle">
       <div class="section-heading"><div><p class="eyebrow">Grading system</p><h2 id="trimesterSwitchTitle">Start trimester classes?</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
-      <p>This starts a new, empty set of classes for the three-term, zero-based system.</p>
+      <p>This starts a new, empty three-term workspace. Each class has its own reported-grade setting.</p>
       <p>Your quarterly and semestral classes are untouched. Switch back to them anytime from the same control.</p>
       <p>Nothing is invented or converted from your existing records.</p>
       <div class="stack-actions">${button("Cancel", "close-modal", "button button-secondary")} ${button("Start empty trimester classes", "confirm-calendar-mode", "button button-primary")}</div>
@@ -3842,7 +3716,7 @@
         const className = `${label.subject || "Class"}${label.section ? ` · ${label.section}` : ""} (${mode})`;
         if (!oldClass || !newClass) { changes.push(`${!oldClass ? "Added" : "Removed"} class: ${className}`); return; }
         if (changed(oldClass, newClass)) {
-          const fields = ["level", "subject", "section", "weights", "theme", "archived"].filter(key => changed(oldClass[key], newClass[key]));
+          const fields = ["level", "subject", "gradingCategory", "gradingMode", "section", "weights", "theme", "archived"].filter(key => changed(oldClass[key], newClass[key]));
           changes.push(`Class ${fields.join(", ") || "settings"}: ${className}`);
         }
         const oldPeriods = before[sectionsKey]?.[id]?.periods || [];
@@ -3995,6 +3869,7 @@
       if (!preset) return;
       section.subject = preset.name;
       section.weights = [...preset.weights];
+      section.gradingCategory = preset.name;
       document.querySelector(".subject-picker")?.removeAttribute("open");
       markStateDirty(); render();
       setStatus("Subject and grading weights updated.");
@@ -4088,7 +3963,7 @@
       deletePeriod();
     }
 
-    if (action === "export-excel") exportCurrentSheet();
+    if (action === "export-excel") renderExcelExportModal();
     if (action === "export-official") { renderOfficialExportModal(); return; }
     if (action === "export-official-pdf") { exportOfficialGradeSheet("pdf", target); return; }
     if (action === "export-official-word") { exportOfficialGradeSheet("word", target); return; }
@@ -4130,6 +4005,7 @@
       permanentlyDeleteArchivedSection(target.dataset.section);
     }
 
+    if (action === "download-school-excel") void exportCurrentSheet();
     if (action === "open-add-class") renderAddClass();
     if (action === "save-new-class") {
       const level = document.querySelector("#addClassLevel").value.trim() || "Grade 8";
@@ -4157,7 +4033,9 @@
       const group = isSHS ? "SHS" : "JHS";
 
       const newId = "class-" + Date.now();
-      const newClass = { id: newId, group, level, subject, section: sectionName, weights, theme, accent: theme, rosterSize: 50, archived: false };
+      const subjectTitle = document.querySelector("#addClassSubjectName").value.trim() || subject;
+      const gradingMode = document.querySelector("#addClassGradingMode").value;
+      const newClass = { id: newId, group, level, subject: subjectTitle, gradingCategory: isCustomSubject ? "custom" : subject, gradingMode, section: sectionName, weights, theme, accent: theme, rosterSize: 50, archived: false };
 
       activeRegistry().push(newClass);
       activeSections()[newId] = { periods: [initialPeriod(newClass, state.calendarMode)] };
@@ -4175,6 +4053,7 @@
     if (action === "save-section-edit") {
       const section = activeRegistry().find(s => s.id === target.dataset.section);
       if (section) {
+        if (sectionHasLockedPeriod(section)) { setStatus("Unlock all periods before changing class grading settings.", "error"); return; }
         section.level = document.querySelector("#editSectionLevel").value.trim();
         const presetSelect = document.querySelector("#editSectionSubjectPreset");
         const isCustomSubject = presetSelect ? presetSelect.value === "custom" : false;
@@ -4195,6 +4074,9 @@
           section.subject = subject;
           section.weights = matchSubjectWeights(subject);
         }
+        section.gradingCategory = isCustomSubject ? "custom" : subject;
+        section.subject = document.querySelector("#editSectionSubjectName").value.trim() || subject;
+        section.gradingMode = document.querySelector("#editSectionGradingMode").value;
         section.section = document.querySelector("#editSectionSection").value.trim();
         const theme = document.querySelector("#editSectionTheme").value;
         section.theme = theme;
@@ -4399,6 +4281,7 @@
         if (peer !== input) peer.value = input.value;
         sizeActivityTextarea(peer);
       });
+      if (input.dataset.activityField === "role") { const position = rememberTableScroll(); render(); restoreTableScroll(position); }
       stateChanged = true;
     }
     if (input.dataset.score) {
@@ -4456,6 +4339,7 @@
       }
       section.subject = val;
       section.weights = matchSubjectWeights(val);
+      section.gradingCategory = val;
       markStateDirty();
       render();
       setStatus(`Class subject changed to ${val}. Weights updated to ${section.weights.join("/")}%.`);
@@ -4609,5 +4493,3 @@
 
   initApp();
 })();
-
-

@@ -149,15 +149,17 @@
     return origins;
   }
 
-  function completion(period) {
+  function completion(period, weights = [20,50,30]) {
     if (!period?.roster) return { complete: false, filled: 0, expected: 0, learners: 0 };
     const learners = period.roster.filter(l => String(l.name || '').trim() && !category(l.name));
     let filled = 0, expected = 0, configured = true;
-    kinds.forEach(kind => {
+    kinds.forEach((kind, componentIndex) => {
+      if (weights[componentIndex] === 0) return;
       const hps = period[kind + 'Hps'] || [];
       if (!hps.length) configured = false;
-      // Every visible activity is required. Unused columns must be removed.
+      // Blank unused columns do not add requirements. Configured marks do.
       hps.forEach((maximum, index) => {
+        if (!present(maximum) && !learners.some(learner => present(learner[kind]?.[index]))) return;
         const validHps = numeric(maximum) && Number(maximum) > 0;
         if (!validHps) configured = false;
         learners.forEach(learner => {
