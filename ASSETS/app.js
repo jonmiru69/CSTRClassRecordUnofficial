@@ -919,7 +919,10 @@
     const motionView = `${signedIn}:${currentView}:${activeSectionId}:${activePeriodIndex}:${sheetEntryView}`;
     if (lastMotionView !== motionView && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
       const panel = app.querySelector(".app-shell") || app.querySelector(".login-card");
-      panel?.animate?.([{ opacity: .5, transform: "perspective(1200px) translate3d(0,8px,-10px) rotateX(.5deg)" }, { opacity: 1, transform: "none" }], { duration: 240, easing: "cubic-bezier(.22,1,.36,1)" });
+      const phone=window.innerWidth<=1000 || window.CSTRMobile?.native;
+      // A transformed ancestor would temporarily anchor fixed score tools to the scrolling panel.
+      const frames=phone?[{opacity:.5},{opacity:1}]:[{ opacity: .5, transform: "perspective(1200px) translate3d(0,8px,-10px) rotateX(.5deg)" }, { opacity: 1, transform: "none" }];
+      panel?.animate?.(frames, { duration: phone?160:240, easing: "cubic-bezier(.22,1,.36,1)" });
     }
     lastMotionView = motionView;
     if (sessionStorage.getItem("cstr-class-record-login") === "true") {
@@ -4576,8 +4579,17 @@
     } catch (error) { alert(error.message); }
   });
 
-  let mobileScoreTarget=null;
-  app.addEventListener('focusin',event=>{if(event.target.matches('.phone-entry [data-score]')){mobileScoreTarget=event.target;document.querySelector('.phone-code-tools')?.classList.add('is-active');requestAnimationFrame(()=>{if(event.target.isConnected)event.target.scrollIntoView({block:'center',behavior:'instant'});});}});
+  let mobileScoreTarget=null,mobileFocusTimer=null;
+  function placeMobileScore(){
+    if(!mobileScoreTarget?.isConnected||document.activeElement!==mobileScoreTarget||innerWidth>1000)return;
+    const score=mobileScoreTarget.getBoundingClientRect(),header=document.querySelector('.app-header')?.getBoundingClientRect();
+    const tools=document.querySelector('.phone-code-tools')?.getBoundingClientRect();
+    const top=Math.max(0,header?.bottom||0)+12,bottom=Math.min(window.visualViewport?.height||innerHeight,tools?.top||innerHeight)-12;
+    if(bottom-top>=score.height)window.scrollBy({top:score.top-(top+bottom-score.height)/2,behavior:'instant'});
+    else mobileScoreTarget.scrollIntoView({block:'center',behavior:'instant'});
+  }
+  app.addEventListener('focusin',event=>{if(event.target.matches('.phone-entry [data-score]')){mobileScoreTarget=event.target;document.querySelector('.phone-code-tools')?.classList.add('is-active');clearTimeout(mobileFocusTimer);mobileFocusTimer=setTimeout(()=>requestAnimationFrame(placeMobileScore),150);}});
+  window.visualViewport?.addEventListener('resize',()=>requestAnimationFrame(placeMobileScore));
   document.addEventListener('focusin',event=>{if(!event.target.closest('.phone-code-tools')&&!event.target.matches('.phone-entry [data-score]'))document.querySelector('.phone-code-tools')?.classList.remove('is-active');});
   document.addEventListener('pointerdown',event=>{if(event.target.closest('[data-mobile-code]'))event.preventDefault();});
   document.addEventListener('click',event=>{
