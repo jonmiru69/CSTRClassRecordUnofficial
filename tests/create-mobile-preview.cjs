@@ -12,11 +12,24 @@ const fixture=`<script>
   let revision=1;const user={uid:'synthetic-teacher',email:'teacher@example.test',displayName:'Synthetic Teacher',providerData:[{providerId:'password'}]};
   localStorage.setItem('cstr-class-record-welcome-seen:synthetic-teacher','true');
   window.CSTRRegistration={isApproved:async()=>true,clear(){}};
+  const updateCase=new URLSearchParams(location.search).get('update');
+  if(updateCase){
+    window.CSTRMobile={native:true,ready:Promise.resolve(),checkpoint:async()=>{},clearRecovery:async()=>{},getInfo:async()=>({version:'1.0.0',build:'10000'}),verifyRelease:async()=>({valid:updateCase!=='wrong-key'}),enableUpdateAlerts:async()=>({granted:false}),openDownload:async()=>{},openWebsite:async()=>{}};
+    const originalFetch=window.fetch.bind(window);
+    window.fetch=(url,options)=>String(url).endsWith('downloads/latest.json')?(updateCase==='offline'?Promise.reject(new Error('Synthetic offline test')):Promise.resolve(new Response(JSON.stringify({schemaVersion:1,appId:'ph.cstr.classrecord.unofficial',available:true,version:'1.0.99',versionCode:10099,minimumSupportedVersionCode:10050,sha256:updateCase==='malformed'?'bad':'a'.repeat(64),certificateSha256:'b'.repeat(64),bytes:6000000,url:'https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.99.apk',notes:'Synthetic update prompt. This is not a published APK.'}),{status:200,headers:{'Content-Type':'application/json'}}))):originalFetch(url,options);
+  }
   window.CSTRSync={configured:true,clientId:'preview',ready:Promise.resolve(user),getCurrentUser:()=>user,getUserProfile:async()=>({dataKey:user.uid,name:user.displayName}),hasPasswordProvider:()=>true,onAuthStateChanged(callback){setTimeout(()=>callback(user),30);return()=>{};},subscribe(key,callback){setTimeout(()=>callback(JSON.parse(JSON.stringify(state)),{revision,savedAt:Date.now(),isOwnEcho:true}),30);return()=>{};},async save(key,next,expected){if(expected!==revision)throw Object.assign(new Error('Synthetic conflict'),{code:'sync/conflict',remoteState:state,revision});state=JSON.parse(JSON.stringify(next));return ++revision;},signOut:async()=>{}};
 })();</script>`;
 html=html.replace(/<script src="ASSETS\/app\.js[^"<]*"><\/script>/,fixture+'<script src="ASSETS/app.js?v=preview"></script>');
 html=html.replaceAll('="ASSETS/','="../ASSETS/');
 html=html.replace('<div id="app"','<p style="margin:0;padding:8px 16px;background:#731c32;color:white;font:16px Arial">Synthetic mobile preview. No live teacher records.</p><div id="app"');
+html=html.replace('</body>',`<script>
+if(new URLSearchParams(location.search).get('text')==='200')document.documentElement.style.fontSize='200%';
+if(new URLSearchParams(location.search).get('screen')==='record'){
+  const observer=new MutationObserver(()=>{const button=document.querySelector('.recent-class-row');if(button){observer.disconnect();button.click();}});
+  observer.observe(document.querySelector('#app'),{childList:true,subtree:true});
+}
+</script></body>`);
 fs.mkdirSync(path.join(root,'test-preview'),{recursive:true});fs.writeFileSync(path.join(root,'test-preview/index.html'),html);
 // Export templates and lazy vendor URLs are root-relative in the actual app.
 fs.cpSync(path.join(root,'ASSETS'),path.join(root,'test-preview/ASSETS'),{recursive:true});

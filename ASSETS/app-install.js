@@ -3,11 +3,19 @@
   const native=!!window.CSTRMobile?.native;
   const feed=native?'https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/latest.json':new URL('downloads/latest.json',location.href).href;
   let release=null,installed=null,checking=null,lastCheck=0,promptedVersion=0,opener=null;
+  let measuredNav=null;
+  const navObserver=new ResizeObserver(entries=>{
+    const height=Math.max(76,Math.ceil(entries[0].target.getBoundingClientRect().height));
+    document.documentElement.style.setProperty('--phone-nav',height+'px');
+  });
+  function measureText(){document.documentElement.classList.toggle('large-text',parseFloat(getComputedStyle(document.documentElement).fontSize)>=24);}
+  measureText();window.addEventListener('resize',measureText,{passive:true});
   const dialog=document.createElement('dialog');dialog.className='install-dialog';dialog.setAttribute('aria-labelledby','installTitle');document.body.append(dialog);
   const escape=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   function contents(message='') {
     const update=installed&&release?CSTRRelease.updateFor(release,Number(installed.build)):null;
-    dialog.innerHTML=`<button type="button" class="install-close" data-close-install aria-label="Close">×</button><h2 id="installTitle">${update?'Update your class record':'Class records. On Android.'}</h2><p>${update?`Version ${escape(release.version)} is ready. Update promptly to receive the latest fixes.`:'A phone layout built for entering scores, with the same approved account and cloud records.'}</p>${release?`<p class="install-release-info">Version ${escape(release.version)} · ${(release.bytes/1048576).toFixed(1)} MB · Android 7.0 or later</p><button type="button" class="install-download" data-download-apk>${native?'Download update':'Download Android APK'}</button><p>${escape(release.notes)}</p><details><summary>Verify this download</summary><p class="install-release-info">SHA-256: ${escape(release.sha256)}</p><p>Only install the file linked from this website. Android checks the signing identity when updating an existing installation.</p></details>`:'<p role="status">The Android download is not available yet. Use the website while the signed release is prepared.</p>'}${native?`<p>Installed: ${escape(installed?.version||'checking…')}. Save pending changes or create an encrypted backup before updating. Keep the app installed: an update should replace it.</p><div class="mobile-menu-actions"><button type="button" class="button button-secondary" data-check-update>Check for updates</button><button type="button" class="button button-secondary" data-enable-update-alerts>Enable update alerts</button></div><p>Alerts check periodically when Android allows background work. You will also be prompted inside the app; no notification permission is required for that prompt.</p>`:'<ol><li>Download the APK on your Android phone.</li><li>Open the file. If Android asks, allow this browser to install this app, then install.</li><li>Sign in with your approved email and password. For a Google account, add a password in website Settings first.</li></ol><p>Check the cloud save status before changing devices. Internet is required for approval, cloud loading and synchronization.</p><p>The APK is for Android. Continue using the website on other devices.</p>'}<p data-install-status role="status">${escape(message)}</p>`;
+    const downloadControl=release&&(!native||!installed||release.versionCode>Number(installed.build))?`<button type="button" class="install-download" data-download-apk>${native?'Download update':'Download Android APK'}</button>`:'<p>No newer Android APK is available for this installation.</p>';
+    dialog.innerHTML=`<button type="button" class="install-close" data-close-install aria-label="Close">×</button><h2 id="installTitle">${update?'Update your class record':'Class records. On Android.'}</h2><p>${update?`Version ${escape(release.version)} is ready. Update promptly to receive the latest fixes.`:'A phone layout built for entering scores, with the same approved account and cloud records.'}</p>${release?`<p class="install-release-info">Version ${escape(release.version)} · ${(release.bytes/1048576).toFixed(1)} MB · Android 7.0 or later</p>${downloadControl}<p>${escape(release.notes)}</p><details><summary>Verify this download</summary><p class="install-release-info">SHA-256: ${escape(release.sha256)}</p><p>Only install the file linked from this website. Android checks the signing identity when updating an existing installation.</p></details>`:'<p role="status">The Android download is not available yet. Use the website while the signed release is prepared.</p>'}${native?`<p>Installed: ${escape(installed?.version||'checking…')}. Save pending changes or create an encrypted backup before updating. Keep the app installed: an update should replace it.</p><div class="mobile-menu-actions"><button type="button" class="button button-secondary" data-check-update>Check for updates</button><button type="button" class="button button-secondary" data-enable-update-alerts>Enable update alerts</button></div><p>Alerts check periodically when Android allows background work. You will also be prompted inside the app; no notification permission is required for that prompt.</p>`:'<ol><li>Download the APK on your Android phone.</li><li>Open the file. If Android asks, allow this browser to install this app, then install.</li><li>Sign in with your approved email and password. For a Google account, add a password in website Settings first.</li></ol><p>Check the cloud save status before changing devices. Internet is required for approval, cloud loading and synchronization.</p><p>The APK is for Android. Continue using the website on other devices.</p>'}<p data-install-status role="status">${escape(message)}</p>`;
   }
   function open(message='') {opener=document.activeElement;contents(message);if(!dialog.open)dialog.showModal();}
   function announce() {
@@ -28,16 +36,18 @@
         if(!response.ok)throw new Error('Update service is unavailable. Try again when connected.');
         const result=await response.json(),validated=CSTRRelease.validate(result);
         if(result.available===true&&!validated)throw new Error('The release information could not be verified. Please try again later.');
-        release=validated;
-        if(native&&release&&release.versionCode>Number(installed.build)) {
-          if(!(await window.CSTRMobile.verifyRelease(release)).valid)throw new Error('This update uses a different signing identity. Keep your installed app and contact support.');
+        if(native&&validated&&validated.versionCode>Number(installed.build)) {
+          if(!(await window.CSTRMobile.verifyRelease(validated)).valid)throw new Error('This update uses a different signing identity. Keep your installed app and contact support.');
         }
+        release=validated;
         lastCheck=Date.now();if(dialog.open)contents(native&&(!release||release.versionCode<=Number(installed.build))?'You have the latest published version.':'');announce();
       }catch(error){release=null;document.querySelector('.update-banner')?.remove();if(dialog.open)contents(error.message);}
       finally{checking=null;}
     })();return checking;
   }
   function addEntry() {
+    const nav=document.querySelector('.mobile-navigation');
+    if(nav!==measuredNav){navObserver.disconnect();measuredNav=nav;if(nav)navObserver.observe(nav);}
     const host=document.querySelector('.welcome-tools');
     if(host&&!host.querySelector('[data-open-install]')){const button=document.createElement('button');button.type='button';button.className='install-entry';button.dataset.openInstall='';button.textContent=native?'App updates':'Get Android app';host.append(button);}
     const account=document.querySelector('.sidebar-account-tools');
@@ -65,6 +75,6 @@
   window.visualViewport?.addEventListener('resize',()=>{
     const editing=document.activeElement?.matches('input,textarea,select');
     document.documentElement.classList.toggle('keyboard-open',!!editing&&window.visualViewport.height<baseline*.75);
-    if(editing)document.activeElement.scrollIntoView({block:'nearest'});
+    if(editing)document.activeElement.scrollIntoView({block:'center'});
   });
 })();

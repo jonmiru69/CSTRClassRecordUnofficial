@@ -606,14 +606,14 @@
 
   async function exportPdf(rawPayload) {
     const artifact = await createPdf(rawPayload);
-    await downloadBlob(artifact.blob, artifact.filename);
-    return { ...artifact, delivery: "browser-download-requested" };
+    const delivered = await downloadBlob(artifact.blob, artifact.filename);
+    return { ...artifact, delivery: delivered.delivery };
   }
 
   async function exportWord(rawPayload) {
     const artifact = await createWord(rawPayload);
-    await downloadBlob(artifact.blob, artifact.filename);
-    return { ...artifact, delivery: "browser-download-requested" };
+    const delivered = await downloadBlob(artifact.blob, artifact.filename);
+    return { ...artifact, delivery: delivered.delivery };
   }
 
   return {

@@ -28,7 +28,10 @@
 .phone-score-error {display:block;color:var(--danger);font-size:.875rem;line-height:1.4;margin-top:4px;}
 :root body .phone-entry .invalid {outline:2px solid var(--danger)!important;outline-offset:-2px;}
 .phone-score-control .score-adjustment {margin-top:4px;}
+.phone-score-control>[data-score] {scroll-margin-bottom:240px;}
 :root body .phone-score-control .score-adjustment button {min-width:48px;min-height:48px;}
+:root body #app .phone-entry .phone-score-control .score-adjustment {position:static!important;display:flex!important;flex-wrap:wrap!important;justify-content:center;max-width:100%;height:auto!important;}
+:root body #app .phone-entry .phone-score-control .score-adjustment button {position:static!important;inset:auto!important;min-width:48px!important;width:48px!important;max-width:none!important;min-height:48px!important;height:48px!important;transform:none!important;}
 .phone-code-tools {display:flex;flex-wrap:wrap;gap:8px;position:sticky;bottom:calc(var(--phone-nav) + env(safe-area-inset-bottom,0px));z-index:4;background:var(--surface);padding:12px 0;align-items:center;}
 .phone-code-tools>span {flex-basis:100%;font-size:.875rem;}
 :root body .phone-code-tools button {min-width:48px;min-height:48px;background:var(--brand-soft);color:var(--text);border:0;border-radius:0;font:600 1rem var(--font-sans);cursor:pointer;}
@@ -49,18 +52,20 @@
 .update-banner button {background:var(--surface);color:var(--text);border:0;padding:12px 18px;min-height:48px;font:600 1rem var(--font-sans);cursor:pointer;}
 :root body .install-dialog :is(a,button):focus-visible,:root body .phone-entry :focus-visible {outline:3px solid var(--focus)!important;outline-offset:3px;}
 @media screen and (max-width:1000px) {
-  :root {overflow-x:clip;}
-  :root body {overflow:visible!important;}
+  :root {overflow-x:clip;min-width:0!important;}
+  :root body {overflow:visible!important;min-width:0!important;}
+  :root body #app {min-width:0!important;}
   :root body #app .app-header .app-header-inner {grid-template-columns:minmax(0,1fr) auto!important;}
   :root body #app .app-header .header-actions-wrap {display:contents!important;}
   :root body #app .app-header .save-feedback {grid-column:1/-1!important;grid-row:2!important;}
   :root body #app .app-header #saveChanges {grid-column:2!important;grid-row:1!important;}
   :root body .phone-class-tools {margin-top:12px;}
   :root body .phone-class-tools>summary {display:flex;align-items:center;min-height:48px;padding:8px 0;font-weight:600;font-size:1rem;}
+  :root body .phone-code-tools.is-active {position:fixed;left:16px;right:16px;bottom:calc(var(--phone-nav) + env(safe-area-inset-bottom,0px));padding:12px 16px;background:var(--surface-subtle);z-index:85;}
   :root body .app-layout {display:block!important;height:auto!important;min-height:100dvh!important;overflow:visible!important;padding:0!important;}
   :root body .app-sidebar {display:none!important;}
   :root body .app-main {display:block!important;width:100%!important;min-width:0!important;height:auto!important;overflow:visible!important;margin:0!important;}
-  :root body .app-shell {display:block!important;width:100%!important;max-width:none!important;height:auto!important;overflow:visible!important;padding:16px 16px calc(112px + env(safe-area-inset-bottom,0px))!important;box-sizing:border-box;}
+  :root body .app-shell {display:block!important;width:100%!important;max-width:none!important;height:auto!important;overflow:visible!important;padding:16px 16px calc(var(--phone-nav) + 36px + env(safe-area-inset-bottom,0px))!important;box-sizing:border-box;}
   :root body .app-header {position:sticky!important;top:0!important;z-index:30!important;height:auto!important;min-height:0!important;padding:12px 16px!important;background:var(--surface)!important;box-shadow:none!important;}
   :root body .app-header-inner {display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px!important;padding:0!important;min-height:0!important;}
   :root body .app-title {font-size:1.5rem!important;line-height:1.15!important;margin:0!important;white-space:normal!important;}
@@ -71,10 +76,15 @@
   :root body #saveChanges {grid-column:2;grid-row:1;min-height:48px!important;padding:10px 14px!important;max-width:160px;}
   :root body .save-status {font-size:.875rem!important;margin:0!important;white-space:normal!important;}
   :root body .save-meta {font-size:.8125rem!important;margin:2px 0 0!important;white-space:normal!important;}
-  :root body .mobile-navigation {position:fixed;inset:auto 0 0;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--surface);height:auto;min-height:var(--phone-nav);padding:4px max(8px,env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px));box-sizing:border-box;z-index:80;}
+  :root body .mobile-navigation {position:fixed;inset:auto 0 0;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--surface);height:auto;min-height:76px;padding:4px max(8px,env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px));box-sizing:border-box;z-index:80;}
   :root body .mobile-navigation button {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:0;background:transparent;color:var(--muted);font:600 .875rem var(--font-sans);padding:8px 4px;min-height:64px;min-width:0;border-radius:0;}
   :root body .mobile-navigation button[aria-current="page"] {background:var(--brand-soft);color:var(--brand);}
   :root body .mobile-navigation .ui-icon {width:22px;height:22px;}
+  :root body .mobile-navigation button>span {max-width:100%;overflow-wrap:anywhere;line-height:1.2;}
+  :root.large-text body #app .app-header .app-header-inner {grid-template-columns:1fr!important;}
+  :root.large-text body #app .app-header #saveChanges {grid-column:1!important;grid-row:2!important;max-width:none!important;width:100%;}
+  :root.large-text body #app .app-header .save-feedback {grid-row:3!important;}
+  :root.large-text body .phone-assessment-meta {grid-template-columns:1fr;}
   :root body :is(.button,.icon-button,.tab,.archive-pill,summary) {min-height:48px!important;}
   :root body :is(.button,.tab,.archive-pill) {font-size:1rem!important;white-space:normal!important;}
   :root body :is(input,select,textarea):not([type="checkbox"]):not([type="radio"]) {font-size:1rem;scroll-margin-block:150px 100px;}
@@ -160,13 +170,16 @@
   :root body .install-dialog {padding:20px;}
   :root body .phone-no-matches {padding:20px 0;}
   :root.keyboard-open body .mobile-navigation {display:none!important;}
-  :root.keyboard-open body .phone-code-tools {bottom:0;}
+  :root.keyboard-open body .phone-code-tools,:root.keyboard-open body .phone-code-tools.is-active {bottom:0;}
 }
 @media screen and (max-width:360px) {
   .phone-score-row {grid-template-columns:minmax(0,1fr) 88px;padding:12px;gap:8px;}
   .phone-assessment-meta {grid-template-columns:1fr;}
   :root body .level-grid {grid-template-columns:1fr!important;}
   :root body #saveChanges {max-width:136px;}
+}
+@media screen and (max-height:480px) and (max-width:1000px) {
+  :root.keyboard-open body #app .app-header .save-feedback {display:none!important;}
 }
 @media (prefers-reduced-motion:reduce) {
   :root body .phone-entry *,:root body .mobile-navigation *,:root body .install-dialog * {transition:none!important;animation:none!important;transform:none!important;}

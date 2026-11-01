@@ -1330,7 +1330,7 @@
     const modal = document.createElement('div'); modal.className='modal-backdrop mobile-menu-backdrop';
     modal.innerHTML=`<section class="modal mobile-menu" role="dialog" aria-modal="true" aria-labelledby="mobileMenuTitle"><div class="section-heading"><h2 id="mobileMenuTitle">${find?'Find a learner':'Your workspace'}</h2>${button(icon('close'),'close-modal','icon-button','aria-label="Close"')}</div>${find?
       '<form data-mobile-search><label for="mobileStudentSearch">Complete learner name<input id="mobileStudentSearch" type="search" autocomplete="off" required></label><p>Check class and roster position when names match.</p><button type="submit" class="button button-primary">Find results</button></form>':
-      `<p>${escapeHtml(currentUserName() || 'Teacher')}</p><div class="mobile-menu-actions">${button('Settings and recovery','open-settings','button button-secondary')}${button('Quarterly / Semestral','select-calendar-mode','button button-secondary',`data-mode="legacy" aria-pressed="${state.calendarMode==='legacy'}"`)}${button('Trimester','select-calendar-mode','button button-secondary',`data-mode="trimester" aria-pressed="${state.calendarMode==='trimester'}"`)}<button type="button" class="button button-secondary" data-open-policies>Privacy and terms</button><button type="button" class="button button-secondary" data-open-install>Android app and updates</button>${button('Log out','logout','button button-secondary')}</div>`}</section>`;
+      `<p>${escapeHtml(currentUserName() || 'Teacher')}</p>${themeControl()}<div class="mobile-menu-actions">${button('Settings and recovery','open-settings','button button-secondary')}${button('Quarterly / Semestral','select-calendar-mode','button button-secondary',`data-mode="legacy" aria-pressed="${state.calendarMode==='legacy'}"`)}${button('Trimester','select-calendar-mode','button button-secondary',`data-mode="trimester" aria-pressed="${state.calendarMode==='trimester'}"`)}<button type="button" class="button button-secondary" data-open-policies>Privacy and terms</button><button type="button" class="button button-secondary" data-open-install>Android app and updates</button>${button('Log out','logout','button button-secondary')}</div>`}</section>`;
     document.body.append(modal);
   }
 
@@ -3113,6 +3113,7 @@
       return false;
     } finally {
       isSaving = false;
+      void window.CSTRMobile?.checkpoint().catch(() => { window.CSTRRecoveryUnavailable = true; });
       updateSaveIndicators();
       refreshLogoutModal();
       if (saveQueued) {
@@ -3917,6 +3918,7 @@
     const action = target.dataset.action;
     if (target.disabled) return;
     if (['go-home','go-records','select-section'].includes(action)) requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:'instant'}));
+    if(action==='select-section'&&target.dataset.section!==activeSectionId)mobileFilter='';
     if (action === 'open-web-workspace') { void window.CSTRMobile?.openWebsite(); return; }
     if (action === 'mobile-find' || action === 'mobile-more') { openMobileMore(action === 'mobile-find'); return; }
     if (action === 'mobile-previous' || action === 'mobile-next') {
@@ -4568,13 +4570,16 @@
         pushVersionSnapshot(cloneState(state)); state = normalizeState(imported); markStateDirty(); render();
       } else if (action === "clear" && confirm("Clear recovery drafts and checkpoints for this account on this browser? Cloud records and downloaded backups remain available.")) {
         for (const key of [localDraftKey(), versionHistoryKey()]) { sessionStorage.removeItem(key); localStorage.removeItem(key); }
+        await window.CSTRMobile?.checkpoint();
         document.querySelector(".settings-modal")?.parentElement.remove(); renderSettings();
       }
     } catch (error) { alert(error.message); }
   });
 
   let mobileScoreTarget=null;
-  app.addEventListener('focusin',event=>{if(event.target.matches('.phone-entry [data-score]'))mobileScoreTarget=event.target;});
+  app.addEventListener('focusin',event=>{if(event.target.matches('.phone-entry [data-score]')){mobileScoreTarget=event.target;document.querySelector('.phone-code-tools')?.classList.add('is-active');requestAnimationFrame(()=>{if(event.target.isConnected)event.target.scrollIntoView({block:'center',behavior:'instant'});});}});
+  document.addEventListener('focusin',event=>{if(!event.target.closest('.phone-code-tools')&&!event.target.matches('.phone-entry [data-score]'))document.querySelector('.phone-code-tools')?.classList.remove('is-active');});
+  document.addEventListener('pointerdown',event=>{if(event.target.closest('[data-mobile-code]'))event.preventDefault();});
   document.addEventListener('click',event=>{
     const code=event.target.closest('[data-mobile-code]');
     if(!code)return;
@@ -4594,12 +4599,12 @@
     if(currentView==='record'){currentView='chooser';render();return;}
     if(currentView==='chooser'){currentView='home';render();return;}
     if(confirm(pendingAutoSaveChanges?'Leave the app with unsaved changes? An encrypted device recovery copy will be kept. Save to cloud first if possible.':'Leave the app?')) {
-      persistLocalDraft(); await window.CSTRMobile?.checkpoint();window.CSTRMobile?.minimize?.();
+      if(pendingAutoSaveChanges)persistLocalDraft(); await window.CSTRMobile?.checkpoint();window.CSTRMobile?.minimize?.();
     }
   });
   window.addEventListener('cstr-background',()=>{
     if(!isSignedIn())return;
-    document.activeElement?.blur();persistLocalDraft();void window.CSTRMobile?.checkpoint();
+    document.activeElement?.blur();if(pendingAutoSaveChanges)persistLocalDraft();void window.CSTRMobile?.checkpoint();
     if(pendingAutoSaveChanges && isDataLoaded && !isStale)void saveToFirebase({automatic:true});
   });
   window.addEventListener('cstr-resume',()=>{if(isSignedIn()&&window.CSTRRecoveryUnavailable)showSaveToast('Encrypted recovery is unavailable on this device. Save to cloud before leaving the app.','error');});

@@ -12,11 +12,29 @@
       "**/*.md",
       "tests/**",
       "tools/**",
+      "android/**",
+      "mobile/**",
+      "test-preview/**",
+      "site-dist/**",
+      "www/**",
+      "package.json",
+      "pnpm-lock.yaml",
+      "capacitor.config.json",
+      "**/*.jks",
+      "**/*.keystore",
       "**/*debug.log",
       "**/*.zip",
       "SHA256SUMS.txt"
     ],
     "headers": [
+      {
+        "source": "downloads/latest.json",
+        "headers": [{"key": "Cache-Control", "value": "no-store"}, {"key": "Access-Control-Allow-Origin", "value": "*"}]
+      },
+      {
+        "source": "downloads/**/*.apk",
+        "headers": [{"key": "Content-Type", "value": "application/vnd.android.package-archive"}]
+      },
       {
         "source": "**",
         "headers": [

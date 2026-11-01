@@ -6,6 +6,7 @@
     "allowMixedContent": false,
     "backgroundColor": "#f1f3f4",
     "captureInput": true,
+    "zoomEnabled": true,
     "webContentsDebuggingEnabled": false
   },
   "server": {
