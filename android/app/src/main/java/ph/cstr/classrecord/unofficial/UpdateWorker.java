@@ -36,7 +36,7 @@ public class UpdateWorker extends Worker {
         double number=((Number)raw).doubleValue();return !Double.isNaN(number)&&!Double.isInfinite(number)&&number==Math.rint(number)&&number>=minimum&&number<=maximum;
     }
     @SuppressWarnings("deprecation") public static boolean validRelease(Context context,JSONObject release) throws Exception {
-        if(release.optInt("schemaVersion")!=1||!Boolean.TRUE.equals(release.opt("available"))||!context.getPackageName().equals(release.optString("appId"))||!whole(release,"versionCode",1,2147483647))return false;
+        if(!whole(release,"schemaVersion",1,1)||!Boolean.TRUE.equals(release.opt("available"))||!context.getPackageName().equals(release.optString("appId"))||!whole(release,"versionCode",1,2147483647))return false;
         if(!release.optString("version").matches("\\d+\\.\\d+\\.\\d+")||!release.optString("sha256").matches("[A-Fa-f0-9]{64}"))return false;
         if(!whole(release,"bytes",1,150L*1024*1024))return false;
         if(!whole(release,"minimumSupportedVersionCode",0,release.optLong("versionCode")))return false;
