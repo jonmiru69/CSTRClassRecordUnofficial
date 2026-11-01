@@ -31,13 +31,19 @@ public class UpdateWorker extends Worker {
     @SuppressWarnings("deprecation") static long version(Context context) throws Exception {
         PackageInfo info=installed(context);return Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode;
     }
+    private static boolean whole(JSONObject value,String name,long minimum,long maximum){
+        Object raw=value.opt(name);if(!(raw instanceof Number))return false;
+        double number=((Number)raw).doubleValue();return !Double.isNaN(number)&&!Double.isInfinite(number)&&number==Math.rint(number)&&number>=minimum&&number<=maximum;
+    }
     @SuppressWarnings("deprecation") public static boolean validRelease(Context context,JSONObject release) throws Exception {
-        if(release.optInt("schemaVersion")!=1||!release.optBoolean("available")||!context.getPackageName().equals(release.optString("appId"))||release.optLong("versionCode")<1)return false;
+        if(release.optInt("schemaVersion")!=1||!Boolean.TRUE.equals(release.opt("available"))||!context.getPackageName().equals(release.optString("appId"))||!whole(release,"versionCode",1,2147483647))return false;
         if(!release.optString("version").matches("\\d+\\.\\d+\\.\\d+")||!release.optString("sha256").matches("[A-Fa-f0-9]{64}"))return false;
-        if(release.optLong("bytes")<1||release.optLong("bytes")>150L*1024*1024)return false;
+        if(!whole(release,"bytes",1,150L*1024*1024))return false;
+        if(!whole(release,"minimumSupportedVersionCode",0,release.optLong("versionCode")))return false;
         long minimum=release.optLong("minimumSupportedVersionCode",-1);if(minimum<0||minimum>release.optLong("versionCode"))return false;
         URI uri=new URI(release.getString("url"));
         if(!"https".equals(uri.getScheme())||!"jonmiru69.github.io".equals(uri.getHost())||uri.getPort()!=-1||uri.getUserInfo()!=null||uri.getQuery()!=null||uri.getFragment()!=null||!uri.getPath().matches("/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-\\d+\\.\\d+\\.\\d+\\.apk"))return false;
+        if(!uri.getPath().endsWith("/CSTR-Class-Record-"+release.getString("version")+".apk"))return false;
         PackageInfo info=installed(context);
         Signature[] signatures=Build.VERSION.SDK_INT>=28?info.signingInfo.getApkContentsSigners():info.signatures;
         for(Signature signature:signatures){
