@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '21'}
       - name: Install locked build tools
-        run: npm install --global pnpm@11.25.0 && pnpm install --frozen-lockfile
+        run: npm install --global pnpm@11.25.0 && pnpm install --frozen-lockfile --ignore-scripts
       - name: Verify web and grading workflows
         run: pnpm test
       - name: Bundle client
