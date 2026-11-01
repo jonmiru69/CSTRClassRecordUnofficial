@@ -1,0 +1,199 @@
+/* Phone task layouts. All measurements here are CSS pixels, not Android dp. */
+:root { --phone-gutter:16px; --phone-target:48px; --phone-nav:76px; }
+.mobile-navigation { display:none; }
+.phone-period-select,.phone-options-label {display:none;}
+.phone-entry { max-width:800px; margin:24px auto; }
+:root body .phone-entry :is(input,select,textarea) {font-size:1rem!important;min-height:48px;max-width:100%;width:100%;box-sizing:border-box;border-radius:4px!important;background:var(--surface)!important;color:var(--text)!important;}
+.phone-entry label {display:block;font-size:1rem;font-weight:600;}
+.phone-assessment {padding:20px;background:var(--surface-subtle);}
+.phone-entry-selectors,.phone-assessment-meta {display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.phone-entry-selectors label {min-width:0;}
+.phone-assessment>label,.phone-activity-details label {margin-bottom:16px;}
+:root body .phone-entry summary {min-height:48px;display:flex;align-items:center;font-size:1rem;color:var(--text);cursor:pointer;}
+.phone-entry-legend {font-size:1rem;line-height:1.5;margin:16px 0 0;}
+.phone-roster-heading {display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:28px 0 12px;flex-wrap:wrap;}
+.phone-roster-heading h3,.phone-roster-heading p {margin:0;}
+.phone-learner-filter {margin:0 0 16px;}
+:root body .phone-score-list {list-style:none!important;padding:0!important;margin:0!important;display:grid;gap:8px;}
+.phone-score-row {display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:12px;padding:16px;background:var(--surface-subtle);align-items:start;}
+.phone-score-row[hidden] {display:none!important;}
+.phone-learner-name {display:grid;grid-template-columns:24px minmax(0,1fr);gap:0 6px;min-width:0;}
+.phone-learner-name>span {padding-top:12px;font-variant-numeric:tabular-nums;}
+.phone-learner-title {padding-top:12px;overflow-wrap:anywhere;line-height:1.4;}
+.phone-class-tools>summary {display:none;}
+.phone-assessment-details>summary {gap:4px;}
+.phone-assessment-details>label {margin-block:12px;}
+.phone-learner-name>small {grid-column:2;font-size:.875rem;line-height:1.5;margin-top:4px;}
+:root body .phone-learner-name .phone-roster-name {padding:10px 0!important;background:transparent!important;border:0!important;font-weight:600;box-shadow:none!important;min-width:0;}
+:root body .phone-score-control>[data-score] {text-align:center;padding:10px 6px;font-size:1.25rem!important;font-variant-numeric:tabular-nums;}
+.phone-score-error {display:block;color:var(--danger);font-size:.875rem;line-height:1.4;margin-top:4px;}
+:root body .phone-entry .invalid {outline:2px solid var(--danger)!important;outline-offset:-2px;}
+.phone-score-control .score-adjustment {margin-top:4px;}
+.phone-score-control>[data-score] {scroll-margin-bottom:240px;}
+:root body .phone-score-control .score-adjustment button {min-width:48px;min-height:48px;}
+:root body #app .phone-entry .phone-score-control .score-adjustment {position:static!important;display:flex!important;flex-wrap:wrap!important;justify-content:center;max-width:100%;height:auto!important;}
+:root body #app .phone-entry .phone-score-control .score-adjustment button {position:static!important;inset:auto!important;min-width:48px!important;width:48px!important;max-width:none!important;min-height:48px!important;height:48px!important;transform:none!important;}
+.phone-code-tools {display:flex;flex-wrap:wrap;gap:8px;position:sticky;bottom:calc(var(--phone-nav) + env(safe-area-inset-bottom,0px));z-index:4;background:var(--surface);padding:12px 0;align-items:center;}
+.phone-code-tools>span {flex-basis:100%;font-size:.875rem;}
+:root body .phone-code-tools button {min-width:48px;min-height:48px;background:var(--brand-soft);color:var(--text);border:0;border-radius:0;font:600 1rem var(--font-sans);cursor:pointer;}
+.phone-assessment-pagination {display:flex;flex-wrap:wrap;gap:12px;margin:24px 0;}
+.phone-assessment-pagination>* {flex:1;}
+.mobile-menu-actions {display:grid;gap:12px;}
+.native-signin-note {font-size:1rem;line-height:1.5;text-align:left;}
+[hidden].login-cta-group {display:none!important;}
+.install-entry {min-height:48px;display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:var(--brand);color:var(--on-brand);border:0;font:600 1rem var(--font-sans);border-radius:0;cursor:pointer;}
+:root body .install-dialog {width:min(640px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflow:auto;border:0;padding:28px;background:var(--surface);color:var(--text);box-sizing:border-box;}
+.install-dialog::backdrop {background:#101a24b3;}
+.install-dialog h2 {font-size:clamp(28px,6vw,40px);line-height:1.1;margin:0 0 16px;max-width:16ch;}
+.install-dialog p,.install-dialog li {font-size:1rem;line-height:1.6;}
+.install-dialog .install-close {float:right;width:48px;height:48px;background:var(--surface-subtle);color:var(--text);border:0;cursor:pointer;font-size:1.5rem;}
+.install-download {display:inline-flex;min-height:48px;align-items:center;justify-content:center;padding:12px 20px;background:var(--brand);color:var(--on-brand);font-weight:600;text-decoration:none;border:0;border-radius:0;cursor:pointer;}
+.install-release-info {overflow-wrap:anywhere;}
+.update-banner {position:sticky;top:0;z-index:120;background:var(--brand);color:var(--on-brand);padding:12px 16px;display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;}
+.update-banner button {background:var(--surface);color:var(--text);border:0;padding:12px 18px;min-height:48px;font:600 1rem var(--font-sans);cursor:pointer;}
+:root body .install-dialog :is(a,button):focus-visible,:root body .phone-entry :focus-visible {outline:3px solid var(--focus)!important;outline-offset:3px;}
+@media screen and (max-width:1000px) {
+  :root {overflow-x:clip;min-width:0!important;}
+  :root body {overflow:visible!important;min-width:0!important;}
+  :root body #app {min-width:0!important;}
+  :root body #app .app-header .app-header-inner {grid-template-columns:minmax(0,1fr) auto!important;}
+  :root body #app .app-header .header-actions-wrap {display:contents!important;}
+  :root body #app .app-header .save-feedback {grid-column:1/-1!important;grid-row:2!important;}
+  :root body #app .app-header #saveChanges {grid-column:2!important;grid-row:1!important;}
+  :root body .phone-class-tools {margin-top:12px;}
+  :root body .phone-class-tools>summary {display:flex;align-items:center;min-height:48px;padding:8px 0;font-weight:600;font-size:1rem;}
+  :root body .phone-code-tools.is-active {position:fixed;left:16px;right:16px;bottom:calc(var(--phone-nav) + env(safe-area-inset-bottom,0px));padding:12px 16px;background:var(--surface-subtle);z-index:85;}
+  :root body .app-layout {display:block!important;height:auto!important;min-height:100dvh!important;overflow:visible!important;padding:0!important;}
+  :root body .app-sidebar {display:none!important;}
+  :root body .app-main {display:block!important;width:100%!important;min-width:0!important;height:auto!important;overflow:visible!important;margin:0!important;}
+  :root body .app-shell {display:block!important;width:100%!important;max-width:none!important;height:auto!important;overflow:visible!important;padding:16px 16px calc(var(--phone-nav) + 36px + env(safe-area-inset-bottom,0px))!important;box-sizing:border-box;}
+  :root body #app .app-shell,:root body .modal {font-size:1rem!important;}
+  :root body .app-header {position:sticky!important;top:0!important;z-index:30!important;height:auto!important;min-height:0!important;padding:12px 16px!important;background:var(--surface)!important;box-shadow:none!important;}
+  :root body .app-header-inner {display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px!important;padding:0!important;min-height:0!important;}
+  :root body .app-title {font-size:1.5rem!important;line-height:1.15!important;margin:0!important;white-space:normal!important;}
+  :root body .app-header .policy-note {display:none!important;}
+  :root body .header-actions-wrap {display:contents!important;}
+  :root body .save-feedback {grid-column:1/-1;grid-row:2;min-width:0!important;max-width:none!important;}
+  :root body .header-actions-wrap>.theme-toggle {display:none!important;}
+  :root body #saveChanges {grid-column:2;grid-row:1;min-height:48px!important;padding:10px 14px!important;max-width:160px;}
+  :root body .save-status {font-size:.875rem!important;margin:0!important;white-space:normal!important;}
+  :root body .save-meta {font-size:.8125rem!important;margin:2px 0 0!important;white-space:normal!important;}
+  :root body .mobile-navigation {position:fixed;inset:auto 0 0;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--surface);height:auto;min-height:76px;padding:4px max(8px,env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px));box-sizing:border-box;z-index:80;}
+  :root body .mobile-navigation button {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:0;background:transparent;color:var(--muted);font:600 .875rem var(--font-sans);padding:8px 4px;min-height:64px;min-width:0;border-radius:0;}
+  :root body .mobile-navigation button[aria-current="page"] {background:var(--brand-soft);color:var(--brand);}
+  :root body .mobile-navigation .ui-icon {width:22px;height:22px;}
+  :root body .mobile-navigation button>span {max-width:100%;overflow-wrap:anywhere;line-height:1.2;}
+  :root.large-text body #app .app-header .app-header-inner {grid-template-columns:1fr!important;}
+  :root.large-text body #app .app-header #saveChanges {grid-column:1!important;grid-row:2!important;max-width:none!important;width:100%;}
+  :root.large-text body #app .app-header .save-feedback {grid-row:3!important;}
+  :root.large-text body .phone-assessment-meta {grid-template-columns:1fr;}
+  :root body :is(.button,.icon-button,.tab,.archive-pill,summary) {min-height:48px!important;}
+  :root body :is(.button,.tab,.archive-pill) {font-size:1rem!important;white-space:normal!important;}
+  :root body :is(input,select,textarea):not([type="checkbox"]):not([type="radio"]) {font-size:1rem;scroll-margin-block:150px 100px;}
+  :root body .dashboard {display:flex!important;flex-direction:column;gap:28px!important;}
+  :root body .dashboard-hero {order:5;display:block!important;padding:20px!important;}
+  :root body .workspace-intro {order:0;margin:8px 0!important;display:flex;gap:12px;align-items:flex-start;}
+  :root body .workspace-intro h2 {font-size:1.75rem!important;line-height:1.15!important;}
+  :root body .metric-grid {order:1;display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;}
+  :root body .metric-card {padding:16px!important;min-height:100px!important;border:0!important;border-radius:0!important;box-shadow:none!important;}
+  :root body .metric-card .metric-icon {display:none!important;}
+  :root body .metric-card p,:root body .metric-card small {font-size:.875rem!important;}
+  :root body .metric-card strong {font-size:2rem!important;}
+  :root body .dashboard-grid {order:2;display:block!important;}
+  :root body .dashboard-panel {padding:0!important;background:transparent!important;}
+  :root body .recent-class-row {grid-template-columns:4px minmax(0,1fr) auto!important;gap:12px!important;padding:16px 12px!important;min-height:100px!important;}
+  :root body .recent-class-stat {display:none!important;}
+  :root body .recent-class-main strong {font-size:1.125rem!important;}
+  :root body .recent-class-main small {font-size:1rem!important;white-space:normal!important;}
+  :root body .teacher-block {display:grid!important;grid-template-columns:1fr!important;}
+  :root body .photo-frame {width:80px!important;height:80px!important;}
+  :root body .section-heading {gap:12px!important;flex-wrap:wrap;}
+  :root body .level-grid {grid-template-columns:1fr 1fr!important;gap:8px!important;}
+  :root body .level-card {min-height:100px!important;padding:16px!important;}
+  :root body .level-card strong {font-size:1.125rem!important;line-height:1.25!important;}
+  :root body .level-card-kicker {display:none!important;}
+  :root body .section-card-grid {grid-template-columns:1fr!important;gap:16px!important;}
+  :root body .section-card {min-height:160px!important;padding:20px!important;}
+  :root body .section-card-wrap {min-width:0;}
+  :root body .section-card-subject {font-size:1.5rem!important;white-space:normal!important;}
+  :root body .section-card-section {font-size:1.125rem!important;white-space:normal!important;}
+  :root body .archive-pills {display:flex;flex-wrap:wrap;gap:8px;}
+  :root body .class-header-card {display:block!important;padding:20px!important;border-radius:0!important;min-height:0!important;}
+  :root body .class-identity {min-width:0!important;}
+  :root body #app .class-header-card .class-identity {grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:"name name" "subject level" "context context"!important;gap:0 8px!important;padding-bottom:0!important;}
+  :root body #app .class-header-card .class-subject-line {grid-area:subject!important;}
+  :root body #app .class-header-card .class-name {grid-area:name!important;}
+  :root body #app .class-header-card .class-level {grid-area:level!important;align-self:center;}
+  :root body #app .class-header-card .class-context-line {grid-area:context!important;margin:0!important;}
+  :root body .class-name {font-size:1.75rem!important;line-height:1.15!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere;}
+  :root body .class-subject-line {flex-wrap:wrap;}
+  :root body .subject-picker summary {white-space:normal!important;max-width:100%;font-size:1rem!important;}
+  :root body .class-context-line {display:flex!important;flex-wrap:wrap!important;gap:6px 14px!important;}
+  :root body .class-context-line span {white-space:normal!important;font-size:.875rem!important;}
+  :root body #app .class-period-area {display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:12px!important;width:100%!important;margin-top:12px!important;align-items:end;}
+  :root body #app .class-header-card .period-tabs {display:none!important;}
+  :root body .phone-period-select {display:block;font-size:.875rem;}
+  :root body .phone-period-select select {width:100%;min-height:48px;max-width:100%;font-size:1rem;}
+  :root body .phone-options-label {display:inline;}
+  :root body .period-options-label {display:none;}
+  :root body .period-tabs {display:flex!important;flex-wrap:wrap!important;overflow:visible!important;gap:8px!important;}
+  :root body .period-tabs .tab {flex:1 1 auto!important;min-width:100px!important;}
+  :root body #app .period-settings {position:relative!important;margin-top:0!important;}
+  :root body .period-toolbar {position:static!important;max-width:none!important;width:100%!important;box-sizing:border-box;max-height:none!important;overflow:visible!important;padding:16px!important;}
+  :root body #app .class-period-area:has(.period-settings[open]) {grid-template-columns:minmax(0,1fr)!important;}
+  :root body .period-actions {display:grid!important;grid-template-columns:1fr!important;gap:12px!important;}
+  :root body .sheet-utilities {display:flex!important;flex-wrap:wrap!important;gap:8px!important;padding:12px 0!important;}
+  :root body .sheet-caption {display:none!important;}
+  :root body .entry-focus-controls {display:grid!important;grid-template-columns:1fr!important;width:100%;padding:16px 0!important;}
+  :root body .entry-focus-controls label {display:block!important;min-width:0!important;font-size:1rem!important;}
+  :root body .entry-focus-controls select {width:100%!important;min-height:48px;}
+  :root body .phone-entry {margin:0;max-width:none;}
+  :root body .phone-entry h3 {font-size:1.5rem!important;}
+  :root body .phone-assessment {padding:16px;}
+  :root body .phone-entry-selectors {grid-template-columns:1fr;gap:16px;}
+  :root body .table-wrap {max-width:100%!important;overflow:auto!important;overscroll-behavior:contain;}
+  :root body .table-wrap[hidden] {display:none!important;}
+  :root body .record-table input {font-size:1rem!important;min-height:48px!important;}
+  :root body .record-table .col-btn {width:48px!important;height:48px!important;}
+  :root body .modal-backdrop {padding:12px!important;align-items:flex-start!important;overflow:auto!important;z-index:200!important;}
+  :root body .modal {max-width:100%!important;width:100%!important;max-height:calc(100dvh - 24px)!important;overflow:auto!important;padding:20px!important;box-sizing:border-box;}
+  :root body .settings-grid,:root body .report-score-grid,:root body .report-score-groups,:root body .report-components,:root body .report-means {grid-template-columns:1fr!important;}
+  :root body .report-activity-row {display:grid!important;grid-template-columns:1fr 1fr!important;gap:12px!important;}
+  :root body .report-activity-name {grid-column:1/-1!important;}
+  :root body .report-grades {display:flex!important;flex-wrap:wrap!important;gap:16px!important;}
+  :root body .report-period-card {padding:16px!important;}
+  :root body .save-toast {bottom:calc(96px + env(safe-area-inset-bottom,0px))!important;max-width:calc(100% - 32px)!important;font-size:1rem!important;}
+  :root body .welcome-nav {padding:16px!important;display:flex!important;flex-wrap:wrap!important;gap:12px!important;}
+  :root body .welcome-brand {max-width:100%;}
+  :root body .welcome-brand-copy small {font-size:.875rem!important;}
+  :root body .welcome-tools {display:flex!important;gap:8px!important;flex-wrap:wrap;}
+  :root body .login-screen {display:flex!important;flex-direction:column!important;padding:16px!important;gap:32px!important;}
+  :root body .welcome-story {display:block!important;order:1;}
+  :root body .welcome-story h2 {font-size:2rem!important;line-height:1.1!important;}
+  :root body .welcome-story .welcome-features,:root body .welcome-story figure {display:none!important;}
+  :root body .login-card {order:0;width:100%!important;max-width:none!important;padding:24px 16px!important;box-sizing:border-box;}
+  :root body .login-card h1 {font-size:2rem!important;line-height:1.15!important;}
+  :root body .login-card .login-header-logo {display:none!important;}
+  :root body .login-card input {width:100%!important;box-sizing:border-box;min-height:52px!important;font-size:1rem!important;}
+  :root body .login-card .button,:root body .button-google {min-height:52px!important;}
+  :root body .login-card a {display:inline-flex;align-items:center;min-height:48px;font-size:1rem!important;}
+  :root body .project-about {order:2;max-width:none!important;padding:0!important;}
+  :root body .project-about h2 {font-size:1.75rem!important;}
+  :root body .install-entry {font-size:.875rem;min-height:48px;}
+  :root body .install-dialog {padding:20px;}
+  :root body .phone-no-matches {padding:20px 0;}
+  :root.keyboard-open body .mobile-navigation {display:none!important;}
+  :root.keyboard-open body .phone-code-tools,:root.keyboard-open body .phone-code-tools.is-active {bottom:0;}
+}
+@media screen and (max-width:360px) {
+  .phone-score-row {grid-template-columns:minmax(0,1fr) 88px;padding:12px;gap:8px;}
+  .phone-assessment-meta {grid-template-columns:1fr;}
+  :root body .level-grid {grid-template-columns:1fr!important;}
+  :root body #saveChanges {max-width:136px;}
+}
+@media screen and (max-height:480px) and (max-width:1000px) {
+  :root.keyboard-open body #app .app-header .save-feedback {display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) {
+  :root body .phone-entry *,:root body .mobile-navigation *,:root body .install-dialog * {transition:none!important;animation:none!important;transform:none!important;}
+}

@@ -1,4 +1,11 @@
 node_modules/
+www/
+site-dist/
+.taste-skill/
+*.jks
+*.keystore
+.build-artifacts/
+test-preview/
 .firebase/
 *-debug.log
 private/

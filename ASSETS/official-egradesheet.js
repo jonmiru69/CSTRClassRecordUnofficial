@@ -486,6 +486,7 @@
   }
 
   function downloadBlob(blob, filename) {
+    if (root.CSTRFiles) return root.CSTRFiles.deliver(blob, filename);
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -605,14 +606,14 @@
 
   async function exportPdf(rawPayload) {
     const artifact = await createPdf(rawPayload);
-    downloadBlob(artifact.blob, artifact.filename);
-    return { ...artifact, delivery: "browser-download-requested" };
+    const delivered = await downloadBlob(artifact.blob, artifact.filename);
+    return { ...artifact, delivery: delivered.delivery };
   }
 
   async function exportWord(rawPayload) {
     const artifact = await createWord(rawPayload);
-    downloadBlob(artifact.blob, artifact.filename);
-    return { ...artifact, delivery: "browser-download-requested" };
+    const delivered = await downloadBlob(artifact.blob, artifact.filename);
+    return { ...artifact, delivery: delivered.delivery };
   }
 
   return {

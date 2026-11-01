@@ -57,7 +57,9 @@
   window.CSTRBackup = { encrypt, decrypt, validate,
     async download(value) {
       const password=await askPassword(true); if(!password)return;
-      const data=await encrypt(value,password);const url=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:"application/json"}));
+      const data=await encrypt(value,password);
+      if(window.CSTRFiles)return window.CSTRFiles.deliver(new Blob([JSON.stringify(data)],{type:'application/json'}),'CSTR-backup-'+new Date().toISOString().replace(/[:.]/g,'-')+'.cstrbackup');
+      const url=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:"application/json"}));
       const link=document.createElement("a");link.href=url;link.download="CSTR-backup-"+new Date().toISOString().replace(/[:.]/g,"-")+".cstrbackup";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
     },
     async importFile() {

@@ -7,7 +7,7 @@ const clone=v=>JSON.parse(JSON.stringify(v));
 async function main(){
  await test('All application JavaScript parses',()=>{for(const f of fs.readdirSync(base).filter(f=>f.endsWith('.js')))new vm.Script(read(f),{filename:f});});
  await test('Worked grading example remains 85.8 / 88',()=>assert.equal(grading.workedExample().passes,true));
- await test('Blank score is missing, numeric zero is included',()=>{assert.equal(grading.calculateComponent([''],[10],30).weighted,null);assert.equal(grading.calculateComponent([0],[10],30).weighted,0);});
+ await test('Configured blank counts zero and remains missing; numeric zero is entered',()=>{const blank=grading.calculateComponent([''],[10],30);assert.equal(blank.weighted,0);assert.equal(blank.missing,1);const zero=grading.calculateComponent([0],[10],30);assert.equal(zero.weighted,0);assert.equal(zero.missing,0);});
  await test('A and M count zero; E and L are excluded',()=>{for(const c of ['A','M'])assert.equal(grading.calculateComponent([c,10],[10,10],30).weighted,15);for(const c of ['E','L'])assert.equal(grading.calculateComponent([c,10],[10,10],30).weighted,30);});
  await test('Zero HPS does not create Infinity',()=>assert.equal(grading.calculateComponent([5],[0],30).weighted,null));
  await test('QA three-slot weights and exclusion normalization',()=>{assert.equal(grading.calculateQuarterlyAssessment([10,0,10],[10,10,10],30).weighted,21);assert.equal(grading.calculateQuarterlyAssessment(['E','E',10],[10,10,10],30).weighted,30);});

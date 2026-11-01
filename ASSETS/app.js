@@ -38,7 +38,8 @@
   let activeGroup = "JHS";
   let activeSectionId = DEFAULT_REGISTRY[0]?.id || "";
   let activePeriodIndex = 0;
-  let sheetEntryView = "sheet";
+  let sheetEntryView = matchMedia("(max-width: 760px)").matches || window.CSTRMobile?.native ? "activity" : "sheet";
+  let mobileEntryKind = "ww", mobileEntryIndex = 0, mobileFilter = "";
   let activeOneLearnerRowIndex = null;
   let sidebarCollapsed = matchMedia("(max-width: 760px)").matches;
   try { const stored = localStorage.getItem("cstr-sidebar-collapsed"); if (stored !== null) sidebarCollapsed = matchMedia("(max-width: 760px)").matches || stored === "true"; } catch (_) {}
@@ -186,6 +187,7 @@
         if (period) adjustRecordHps(period, input.dataset.hps, Number(input.dataset.index), hpsEdits.get(input), input.value);
       }
       sessionStorage.setItem(localDraftKey(), JSON.stringify({ savedAt: new Date().toISOString(), state: recoveryState }));
+      void window.CSTRMobile?.checkpoint().catch(() => { window.CSTRRecoveryUnavailable = true; });
     } catch (error) {
       // Cloud saves remain available even if the browser has no space for a recovery copy.
     }
@@ -917,7 +919,10 @@
     const motionView = `${signedIn}:${currentView}:${activeSectionId}:${activePeriodIndex}:${sheetEntryView}`;
     if (lastMotionView !== motionView && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
       const panel = app.querySelector(".app-shell") || app.querySelector(".login-card");
-      panel?.animate?.([{ opacity: .5, transform: "perspective(1200px) translate3d(0,8px,-10px) rotateX(.5deg)" }, { opacity: 1, transform: "none" }], { duration: 240, easing: "cubic-bezier(.22,1,.36,1)" });
+      const phone=window.innerWidth<=1000 || window.CSTRMobile?.native;
+      // A transformed ancestor would temporarily anchor fixed score tools to the scrolling panel.
+      const frames=phone?[{opacity:.5},{opacity:1}]:[{ opacity: .5, transform: "perspective(1200px) translate3d(0,8px,-10px) rotateX(.5deg)" }, { opacity: 1, transform: "none" }];
+      panel?.animate?.(frames, { duration: phone?160:240, easing: "cubic-bezier(.22,1,.36,1)" });
     }
     lastMotionView = motionView;
     if (sessionStorage.getItem("cstr-class-record-login") === "true") {
@@ -928,6 +933,7 @@
       updateHeaderScroll();
     }
     updateCompletionIndicators();
+    refreshMobileEntry();
     document.querySelectorAll('.record-section textarea[data-activity-field]').forEach(sizeActivityTextarea);
     sizeSheetWorkspace();
     requestAnimationFrame(fitSectionName);
@@ -1005,7 +1011,7 @@
       <p style="text-align: center; margin-top: 8px;"><a href="#" class="legacy-toggle-link" data-action="forgot-password">Forgot password?</a></p>
 
       <div class="login-divider"><span>OR</span></div>
-      <div class="login-cta-group">
+      <div class="login-cta-group" ${window.CSTRMobile?.native ? 'hidden' : ''}>
         <button type="button" class="button-google" data-action="google-login">
           <svg class="google-icon" viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -1017,6 +1023,7 @@
         </button>
       </div>
 
+      ${window.CSTRMobile?.native ? '<p class="native-signin-note">Use your approved email and password. If you use Google, add a password in website Settings first, then return here.</p><button type="button" class="button button-secondary" data-action="open-web-workspace">Open website sign-in</button>' : ''}
       <p class="login-alternative"><a href="#" class="legacy-toggle-link" data-action="show-signup">Create a teacher account</a></p>
       <p style="text-align: center; margin-top: 6px;">
         <a href="#" class="legacy-toggle-link" data-action="show-legacy-claim"> Need your existing records? Request recovery</a>
@@ -1312,7 +1319,22 @@
           ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", 'id="saveChanges"')}
         </div>
       </div></header><div class="app-shell">${content}</div></div>
-    </div></div>`;
+    </div>${renderMobileNavigation()}</div>`;
+  }
+
+  function renderMobileNavigation() {
+    return `<nav class="mobile-navigation" aria-label="Mobile workspace">${[
+      ['go-home','home','Overview',currentView==='home'],['go-records','records','Classes',currentView!=='home'],
+      ['mobile-find','search','Find',false],['mobile-more','panel','More',false]
+    ].map(([action,glyph,label,active])=>`<button type="button" data-action="${action}" aria-current="${active?'page':'false'}">${icon(glyph)}<span>${label}</span></button>`).join('')}</nav>`;
+  }
+
+  function openMobileMore(find = false) {
+    const modal = document.createElement('div'); modal.className='modal-backdrop mobile-menu-backdrop';
+    modal.innerHTML=`<section class="modal mobile-menu" role="dialog" aria-modal="true" aria-labelledby="mobileMenuTitle"><div class="section-heading"><h2 id="mobileMenuTitle">${find?'Find a learner':'Your workspace'}</h2>${button(icon('close'),'close-modal','icon-button','aria-label="Close"')}</div>${find?
+      '<form data-mobile-search><label for="mobileStudentSearch">Complete learner name<input id="mobileStudentSearch" type="search" autocomplete="off" required></label><p>Check class and roster position when names match.</p><button type="submit" class="button button-primary">Find results</button></form>':
+      `<p>${escapeHtml(currentUserName() || 'Teacher')}</p>${themeControl()}<div class="mobile-menu-actions">${button('Settings and recovery','open-settings','button button-secondary')}${button('Quarterly / Semestral','select-calendar-mode','button button-secondary',`data-mode="legacy" aria-pressed="${state.calendarMode==='legacy'}"`)}${button('Trimester','select-calendar-mode','button button-secondary',`data-mode="trimester" aria-pressed="${state.calendarMode==='trimester'}"`)}<button type="button" class="button button-secondary" data-open-policies>Privacy and terms</button><button type="button" class="button button-secondary" data-open-install>Android app and updates</button>${button('Log out','logout','button button-secondary')}</div>`}</section>`;
+    document.body.append(modal);
   }
 
   function activeClassRow(section) {
@@ -1483,7 +1505,8 @@
         </div>
         <div class="class-period-area">
           <div class="period-tabs" role="group" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-pressed="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index, state.calendarMode))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${recordCompletion(entry).complete ? "Complete" : "In progress"}">${recordCompletion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
-          <details class="period-settings"><summary>${icon("settings")}<span>Period options</span>${icon("chevron")}</summary><div class="period-toolbar">
+          <label class="phone-period-select">Period<select data-mobile-period aria-label="Grading period">${periods.map((entry,index)=>`<option value="${index}" ${index===activePeriodIndex?'selected':''}>${escapeHtml(window.CSTRRecordTools.periodLabel(entry,section.group,index,state.calendarMode))}${entry.locked?' · Locked':''}</option>`).join('')}</select></label>
+          <details class="period-settings"><summary aria-label="Period options">${icon("settings")}<span class="period-options-label">Period options</span><span class="phone-options-label">Options</span>${icon("chevron")}</summary><div class="period-toolbar">
             <label class="period-name-field" for="periodName"><span>Period name</span><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name ${period.locked ? "disabled" : ""}></label>
             <div id="periodCompletion" class="period-completion" role="status">${renderCompletionLabel(period, section, activePeriodIndex)}</div>
             <div class="period-actions">
@@ -1498,7 +1521,7 @@
       </section>
       ${period.locked ? '<p class="locked-period-note">Period locked.</p>' : ""}
       <div id="periodIntegrity">${integrityNote}</div>
-      <div class="sheet-utilities">
+      <details class="phone-class-tools" ${matchMedia("(max-width: 1000px)").matches ? "" : "open"}><summary>Class tools</summary><div class="sheet-utilities">
         ${button(`${icon("back")}<span>Sections</span>`, "go-records", "button button-ghost")}
         <details class="roster-options"><summary>Manage rows ${icon("chevron")}</summary><div class="bulk-column-tools roster-slots-tools"><label for="rosterSlotCount">Add learner rows (this period only)</label><input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" ${period.locked ? "disabled" : ""}>${button("Add rows","add-roster-slots","button button-secondary",period.locked ? "disabled" : "")}</div></details>
         <details class="column-options"><summary>Manage columns ${icon("chevron")}</summary><div class="bulk-column-tools" aria-label="Bulk column controls">${renderBulkColumnControl("ww","WW",period.wwDates.length,period.locked)}${renderBulkColumnControl("pt","PT",period.ptDates.length,period.locked)}${renderBulkColumnControl("qa","QA",period.qaDates.length,period.locked)}</div></details>
@@ -1512,11 +1535,12 @@
           <p>Lowering HPS caps scores above it when you leave the field. Restoring the original HPS restores those original scores unless you explicitly edited them afterward.</p>
         </div></details>
       </div>
-      ${renderEntryViewControls(period)}
+      </details>${renderEntryViewControls(period)}
 
       ${sheetEntryView === "one" ? renderEditableStudentReport(section, periods, period) : ""}
-      ${renderRecordTable(section, period, sheetEntryView === "one")}
-      ${renderActivityRegister(section, period)}
+      ${sheetEntryView === "activity" ? renderMobileEntry(section,period) : ''}
+      ${renderRecordTable(section, period, sheetEntryView !== "sheet")}
+      ${sheetEntryView === "activity" ? '' : renderActivityRegister(section, period)}
 
     </div>`;
   }
@@ -1541,9 +1565,50 @@
   function renderEntryViewControls(period) {
     const rows = entryLearnerRows(period), selected = selectedEntryRow(period);
     return `<div class="entry-focus-controls" role="group" aria-label="Grade sheet view">
-      <label>Entry view<select data-entry-view aria-label="Entry view"><option value="sheet" ${sheetEntryView === "sheet" ? "selected" : ""}>Full grade sheet</option><option value="one" ${sheetEntryView === "one" ? "selected" : ""}>One learner</option></select></label>
+      <label>Entry view<select data-entry-view aria-label="Entry view"><option value="activity" ${sheetEntryView === "activity" ? "selected" : ""}>One assessment</option><option value="sheet" ${sheetEntryView === "sheet" ? "selected" : ""}>Full grade sheet</option><option value="one" ${sheetEntryView === "one" ? "selected" : ""}>One learner</option></select></label>
       ${sheetEntryView === "one" ? `<label>Learner<select data-entry-row aria-label="Learner to display">${rows.map(({ learner, index }) => `<option value="${index}" ${index === selected ? "selected" : ""}>${escapeHtml(learner.name.trim() || `Learner ${index + 1}`)}</option>`).join("")}</select></label>` : ""}
     </div>`;
+  }
+
+  function renderMobileEntry(section, period) {
+    const kinds=[['ww','Written Works'],['pt','Performance Tasks'],['qa',state.calendarMode==='trimester'?'Term Assessment':'Quarterly Assessment']];
+    if (!kinds.some(([kind])=>kind===mobileEntryKind)) mobileEntryKind='ww';
+    const kind=mobileEntryKind, dates=period[kind+'Dates'];
+    mobileEntryIndex=Math.max(0,Math.min(mobileEntryIndex,dates.length-1));
+    if(!dates.length) return '<section class="phone-entry"><p>No assessment columns. Add a column using Manage columns.</p></section>';
+    const index=mobileEntryIndex, info=period.activityMeta[kind][index], slot=`${kind.toUpperCase()} ${index+1}`, disabled=period.locked?'disabled':'';
+    const rows=entryLearnerRows(period), number=computeLearnerNumbering(period.roster).numbering;
+    return `<section class="phone-entry" aria-label="Assessment score entry"><div class="phone-assessment"><div class="phone-entry-selectors"><label>Component<select data-mobile-kind>${kinds.map(([key,label])=>`<option value="${key}" ${key===kind?'selected':''}>${label}</option>`).join('')}</select></label><label>Assessment<select data-mobile-activity>${dates.map((_,i)=>`<option value="${i}" ${i===index?'selected':''}>${kind.toUpperCase()} ${i+1}${period.activityMeta[kind][i].title?' · '+escapeHtml(period.activityMeta[kind][i].title):''}</option>`).join('')}</select></label></div>
+      <details class="phone-assessment-details"><summary>Activity details · HPS <span data-mobile-hps-label>${escapeHtml(period[kind+"Hps"][index]||"—")}</span></summary><label>Activity title<textarea rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" aria-label="${slot} title" ${disabled}>${safeValue(info.title)}</textarea></label>
+      <div class="phone-assessment-meta"><label>Date<input type="date" data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(dates[index]))}" aria-label="${slot} date" ${disabled}></label><label>HPS<input type="number" inputmode="decimal" min="0" step="any" data-hps="${kind}" data-index="${index}" value="${safeValue(period[kind+'Hps'][index])}" aria-label="${slot} highest possible score" ${disabled}></label></div>
+      ${renderActivityRole(section,period,kind,index)}<details class="phone-activity-details"><summary>Competency and topic</summary>${[['competency','Learning competency'],['topic','Topic']].map(([field,label])=>`<label>${label}<textarea rows="2" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="${field}" ${disabled}>${safeValue(info[field])}</textarea></label>`).join('')}</details>
+      </details><p class="phone-entry-legend" id="phoneScoreLegend">A absent · M missing = zero. E excused · L late = excluded.</p></div>
+      <div class="phone-roster-heading"><h3>Enter scores</h3><p data-mobile-entry-count role="status"></p></div><label class="phone-learner-filter">Find in this roster<input type="search" data-mobile-filter value="${safeValue(mobileFilter)}" autocomplete="off" placeholder="Learner name"></label>
+      <ol class="phone-score-list">${rows.map(({learner,index:row})=>`<li class="phone-score-row" data-mobile-row="${row}" data-filter-name="${safeValue(learner.name.toLocaleLowerCase())}"><div class="phone-learner-name"><span>${number[row] || row+1}</span>${learner.name.trim()?`<strong class="phone-learner-title">${escapeHtml(learner.name)}</strong>`:`<label><span class="sr-only">Unnamed learner</span><input class="phone-roster-name" data-name-row="${row}" value="" aria-label="Learner row ${row+1} name" placeholder="Enter learner name" ${disabled}></label>`}<small data-mobile-grade="${row}"></small></div><div class="phone-score-control"><label class="sr-only" for="phone-score-${row}">${slot} score for ${escapeHtml(learner.name.trim()||`learner row ${row+1}`)}</label><input id="phone-score-${row}" type="text" inputmode="decimal" enterkeyhint="next" autocomplete="off" maxlength="6" data-score="${kind}" data-row="${row}" data-index="${index}" value="${safeValue(learner[kind][index])}" aria-describedby="phoneScoreLegend phone-error-${row}" ${disabled}><small id="phone-error-${row}" class="phone-score-error"></small>${scoreAdjustmentControl(learner,kind,row,index,period.locked)}</div></li>`).join('')}</ol><p class="phone-no-matches" hidden>No learners match. Clear the roster search to see every row.</p>
+      ${period.locked?'<p>Unlock this period in Period options to edit.</p>':'<div class="phone-code-tools" role="group" aria-label="Attendance code for selected score"><span>Selected score</span>'+['A','M','E','L',''].map(code=>`<button type="button" data-mobile-code="${code}" aria-label="${code?'Set '+code+' attendance code':'Clear selected score'}">${code||'Clear'}</button>`).join('')+'</div>'}
+      <div class="phone-assessment-pagination">${button('Previous assessment','mobile-previous','button button-secondary',index===0?'disabled':'')}${button('Next assessment','mobile-next','button button-primary',index===dates.length-1?'disabled':'')}</div><p>Changes use the same cloud save as your full grade sheet. Check Save status before switching devices.</p></section>`;
+  }
+
+  function refreshMobileEntry() {
+    const panel=document.querySelector('.phone-entry');
+    if(!panel || !currentPeriod())return;
+    const period=currentPeriod(),kind=mobileEntryKind,index=mobileEntryIndex;
+    if(!period[kind+'Dates'].length)return;
+    panel.querySelector('[data-mobile-hps-label]').textContent=String(period[kind+'Hps'][index]||'—');
+    let entered=0,total=0,visible=0;
+    panel.querySelectorAll('[data-mobile-row]').forEach(row=>{
+      const learner=period.roster[Number(row.dataset.mobileRow)],input=row.querySelector('[data-score]');
+      const value=learner[kind][index],hps=period[kind+'Hps'][index];
+      const invalid=hasRawAboveHps(value,hps)||(value!==''&&!isAttendanceCode(value)&&(!Number.isFinite(Number(value))||Number(value)<0));
+      input.classList.toggle('invalid',invalid); input.setAttribute('aria-invalid',String(invalid));
+      row.querySelector('.phone-score-error').textContent=invalid?'Use 0–HPS or A/M/E/L.':'';
+      row.dataset.filterName=learner.name.toLocaleLowerCase();
+      row.hidden=!row.dataset.filterName.includes(mobileFilter.toLocaleLowerCase()); if(!row.hidden)visible++;
+      row.querySelector('[data-mobile-grade]').textContent=`Reported: ${format(learnerResult(learner,period,currentSection().weights).initial.transmuted,0)} · ${period.locked?'Locked':'Provisional'}`;
+      if(learner.name.trim()){total++;if(String(value).trim()!=='')entered++;}
+    });
+    panel.querySelector('[data-mobile-entry-count]').textContent=`${entered} / ${total} named learners entered`;
+    panel.querySelector('.phone-no-matches').hidden=visible>0;
   }
 
   function reportEntriesForLearner(periods, rowIndex) {
@@ -2367,14 +2432,14 @@
         await writable.close();
         writable = null;
       } else {
-        exporter.downloadBlob(artifact.blob, artifact.filename);
+        await exporter.downloadBlob(artifact.blob, artifact.filename);
       }
       document.querySelector(".official-export-backdrop")?.remove();
       if (fileHandle) {
         setStatus(`Official e-gradesheet ${formatLabel} saved successfully as ${fileHandle.name || artifact.filename}.`);
         showSaveToast(`Official e-gradesheet ${formatLabel} saved successfully.`);
       } else {
-        const message = `Official e-gradesheet ${formatLabel} was prepared and sent to the browser's Downloads. If no download appears, allow downloads for this page and try again.`;
+        const message = window.CSTRMobile?.native ? `Official e-gradesheet ${formatLabel} opened in Android’s save or share sheet. Confirm your chosen destination.` : `Official e-gradesheet ${formatLabel} was prepared and sent to the browser's Downloads. If no download appears, allow downloads for this page and try again.`;
         setStatus(message);
         showSaveToast(message, "info");
       }
@@ -2640,6 +2705,7 @@
         } finally { URL.revokeObjectURL(url); }
       }
       if (zip) output = await zip.generateAsync({type:'blob'});
+      if (window.CSTRMobile?.native) { await window.CSTRFiles.deliver(output,filename+(zip?'.zip':'.png')); return; }
       const download = document.createElement('a'), outputUrl = URL.createObjectURL(output);
       download.href=outputUrl; download.download=filename+(zip?'.zip':'.png'); document.body.append(download); download.click(); download.remove();
       setTimeout(()=>URL.revokeObjectURL(outputUrl),1000);
@@ -3051,6 +3117,7 @@
       return false;
     } finally {
       isSaving = false;
+      void window.CSTRMobile?.checkpoint().catch(() => { window.CSTRRecoveryUnavailable = true; });
       updateSaveIndicators();
       refreshLogoutModal();
       if (saveQueued) {
@@ -3803,6 +3870,8 @@
   }
 
   async function performLogout() {
+    try { await window.CSTRMobile?.clearRecovery(); } catch (_) { alert('Could not clear encrypted device recovery. Try logging out again.'); return; }
+    mobileEntryKind='ww'; mobileEntryIndex=0; mobileFilter='';
     const recoveryKeys = [localDraftKey(), versionHistoryKey()];
     persistLocalDraft();
     try {
@@ -3833,6 +3902,12 @@
   // document.body — outside #app — so its forms wouldn't bubble to an
   // app-scoped listener.
   document.addEventListener("submit", (event) => {
+    if(event.target.matches('[data-mobile-search]')) {
+      event.preventDefault(); const query=document.querySelector('#mobileStudentSearch').value.trim();
+      event.target.closest('.modal-backdrop').remove();
+      const input=document.querySelector('#studentSearch');if(input)input.value=query;
+      searchStudent(); return;
+    }
     const id = event.target && event.target.id;
     if (id === "signinForm") { event.preventDefault(); performEmailSignIn(); }
     if (id === "signupForm") { event.preventDefault(); performEmailSignUp(); }
@@ -3846,6 +3921,15 @@
     if (!target) return;
     const action = target.dataset.action;
     if (target.disabled) return;
+    if (['go-home','go-records','select-section'].includes(action)) requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:'instant'}));
+    if(action==='select-section'&&target.dataset.section!==activeSectionId)mobileFilter='';
+    if (action === 'open-web-workspace') { void window.CSTRMobile?.openWebsite(); return; }
+    if (action === 'mobile-find' || action === 'mobile-more') { openMobileMore(action === 'mobile-find'); return; }
+    if (action === 'mobile-previous' || action === 'mobile-next') {
+      commitActiveFieldEdit(); mobileEntryIndex += action === 'mobile-next' ? 1 : -1; render();
+      document.querySelector('[data-mobile-activity]')?.focus(); return;
+    }
+    if (target.closest('.mobile-menu') && !['close-modal'].includes(action)) target.closest('.modal-backdrop').remove();
     if (action === "add-score-points") { openScoreAdjustment(target); return; }
     if (action === "cancel-score-points") { openScoreAdjustment(target, true); return; }
     if (action === "report-period") { selectReportPeriod(target); return; }
@@ -4227,13 +4311,16 @@
   app.addEventListener("change", event => commitHpsField(event.target));
   app.addEventListener("change", event => {
     if (event.target.matches('[data-entry-view]')) {
-      sheetEntryView = event.target.value === 'one' ? 'one' : 'sheet';
+      sheetEntryView = ['one','activity','sheet'].includes(event.target.value) ? event.target.value : 'sheet';
       render();
     }
     if (event.target.matches('[data-entry-row]')) {
       activeOneLearnerRowIndex = Number(event.target.value);
       render();
     }
+    if(event.target.matches('[data-mobile-kind]')) { mobileEntryKind=event.target.value;mobileEntryIndex=0;render(); }
+    if(event.target.matches('[data-mobile-activity]')) { mobileEntryIndex=Number(event.target.value);render(); }
+    if(event.target.matches('[data-mobile-period]')) { activePeriodIndex=Number(event.target.value);render(); }
     if (event.target.matches('.editable-student-report [data-name-row]')) render();
   });
   document.addEventListener("click", event => {
@@ -4245,6 +4332,7 @@
   // Real-time input handling
   app.addEventListener("input", (event) => {
     const input = event.target;
+    if(input.matches('[data-mobile-filter]')) { mobileFilter=input.value;refreshMobileEntry();return; }
     let stateChanged = false;
     if ((input.dataset.score || input.dataset.date || input.dataset.hps || input.dataset.activityField || input.dataset.nameRow !== undefined) && currentPeriod()?.locked) return;
     if (input.dataset.nameRow !== undefined) { 
@@ -4306,6 +4394,7 @@
       updateAllSummaries(); refreshEditableStudentReport(); stateChanged = true;
     }
     if (stateChanged) {
+      refreshMobileEntry();
       const fieldKey = getFieldKeyForInput(input);
       if (fieldKey) markFieldEditDirty(fieldKey); else markStateDirty();
       // A real edit landed on the cell a multi-cell selection was dragged
@@ -4486,10 +4575,58 @@
         pushVersionSnapshot(cloneState(state)); state = normalizeState(imported); markStateDirty(); render();
       } else if (action === "clear" && confirm("Clear recovery drafts and checkpoints for this account on this browser? Cloud records and downloaded backups remain available.")) {
         for (const key of [localDraftKey(), versionHistoryKey()]) { sessionStorage.removeItem(key); localStorage.removeItem(key); }
+        await window.CSTRMobile?.checkpoint();
         document.querySelector(".settings-modal")?.parentElement.remove(); renderSettings();
       }
     } catch (error) { alert(error.message); }
   });
 
+  let mobileScoreTarget=null,mobileFocusTimer=null;
+  function placeMobileScore(){
+    if(!mobileScoreTarget?.isConnected||document.activeElement!==mobileScoreTarget||innerWidth>1000)return;
+    const score=mobileScoreTarget.getBoundingClientRect(),header=document.querySelector('.app-header')?.getBoundingClientRect();
+    const tools=document.querySelector('.phone-code-tools')?.getBoundingClientRect();
+    const top=Math.max(0,header?.bottom||0)+12,bottom=Math.min(window.visualViewport?.height||innerHeight,tools?.top||innerHeight)-12;
+    if(bottom-top>=score.height)window.scrollBy({top:score.top-(top+bottom-score.height)/2,behavior:'instant'});
+    else mobileScoreTarget.scrollIntoView({block:'center',behavior:'instant'});
+  }
+  app.addEventListener('focusin',event=>{if(event.target.matches('.phone-entry [data-score]')){mobileScoreTarget=event.target;document.querySelector('.phone-code-tools')?.classList.add('is-active');clearTimeout(mobileFocusTimer);mobileFocusTimer=setTimeout(()=>requestAnimationFrame(placeMobileScore),150);}});
+  window.visualViewport?.addEventListener('resize',()=>requestAnimationFrame(placeMobileScore));
+  document.addEventListener('focusin',event=>{if(!event.target.closest('.phone-code-tools')&&!event.target.matches('.phone-entry [data-score]'))document.querySelector('.phone-code-tools')?.classList.remove('is-active');});
+  document.addEventListener('pointerdown',event=>{if(event.target.closest('[data-mobile-code]'))event.preventDefault();});
+  document.addEventListener('click',event=>{
+    const code=event.target.closest('[data-mobile-code]');
+    if(!code)return;
+    if(!mobileScoreTarget?.isConnected || mobileScoreTarget.disabled){showSaveToast('Select a learner’s score first.','info');return;}
+    mobileScoreTarget.value=code.dataset.mobileCode; mobileScoreTarget.dispatchEvent(new Event('input',{bubbles:true})); mobileScoreTarget.focus();
+  });
+  app.addEventListener('keydown',event=>{
+    if(event.key!=='Enter'||!event.target.matches('.phone-entry [data-score]'))return;
+    event.preventDefault();const inputs=[...app.querySelectorAll('.phone-score-row:not([hidden]) [data-score]:not([disabled])')];
+    const next=inputs[inputs.indexOf(event.target)+1];if(next){next.focus();next.select();}
+    else document.querySelector('#saveChanges')?.focus();
+  });
+  window.addEventListener('cstr-back',async()=>{
+    const nativeDialog=document.querySelector('dialog[open]');if(nativeDialog){nativeDialog.close();return;}
+    const modal=[...document.querySelectorAll('.modal-backdrop')].at(-1);if(modal){modal.querySelector('[data-action="close-modal"],[data-action="cancel-logout"],[data-action="onboard-cancel"]')?.click();return;}
+    const open=app.querySelector('details[open]');if(open){open.open=false;return;}
+    if(currentView==='record'){currentView='chooser';render();return;}
+    if(currentView==='chooser'){currentView='home';render();return;}
+    if(confirm(pendingAutoSaveChanges?'Leave the app with unsaved changes? An encrypted device recovery copy will be kept. Save to cloud first if possible.':'Leave the app?')) {
+      if(pendingAutoSaveChanges)persistLocalDraft(); await window.CSTRMobile?.checkpoint();window.CSTRMobile?.minimize?.();
+    }
+  });
+  window.addEventListener('cstr-background',()=>{
+    if(!isSignedIn())return;
+    document.activeElement?.blur();if(pendingAutoSaveChanges)persistLocalDraft();void window.CSTRMobile?.checkpoint();
+    if(pendingAutoSaveChanges && isDataLoaded && !isStale)void saveToFirebase({automatic:true});
+  });
+  window.addEventListener('cstr-resume',()=>{if(isSignedIn()&&window.CSTRRecoveryUnavailable)showSaveToast('Encrypted recovery is unavailable on this device. Save to cloud before leaving the app.','error');});
+  window.addEventListener('cstr-before-update',event=>{
+    if(pendingAutoSaveChanges || isSaving){event.preventDefault();showSaveToast('Save your changes or create an encrypted backup before updating.','info');}
+  });
+  if(window.CSTRMobile?.ready)window.CSTRMobile.ready.then(initApp);
+  else {
   initApp();
+  }
 })();
