@@ -20,4 +20,4 @@ Visual direction: retain the project’s crimson brand, school crest, CSTR Sans 
 
 Project defaults: 48 CSS-pixel touch regions, 16px input/body text, 16px phone gutters, safe areas owned by the native container and web bottom navigation; these are implementation choices, not claims that CSS pixels equal Android dp. Test narrow 320/390px, larger phone, short landscape, tablet and desktop, large text, keyboard/focus, empty/locked/offline/error states, native exports and Back. Physical-device and release evidence must be reported separately.
 
-Public native iPhone distribution is excluded by the user’s Android-only scope and no-payment constraint. No App Store, Google Play, or production deployment is implied by producing a build.
+Public native iPhone distribution is excluded by the user’s Android-only scope and no-payment constraint. Android distribution uses the signed website APK, without an app-store enrollment. The final production publication and verification evidence are recorded in RELEASE-RESULTS.md.

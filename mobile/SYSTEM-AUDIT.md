@@ -93,6 +93,8 @@ Browser sign-in supports email/password and Google popup authentication. Creatin
 
 The database rules deny access by default. Approved users may read their own approval, their own profile, and records keyed to their UID or an administrator-verified legacy binding. Clients cannot write approvals or legacy bindings. A profile cannot arbitrarily change its `dataKey` after creation. Declared record writes require schema version 4 and synchronization protocol 2 with an incremented revision, client ID and bounded server timestamp.
 
+Approval is implemented with `.exists()` in both the client and rules, not a boolean `true` comparison. An administrator must remove the approval node to revoke that gate; writing a `false` value still leaves an existing node. This describes the existing authorization model; this conversion does not change or deploy those rules.
+
 These are the repository's declared controls. The current task did not alter production database rules, approvals or identity mappings. Local rule-expression tests are not a deployed-rules audit or a replacement for the Firebase Emulator Suite.
 
 ### Native Android sign-in
