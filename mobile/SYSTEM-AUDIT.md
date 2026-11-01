@@ -147,6 +147,8 @@ The existing crimson/ink/school-crest identity, local CSTR Sans typography and c
 
 The existing school Excel writer edits the supplied OOXML template rather than flattening it through a generic serializer. Learner values are text rather than formulas. Official PDF/Word exports retain their own pagination and local font requirements. The conversion changes delivery, not their grading formulas or school layout. Browser/export smoke evidence and physical Android sharing are reported separately.
 
+Final PDF acceptance exposed a pre-existing CFF font-subsetting incompatibility. The PDF exporter now embeds the complete local Nimbus OpenType fonts, identifies CFF outlines correctly, and declares their streams as OpenType. The five-page synthetic export was rendered with Poppler without font warnings and every page was visually inspected. A binary regression test reloads the actual exporter output and checks all five font stream declarations against their OpenType headers. This fixes font compatibility without changing grading or pagination.
+
 ## Android package and update mechanism
 
 The package ID is `ph.cstr.classrecord.unofficial`. Capacitor 8.6.0 bundles the actual static client under its local HTTPS origin, with no development server URL, mixed content or remote bridge navigation allowlist. Android targets SDK 36 and supports API 24 onward. Native source, Gradle wrapper, locked JS dependencies, icons, manifest and build scripts are included. Launcher/splash images use the existing project crest.
@@ -154,6 +156,8 @@ The package ID is `ph.cstr.classrecord.unofficial`. Capacitor 8.6.0 bundles the 
 Linked assets in packaged/deployed HTML receive content-derived SHA-256 version queries. A website patch therefore cannot accidentally reuse an old cached application script beside a new mobile stylesheet. Web publication packages only public HTML, ASSETS and downloads; native sources, tests, dependencies and signing material are excluded.
 
 The release pipeline builds and checks the client, generates a monotonically increasing Android version code from the workflow run number, and signs production APKs using the persistent release key. The signing material is supplied only to the production signing step on `main`. It is not committed to Git. `publish-release.mjs` invokes Android's APK signature verifier before computing file size/hash, copying the APK and writing `downloads/latest.json`. A signing-key change or lower version is refused. Website files, APK and feed are then packaged together for GitHub Pages.
+
+Before committing a release, the workflow checks whether its source is still the current main branch head. A superseded build skips publication so the newer queued patch can publish instead. Main branch builds are serialized. A publication race that advances main after this check still fails the normal non-force push instead of overwriting newer source.
 
 An edit to source triggers a build; it does not instantly modify an already installed APK. Documentation-only edits and generated download updates are excluded from rebuild triggers. Build or signing failures do not advertise an unsigned APK as an update. A successfully published signed release is the event that makes a new app update available.
 
@@ -173,7 +177,7 @@ The requested website is the repository's GitHub Pages address. Publishing it do
 
 ## Validation and practical limits
 
-Automated coverage includes grading examples/boundaries, attendance and blanks, HPS reversal, score provenance, encrypted backup tampering, stale-write rejection, ownership-rule expressions, template rendering, phone roster indices/locks/escaping, release metadata rejection and native delivery cancellation. Export smoke tests inspect spreadsheet serialization, Word ZIP content and SVG page generation. Successful Android jobs compile debug and release variants and run Android lint.
+Automated coverage includes grading examples/boundaries, attendance and blanks, HPS reversal, score provenance, encrypted backup tampering, stale-write rejection, ownership-rule expressions, template rendering, phone roster indices/locks/escaping, release metadata rejection and native delivery cancellation. Export smoke tests inspect spreadsheet serialization, Word ZIP content, SVG page generation and actual PDF font streams. Successful Android jobs compile debug and release variants and run Android lint.
 
 Browser checks used synthetic records at 320px enlarged text, 390px portrait, 844×390 landscape, 768px tablet and 1440px desktop. They checked roster filtering, value correction, keyboard advancement, attendance tools, locked periods, settings/recovery access, update prompts, wrong-key rejection, notification denial and saving before update. Actual phone keyboard/safe-area behavior, TalkBack, physical installation/sharing and upgrading an existing signed installation remain device acceptance work; browser geometry and build/lint success do not establish those results.
 
@@ -189,5 +193,6 @@ The requested taste skill was used for actual screenshot inspection, hierarchy, 
 - [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
 - [GitHub Actions encrypted secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
 - [Firebase pricing-plan distinctions](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans)
+- [pdf-lib font subsetting limitations](https://github.com/Hopding/pdf-lib#font-subsetting) and [PDF OpenType font stream specification](https://pdf-lib.js.org/assets/with_large_page_count.pdf)
 
 Exact release, commit, verification and deployment results are recorded in `RELEASE-RESULTS.md`. The generated source inventory and reference appendix provide file hashes, function locations and the full subject/transmutation catalog.

@@ -505,11 +505,17 @@
     const api = root.PDFLib;
     const pdf = await api.PDFDocument.create();
     if (!root.fontkit) throw new Error("The PDF font library is unavailable. Refresh and retry.");
-    pdf.registerFontkit(root.fontkit);
+    // Nimbus fonts use CFF outlines inside OpenType containers. Preserve the
+    // complete font: this fontkit version's CFF subsets are not reader-safe.
+    pdf.registerFontkit({ create(bytes) {
+      const font = root.fontkit.create(bytes);
+      if (font.directory?.tables?.['CFF ']) font.cff = font['CFF '];
+      return font;
+    } });
     const fonts = await Promise.all(['NimbusSans-Regular', 'NimbusSans-Bold', 'NimbusRoman-Regular', 'NimbusRoman-Bold', 'NimbusRoman-Italic'].map(async name => {
       const response = await fetch(new URL(`ASSETS/fonts/${name}.otf`, document.baseURI));
       if (!response.ok) throw new Error(`Could not load PDF font ${name}.`);
-      return pdf.embedFont(await response.arrayBuffer(), { subset: true });
+      return pdf.embedFont(await response.arrayBuffer(), { subset: false });
     }));
     const color = hex => { const value = hex.replace('#', ''); return api.rgb(parseInt(value.slice(0,2),16)/255, parseInt(value.slice(2,4),16)/255, parseInt(value.slice(4,6),16)/255); };
     const pages = renderPages(payload);
@@ -546,6 +552,16 @@
           page.drawText(text, { x, y: PAGE_HEIGHT-get('y'), font, size, color: color(node.getAttribute('fill') || '#000000') });
         }
       }
+    }
+    // pdf-lib labels CFF streams as raw CIDFontType0C, but these complete font
+    // bytes include an OpenType header. PDF 1.7 requires the OpenType subtype.
+    await pdf.flush();
+    for (const font of fonts) {
+      const dict = pdf.context.lookup(font.ref, api.PDFDict);
+      const descendant = dict.lookup(api.PDFName.of('DescendantFonts'), api.PDFArray).lookup(0, api.PDFDict);
+      const descriptor = descendant.lookup(api.PDFName.of('FontDescriptor'), api.PDFDict);
+      const stream = descriptor.lookup(api.PDFName.of('FontFile3'), api.PDFRawStream);
+      stream.dict.set(api.PDFName.of('Subtype'), api.PDFName.of('OpenType'));
     }
     const bytes = await pdf.save({ useObjectStreams: false });
     return { filename: officialFilename(payload, 'pdf'), pages: pages.length, bytes, blob: new Blob([bytes], { type: 'application/pdf' }) };

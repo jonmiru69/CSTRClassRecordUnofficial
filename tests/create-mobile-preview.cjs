@@ -24,6 +24,10 @@ html=html.replace(/<script src="ASSETS\/app\.js[^"<]*"><\/script>/,fixture+'<scr
 html=html.replaceAll('="ASSETS/','="../ASSETS/');
 html=html.replace('<div id="app"','<p style="margin:0;padding:8px 16px;background:#731c32;color:white;font:16px Arial">Synthetic mobile preview. No live teacher records.</p><div id="app"');
 html=html.replace('</body>',`<script>
+if(new URLSearchParams(location.search).get('export')==='pdf'){
+  const button=document.createElement('button');button.textContent='Export synthetic PDF';button.type='button';button.style.cssText='position:fixed;right:16px;top:8px;z-index:9999;padding:14px;background:white;color:black';
+  button.onclick=async()=>{button.disabled=true;try{await CSTRAssets.ensure('pdf');const result=await CSTROfficialGradesheet.createPdf({subject:'Synthetic Science',teacherName:'Synthetic Teacher',schoolYear:'2026-2027',weights:[20,50,30],periodCount:4,students:[{name:'Synthetic Learner'}]});await CSTRFiles.deliver(result.blob,'synthetic-export-check.pdf');button.textContent='Synthetic PDF prepared';}catch(error){button.textContent=error.message;}finally{button.disabled=false;}};document.body.append(button);
+}
 if(new URLSearchParams(location.search).get('text')==='200')document.documentElement.style.fontSize='200%';
 if(new URLSearchParams(location.search).get('screen')==='record'){
   const observer=new MutationObserver(()=>{const button=document.querySelector('.recent-class-row');if(button){observer.disconnect();button.click();}});
