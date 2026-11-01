@@ -1,7 +1,7 @@
 name: Android build and release
 on:
   push:
-    branches: [main, codex/android-mobile]
+    branches: [main, codex/android-mobile, codex/audit-corrections]
     paths-ignore: ['**/*.md', 'downloads/**', '.build-artifacts/**']
   pull_request:
     branches: [main]
