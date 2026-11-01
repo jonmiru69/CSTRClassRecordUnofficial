@@ -64,6 +64,12 @@ if (native) {
     const link = event.target.closest('a[href]');
     if (!link || link.hasAttribute('download')) return;
     const url = new URL(link.href, location.href);
+    if(url.protocol==='mailto:'){
+      event.preventDefault();
+      if(url.pathname.toLowerCase()==='sanchezramil2202@gmail.com')Updates.openSupport().catch(error=>alert(error.message));
+      else alert('Open your email app to contact '+url.pathname);
+      return;
+    }
     if (url.origin !== location.origin && ['https:','mailto:'].includes(url.protocol)) {
       event.preventDefault(); Browser.open({url:url.href}).catch(() => alert('Could not open this link. Open it in your browser.'));
     }

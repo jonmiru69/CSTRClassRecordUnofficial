@@ -2,6 +2,8 @@ package ph.cstr.classrecord.unofficial;
 
 import android.Manifest;
 import android.os.Build;
+import android.content.Intent;
+import android.net.Uri;
 import androidx.core.app.NotificationManagerCompat;
 import com.getcapacitor.*;
 import com.getcapacitor.annotation.CapacitorPlugin;
@@ -10,6 +12,10 @@ import com.getcapacitor.annotation.PermissionCallback;
 
 @CapacitorPlugin(name="CSTRUpdates",permissions={@Permission(alias="notifications",strings={Manifest.permission.POST_NOTIFICATIONS})})
 public class CSTRUpdatesPlugin extends Plugin {
+    @PluginMethod public void openSupport(PluginCall call){
+        try{getActivity().startActivity(new Intent(Intent.ACTION_SENDTO,Uri.parse("mailto:SANCHEZRAMIL2202@GMAIL.COM")));call.resolve();}
+        catch(Exception error){call.reject("No email app is available. Contact SANCHEZRAMIL2202@GMAIL.COM from your email service.");}
+    }
     @PluginMethod public void verifyRelease(PluginCall call){
         try{call.resolve(new JSObject().put("valid",UpdateWorker.validRelease(getContext(),call.getData())));}
         catch(Exception error){call.reject("Could not verify update signing identity.");}
