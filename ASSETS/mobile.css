@@ -18,6 +18,10 @@
 .phone-score-row[hidden] {display:none!important;}
 .phone-learner-name {display:grid;grid-template-columns:24px minmax(0,1fr);gap:0 6px;min-width:0;}
 .phone-learner-name>span {padding-top:12px;font-variant-numeric:tabular-nums;}
+.phone-learner-title {padding-top:12px;overflow-wrap:anywhere;line-height:1.4;}
+.phone-class-tools>summary {display:none;}
+.phone-assessment-details>summary {gap:4px;}
+.phone-assessment-details>label {margin-block:12px;}
 .phone-learner-name>small {grid-column:2;font-size:.875rem;line-height:1.5;margin-top:4px;}
 :root body .phone-learner-name .phone-roster-name {padding:10px 0!important;background:transparent!important;border:0!important;font-weight:600;box-shadow:none!important;min-width:0;}
 :root body .phone-score-control>[data-score] {text-align:center;padding:10px 6px;font-size:1.25rem!important;font-variant-numeric:tabular-nums;}
@@ -45,6 +49,12 @@
 .update-banner button {background:var(--surface);color:var(--text);border:0;padding:12px 18px;min-height:48px;font:600 1rem var(--font-sans);cursor:pointer;}
 :root body .install-dialog :is(a,button):focus-visible,:root body .phone-entry :focus-visible {outline:3px solid var(--focus)!important;outline-offset:3px;}
 @media screen and (max-width:1000px) {
+  :root body #app .app-header .app-header-inner {grid-template-columns:minmax(0,1fr) auto!important;}
+  :root body #app .app-header .header-actions-wrap {display:contents!important;}
+  :root body #app .app-header .save-feedback {grid-column:1/-1!important;grid-row:2!important;}
+  :root body #app .app-header #saveChanges {grid-column:2!important;grid-row:1!important;}
+  :root body .phone-class-tools {margin-top:12px;}
+  :root body .phone-class-tools>summary {display:flex;align-items:center;min-height:48px;padding:8px 0;font-weight:600;font-size:1rem;}
   :root body .app-layout {display:block!important;height:auto!important;min-height:100dvh!important;overflow:visible!important;padding:0!important;}
   :root body .app-sidebar {display:none!important;}
   :root body .app-main {display:block!important;width:100%!important;min-width:0!important;height:auto!important;overflow:visible!important;margin:0!important;}
