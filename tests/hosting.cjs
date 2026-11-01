@@ -9,3 +9,12 @@ assert(workflow.indexOf('Deploy canonical Firebase workspace')<workflow.indexOf(
 assert(workflow.includes('with: {path: pages-dist}'));
 assert(workflow.includes('FIREBASE_SERVICE_ACCOUNT_CSTR_CLASS_RECORD_GLOBAL'));
 console.log('PASS Hosting uses a packaged canonical workspace with framing headers; CI tests rules and deploys canonical hosting before the legacy entry.');
+const {execFileSync}=require('node:child_process');
+for(const script of ['tools/build-web.mjs','tools/build-pages.mjs'])execFileSync(process.execPath,[script],{cwd:root,stdio:'pipe'});
+const site=path.join(root,'site-dist'),pages=path.join(root,'pages-dist');
+assert(!fs.readdirSync(path.join(site,'downloads')).some(file=>file.endsWith('.apk')),'Spark Hosting must never receive APKs');
+assert(fs.readdirSync(path.join(pages,'downloads')).some(file=>file.endsWith('.apk')),'Installed apps still need their Pages APK URLs');
+const entry=fs.readFileSync(path.join(pages,'index.html'),'utf8');
+assert(entry.includes('https://cstr-class-record-global.web.app/'));assert(!entry.includes('ASSETS/app.js'));assert(!fs.existsSync(path.join(pages,'ASSETS')));
+assert.equal(fs.readFileSync(path.join(site,'downloads/latest.json'),'utf8'),fs.readFileSync(path.join(pages,'downloads/latest.json'),'utf8'));
+console.log('PASS Canonical package excludes APKs; Pages retains downloads and only links to the same protected workspace.');

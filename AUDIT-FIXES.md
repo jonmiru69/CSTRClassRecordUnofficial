@@ -18,12 +18,14 @@ This change addresses all seven findings in the repository audit. The applicatio
 - Reproductions cover invalid tokens; cross-class zero-based versus transmuted results; JHS/SHS/trimester gaps; duplicate/out-of-range periods; blank versus complete export readiness; successful/failed sign-out; and a native clear racing with an in-flight checkpoint.
 - The Word and SVG export tests confirm provisional labeling; the existing PDF binary/font reload check passes.
 - Web packaging, Android web bundling and the Pages entry build pass.
-- Firebase Emulator Suite dependencies and `pnpm test:rules` are now declared, locked and run by CI with Node 24 and Java 21. The local machine has no Java runtime, so the local emulator attempt stops before starting a database.
+- Firebase Emulator Suite dependencies and `pnpm test:rules` are now declared, locked and run by CI with Node 24 and Java 21. The real ownership-rule suite passed in CI run 41307365722. The local machine has no Java runtime.
 - No real teacher records were modified and no production database rules were deployed.
 
 ## Deployment requirements
 
-Configure repository secret `FIREBASE_SERVICE_ACCOUNT_CSTR_CLASS_RECORD_GLOBAL` with a service account permitted to deploy Hosting for `cstr-class-record-global`. Production release fails before signing/committing an APK if this secret is absent. This workstation also has no Firebase CLI login; production deployment cannot be claimed from local build results.
+The corrected canonical website was deployed using the user's authenticated Firebase CLI session. Its served app.js matches the tested build exactly; live CSP framing protection and X-Frame-Options DENY were verified. Firebase's Spark plan prohibits APK hosting, so only the workspace and feed are deployed there; APK files remain on GitHub Pages.
+
+Automatic releases require repository secret `FIREBASE_SERVICE_ACCOUNT_CSTR_CLASS_RECORD_GLOBAL` with a service account permitted to deploy Hosting for `cstr-class-record-global`. Firebase's official GitHub integration is being configured. Production release fails before signing/committing an APK if this secret is absent. The legacy Pages entry is published only after a successful canonical deployment.
 
 Run CI on the repair PR. After the emulator and Android build/lint checks succeed and the deployment credential is configured, merge the reviewed changes to main. The release workflow packages the current app, deploys Firebase, then publishes the Pages entry and compatible APK download paths. Verify the canonical response contains `Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'` and `X-Frame-Options: DENY`, and that the old Pages entry opens the canonical site. Existing Android versions continue to use their original feed/APK URLs.
 
