@@ -61,6 +61,7 @@
                              // later re-renders instead of being silently replaced by the
                              // generic "DATA LOCKED" status.
   let isSaving = false;
+  let isLoggingOut = false;
   let saveQueued = false;
   let autoSaveTimer = null;
   let saveToastTimer = null;
@@ -176,7 +177,7 @@
   }
 
   function persistLocalDraft() {
-    if (!isSignedIn()) return;
+    if (!isSignedIn() || isLoggingOut) return;
     try {
       let recoveryState = state;
       const input = document.activeElement;
@@ -828,10 +829,9 @@
     const trimmed = String(raw).trim();
     const upper = trimmed.toUpperCase();
     if (upper === "A" || upper === "E" || upper === "L" || upper === "M") return upper;
-    const numeric = trimmed.replace(/[^0-9.]/g, "");
-    const firstDot = numeric.indexOf(".");
-    if (firstDot === -1) return numeric;
-    return numeric.slice(0, firstDot + 1) + numeric.slice(firstDot + 1).replace(/\./g, "");
+    // Preserve invalid input for correction; never turn a negative, fraction or
+    // exponent into a different score by deleting meaningful characters.
+    return trimmed;
   }
 
   // Scores remain text while a teacher is typing so partial decimals stay
@@ -850,7 +850,7 @@
       }
       hpsValues.forEach((value) => {
         if (value === "" || value === null || value === undefined) return;
-        const hps = Number(value);
+        const hps = window.CSTRGrading.numberOrNull(value);
         if (!Number.isFinite(hps) || hps <= 0) issues.invalidHps += 1;
       });
       (period.roster || []).forEach((learner) => {
@@ -859,7 +859,7 @@
           if (value === "" || value === null || value === undefined) return;
           if (!(Number(hpsValues[index]) > 0)) issues.missingHps += 1;
           if (isAttendanceCode(value)) return;
-          const score = Number(value);
+          const score = window.CSTRGrading.numberOrNull(value);
           if (!Number.isFinite(score) || score < 0) {
             issues.invalidScores += 1;
             return;
@@ -1599,12 +1599,12 @@
     panel.querySelectorAll('[data-mobile-row]').forEach(row=>{
       const learner=period.roster[Number(row.dataset.mobileRow)],input=row.querySelector('[data-score]');
       const value=learner[kind][index],hps=period[kind+'Hps'][index];
-      const invalid=hasRawAboveHps(value,hps)||(value!==''&&!isAttendanceCode(value)&&(!Number.isFinite(Number(value))||Number(value)<0));
+      const invalid=hasRawAboveHps(value,hps)||(value!==''&&!isAttendanceCode(value)&&(!Number.isFinite(window.CSTRGrading.numberOrNull(value))||Number(value)<0));
       input.classList.toggle('invalid',invalid); input.setAttribute('aria-invalid',String(invalid));
       row.querySelector('.phone-score-error').textContent=invalid?'Use 0–HPS or A/M/E/L.':'';
       row.dataset.filterName=learner.name.toLocaleLowerCase();
       row.hidden=!row.dataset.filterName.includes(mobileFilter.toLocaleLowerCase()); if(!row.hidden)visible++;
-      row.querySelector('[data-mobile-grade]').textContent=`Reported: ${format(learnerResult(learner,period,currentSection().weights).initial.transmuted,0)} · ${period.locked?'Locked':'Provisional'}`;
+      row.querySelector('[data-mobile-grade]').textContent=`Reported: ${format(learnerResult(learner,period,currentSection()).initial.transmuted,0)} · ${period.locked?'Locked':'Provisional'}`;
       if(learner.name.trim()){total++;if(String(value).trim()!=='')entered++;}
     });
     panel.querySelector('[data-mobile-entry-count]').textContent=`${entered} / ${total} named learners entered`;
@@ -1618,7 +1618,7 @@
     const occurrence = key ? active.roster.slice(0, rowIndex + 1).filter(item => !getRowCategory(item) && searchNameKey(item.name) === key).length - 1 : 0;
     return periods.flatMap((period, periodIndex) => {
       const found = periodIndex === activePeriodIndex ? learner : key ? period.roster.filter(item => !getRowCategory(item) && searchNameKey(item.name) === key)[occurrence] : null;
-      return found ? [{ period, periodIndex, learner: found, result: learnerResult(found, period, currentSection().weights), complete: isLearnerAssessmentComplete(found, period) }] : [];
+      return found ? [{ period, periodIndex, learner: found, result: learnerResult(found, period, currentSection()), complete: isLearnerAssessmentComplete(found, period) }] : [];
     });
   }
 
@@ -1655,7 +1655,7 @@
         const info = entryPeriod.activityMeta[cat.key][index];
         const date = entryPeriod[cat.key + "Dates"][index];
         const slot = `${cat.key.toUpperCase()} ${index + 1}`;
-        const invalid = hasRawAboveHps(value, hps) || (value !== "" && !isAttendanceCode(value) && (!Number.isFinite(Number(value)) || Number(value) < 0));
+        const invalid = hasRawAboveHps(value, hps) || (value !== "" && !isAttendanceCode(value) && (!Number.isFinite(window.CSTRGrading.numberOrNull(value)) || Number(value) < 0));
         const locked = entryPeriod.locked ? "disabled" : "";
         const hpsLabel = hps === "" || hps === null || hps === undefined ? "—" : String(hps);
         return `<div class="report-activity-row" data-report-kind="${cat.key}" data-report-index="${index}">
@@ -1894,7 +1894,7 @@
     const scoreInputs = (kind, values, hpsValues) => values.map((value, index) => {
       const tdBorderClass = (index === 0 && kind === "pt") ? "border-start-pt" : (index === 0 && kind === "qa") ? "border-start-qa" : "";
       const codeValue = typeof value === "string" ? value.trim().toUpperCase() : "";
-      const rawNumber = Number(value);
+      const rawNumber = window.CSTRGrading.numberOrNull(value);
       const invalidScore = !isAttendanceCode(value) && value !== "" && (!Number.isFinite(rawNumber) || rawNumber < 0);
       const aboveHps = hasRawAboveHps(value, hpsValues[index]);
       const inputClasses = [aboveHps || invalidScore ? "invalid" : "", isAttendanceCode(value) ? "code-cell" : "", codeValue === "M" ? "code-cell-missing" : ""].filter(Boolean).join(" ");
@@ -1906,14 +1906,13 @@
       ww: learner.ww.map(() => ""),
       pt: learner.pt.map(() => ""),
       qa: learner.qa.map(() => "")
-    } : learner, period, section.weights);
+    } : learner, period, section);
     const deleteRowBtn = cat ? "" : `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${periodLocked ? "Unlock this grading period to delete rows" : "Remove this learner row from this grading period only"}" aria-label="Delete learner ${rowIndex + 1} row" ${periodLocked ? "disabled" : ""}>${icon("trash")}</button>`;
     return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" title="${learnerLabel}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td><td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td><td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
   }
 
-  function learnerResult(learner, period, weights) {
-    const section = currentSection();
-    const result = window.CSTRGrading.calculateLearner(learner, period, { ...section, weights });
+  function learnerResult(learner, period, section) {
+    const result = window.CSTRGrading.calculateLearner(learner, period, section);
     if (!String(learner.name || "").trim() || getRowCategory(learner)) {
       result.initial = { precise: null, rounded: null, transmuted: null, descriptor: "—" };
     }
@@ -2269,14 +2268,31 @@
     const periodCount = state.calendarMode === "trimester" ? 3 : 4;
     const periods = (activeSections()[section.id] && activeSections()[section.id].periods) || [];
 
+    const slotPeriods = Array(periodCount).fill(null);
+    const slotErrors = [];
+    periods.forEach((period, index) => {
+      const slot = reportSlot(section, period, index);
+      const identity = state.calendarMode === "trimester" ? period.term : period.quarter;
+      const maxIdentity = state.calendarMode === "trimester" ? 3 : section.group === "SHS" ? 2 : 4;
+      if ((identity != null && (!Number.isInteger(identity) || identity < 1 || identity > maxIdentity)) ||
+          (state.calendarMode !== "trimester" && section.group === "SHS" && period.semester != null &&
+           (!Number.isInteger(period.semester) || period.semester < 1 || period.semester > 2))) {
+        slotErrors.push(`Invalid period identity for ${period.name || "unnamed period"}.`);
+        return;
+      }
+      if (slot >= periodCount || slotPeriods[slot]) {
+        slotErrors.push(`Review the period identity for ${period.name || "unnamed period"}.`);
+      } else slotPeriods[slot] = period;
+    });
+
     // Each grading period has its own roster, so learners are matched by name,
     // not by row number. Someone who left after the 1st grading (or joined in
     // the 3rd) appears once, with blank grades for the periods they weren't in.
     // Repeated identical names inside one period stay separate learners.
-    const listed = periods.map((period) => {
+    const listed = slotPeriods.map((period) => {
       const seen = new Map();
       const entries = [];
-      (period.roster || []).forEach((learner) => {
+      (period?.roster || []).forEach((learner) => {
         const name = String((learner && learner.name) || "").trim();
         if (!name || getRowCategory(learner)) return;
         const base = normalizedName(name);
@@ -2301,11 +2317,12 @@
 
     const students = order.map(({ key, name }) => {
       const gradePeriods = Array.from({ length: periodCount }, (_, periodIndex) => {
-        const period = periods[periodIndex];
+        const period = slotPeriods[periodIndex];
         const entry = period && (listed[periodIndex] || []).find((item) => item.key === key);
         if (!entry) return {};
-        const result = learnerResult(entry.learner, period, section.weights);
+        const result = learnerResult(entry.learner, period, section);
         return {
+          complete: isLearnerAssessmentComplete(entry.learner, period, section),
           ww: result.ww.weighted,
           pt: result.pt.weighted,
           qa: result.qa.weighted,
@@ -2317,7 +2334,7 @@
       return {
         name,
         periods: gradePeriods,
-        finalGrade: periodicalGrades.length === periodCount
+        finalGrade: periodicalGrades.length === periodCount && gradePeriods.every(entry => entry.complete)
           ? state.calendarMode === "trimester"
             ? Math.round(periodicalGrades.reduce((sum, value, index) => sum + value * TRIMESTER_FINAL_GRADE_WEIGHTS[index], 0) / TRIMESTER_FINAL_GRADE_WEIGHTS.reduce((sum, value) => sum + value, 0))
             : Math.round(periodicalGrades.reduce((sum, value) => sum + value, 0) / 4)
@@ -2336,11 +2353,14 @@
       students,
       periodCount,
       calendarMode: state.calendarMode,
-      sourcePeriodCount: Math.min(periods.length, periodCount)
+      provisional: students.some(student => student.periods.some(period => !period.complete)),
+      slotErrors,
+      sourcePeriodCount: slotPeriods.filter(Boolean).length
     };
   }
 
   function officialExportReadiness(payload) {
+    if (payload.slotErrors?.length) return { type: "error", message: payload.slotErrors.join(" ") + " Export is blocked until period identities are corrected." };
     const learnerCount = payload.students.length;
     if (!learnerCount) {
       return {
@@ -2349,7 +2369,7 @@
       };
     }
     const expectedGrades = learnerCount * payload.periodCount;
-    const completedGrades = payload.students.reduce((count, student) => count + student.periods.filter((period) => Number.isFinite(period.periodical)).length, 0);
+    const completedGrades = payload.students.reduce((count, student) => count + student.periods.filter((period) => period.complete && Number.isFinite(period.periodical)).length, 0);
     const finalGrades = payload.students.filter((student) => Number.isFinite(student.finalGrade)).length;
     if (completedGrades === expectedGrades && finalGrades === learnerCount) {
       return {
@@ -2360,7 +2380,7 @@
     const missingGrades = expectedGrades - completedGrades;
     return {
       type: "warning",
-      message: `This class record is incomplete, but it is still exportable. ${missingGrades} of ${expectedGrades} period grade field${expectedGrades === 1 ? " is" : "s are"} not yet calculated. Missing component, initial, period, and final grades will remain blank; no grade will be invented.`
+      message: `This class record is provisional and requires review before export. ${missingGrades} of ${expectedGrades} period assessment record${expectedGrades === 1 ? " is" : "s are"} incomplete. Blank marks may currently calculate as zero; period grades can be provisional. Final grades remain blank until every period is complete.`
     };
   }
 
@@ -2386,6 +2406,9 @@
 
   async function exportOfficialGradeSheet(formatName, trigger) {
     const payload = officialExportPayload();
+    const readiness = officialExportReadiness(payload);
+    if (readiness.type === "error") { setOfficialExportMessage(readiness.message, "error"); return; }
+    if (readiness.type === "warning" && !confirm(readiness.message + "\n\nExport a provisional report for review?")) return;
     const schoolYearMatch = payload.schoolYear.match(/^(\d{4})-(\d{4})$/);
     if (!schoolYearMatch || Number(schoolYearMatch[2]) !== Number(schoolYearMatch[1]) + 1) {
       const message = "Enter the school year as YYYY-YYYY before exporting. No file was created.";
@@ -2492,7 +2515,7 @@
     return ["ww","pt","qa"].every((kind,componentIndex) => section.weights[componentIndex] === 0 || period[kind+"Hps"].every((maximum,index) => {
       if (!String(maximum ?? "").trim()) return !String(learner[kind][index] ?? "").trim();
       const score = learner[kind][index];
-      return isAttendanceCode(score) || (String(score ?? "").trim() !== "" && Number.isFinite(Number(score)) && Number(score)>=0 && Number(score)<=Number(maximum));
+      return isAttendanceCode(score) || (String(score ?? "").trim() !== "" && Number.isFinite(window.CSTRGrading.numberOrNull(score)) && Number(score)>=0 && Number(score)<=Number(maximum));
     }));
   }
 
@@ -2575,7 +2598,7 @@
           if (searchNameKey(learner.name) !== query || getRowCategory(learner)) return;
           const key = occurrence++;
           if (!byOccurrence.has(key)) byOccurrence.set(key, {section, entries:[], occurrence:key});
-          byOccurrence.get(key).entries.push({period,periodIndex,rowIndex,learner,result:learnerResult(learner,period,section.weights),complete:isLearnerAssessmentComplete(learner,period)});
+          byOccurrence.get(key).entries.push({section,period,periodIndex,rowIndex,learner,result:learnerResult(learner,period,section),complete:isLearnerAssessmentComplete(learner,period,section)});
         });
       });
       matches.push(...[...byOccurrence.values()].map(match => ({ ...match, ambiguous: byOccurrence.size > 1 })));
@@ -2607,7 +2630,7 @@
   });
 
   function renderReportResultHtml(entry) {
-    const term = !usesTransmutation(currentSection());
+    const term = !usesTransmutation(entry.section);
     return `<section class="student-result-priority"><p>${escapeHtml(entry.period.name)}</p><div><span>${term ? 'Reported grade' : 'Final transmuted grade'}</span><strong>${format(entry.result.initial.transmuted,0)}</strong></div><p>${renderDescriptorBadge(entry.result.initial.descriptor)} · ${entry.complete ? 'Complete requirements' : 'Provisional · incomplete requirements'}</p><small>Initial grade: ${format(entry.result.initial.rounded,3)}</small></section>`;
   }
   function renderStudentReportSvg(section, entries, reportId) {
@@ -2979,7 +3002,7 @@
       ww: learner.ww.map(() => ""),
       pt: learner.pt.map(() => ""),
       qa: learner.qa.map(() => "")
-    } : learner, period, section.weights);
+    } : learner, period, section);
 
     const wwTot = row.querySelector(".summary-ww-total"); if (wwTot) wwTot.textContent = scoreTotal(result.ww);
     const wwPs = row.querySelector(".summary-ww-ps"); if (wwPs) wwPs.textContent = format(result.ww.percentage, 3);
@@ -3045,6 +3068,7 @@
   }
 
   async function saveToFirebase({ automatic = false } = {}) {
+    if (isLoggingOut) return false;
     const focused = document.activeElement;
     if (focused?.dataset?.hps && hpsEdits.has(focused)) {
       if (automatic) { scheduleAutoSaveMaxWait(); return false; }
@@ -3870,13 +3894,14 @@
   }
 
   async function performLogout() {
-    try { await window.CSTRMobile?.clearRecovery(); } catch (_) { alert('Could not clear encrypted device recovery. Try logging out again.'); return; }
+    if (isLoggingOut || isSaving) return;
+    isLoggingOut = true;
     mobileEntryKind='ww'; mobileEntryIndex=0; mobileFilter='';
     const recoveryKeys = [localDraftKey(), versionHistoryKey()];
-    persistLocalDraft();
     try {
       if (window.CSTRSync?.signOut) await window.CSTRSync.signOut();
     } catch (error) {
+      isLoggingOut = false;
       showSaveToast(`Could not log out: ${error.message}`, "error");
       return;
     }
@@ -3891,6 +3916,9 @@
     state = createInitialState();
     ["cstr-class-record-login", "cstr-class-record-user", "cstr-class-record-email", "cstr-class-record-name"].forEach(key => sessionStorage.removeItem(key));
     recoveryKeys.forEach(key => { sessionStorage.removeItem(key); localStorage.removeItem(key); });
+    try { await window.CSTRMobile?.clearRecovery(); }
+    catch (_) { alert("Signed out, but encrypted device recovery could not be cleared. Close the app and contact support before sharing this device."); }
+    isLoggingOut = false;
     window.CSTRRegistration?.clear();
     document.querySelector("#logoutModal")?.remove();
     currentView = "home";
@@ -4379,7 +4407,7 @@
       window.CSTRRecordTools.setScore(currentPeriod().roster[row], kind, index, sanitized); updateLiveSummary(row);
       if (input.closest('.editable-student-report')) {
         const hps = currentPeriod()[kind + 'Hps'][index];
-        const bad = hasRawAboveHps(sanitized, hps) || (sanitized !== '' && !isAttendanceCode(sanitized) && (!Number.isFinite(Number(sanitized)) || Number(sanitized) < 0));
+        const bad = hasRawAboveHps(sanitized, hps) || (sanitized !== '' && !isAttendanceCode(sanitized) && (!Number.isFinite(window.CSTRGrading.numberOrNull(sanitized)) || Number(sanitized) < 0));
         input.classList.toggle('invalid', bad);
         input.setAttribute('aria-invalid', String(bad));
       }

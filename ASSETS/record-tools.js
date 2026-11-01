@@ -8,7 +8,7 @@
   'use strict';
   const kinds = ['ww', 'pt', 'qa'];
   const present = v => v !== '' && v !== null && v !== undefined && String(v).trim() !== '';
-  const numeric = v => present(v) && Number.isFinite(Number(v)) && Number(v) >= 0;
+  const numeric = v => present(v) && (typeof v === 'number' || (typeof v === 'string' && /^(?:\d+(?:\.\d*)?|\.\d+)$/.test(v.trim()))) && Number.isFinite(Number(v)) && Number(v) >= 0;
   // Only explicit roster dividers are categories. Names such as Boysen are learners.
   function getLearnerCategory(name) {
     // Match whole-word heading labels, including strand/section prefixes.

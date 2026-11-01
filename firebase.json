@@ -3,37 +3,34 @@
     "rules": "firebase-database-rules.json"
   },
   "hosting": {
-    "public": ".",
+    "public": "site-dist",
     "ignore": [
       "firebase.json",
-      "firebase-database-rules.json",
       "**/.*",
-      "**/node_modules/**",
-      "**/*.md",
-      "tests/**",
-      "tools/**",
-      "android/**",
-      "mobile/**",
-      "test-preview/**",
-      "site-dist/**",
-      "www/**",
-      "package.json",
-      "pnpm-lock.yaml",
-      "capacitor.config.json",
-      "**/*.jks",
-      "**/*.keystore",
-      "**/*debug.log",
-      "**/*.zip",
-      "SHA256SUMS.txt"
+      "**/node_modules/**"
     ],
     "headers": [
       {
         "source": "downloads/latest.json",
-        "headers": [{"key": "Cache-Control", "value": "no-store"}, {"key": "Access-Control-Allow-Origin", "value": "*"}]
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          },
+          {
+            "key": "Access-Control-Allow-Origin",
+            "value": "*"
+          }
+        ]
       },
       {
         "source": "downloads/**/*.apk",
-        "headers": [{"key": "Content-Type", "value": "application/vnd.android.package-archive"}]
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/vnd.android.package-archive"
+          }
+        ]
       },
       {
         "source": "**",
@@ -53,6 +50,10 @@
           {
             "key": "Permissions-Policy",
             "value": "camera=(), microphone=(), geolocation=()"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
           }
         ]
       },

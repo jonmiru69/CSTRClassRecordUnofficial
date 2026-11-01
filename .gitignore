@@ -13,3 +13,5 @@ private/
 *private-backup*.json
 *owner-patch*.json
 verified-owners.json
+
+pages-dist/

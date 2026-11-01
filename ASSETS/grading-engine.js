@@ -166,6 +166,8 @@
     if (typeof value !== "number" && typeof value !== "string") return null;
     if (typeof value === "string" && !value.trim()) return null;
     if (isAttendanceCode(value)) return null;
+    // Strings must be plain nonnegative decimals, not JS numeric expressions.
+    if (typeof value === "string" && !/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(value.trim())) return null;
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
   }

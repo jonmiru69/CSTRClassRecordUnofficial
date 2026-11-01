@@ -3,6 +3,8 @@ on:
   push:
     branches: [main, codex/android-mobile]
     paths-ignore: ['**/*.md', 'downloads/**', '.build-artifacts/**']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 concurrency:
   group: android-${{ github.ref }}
@@ -27,6 +29,13 @@ jobs:
         run: npm install --global pnpm@11.25.0 && pnpm install --frozen-lockfile --ignore-scripts
       - name: Verify web and grading workflows
         run: pnpm test
+      - name: Verify Firebase ownership rules
+        run: pnpm test:rules
+      - name: Require canonical hosting credentials before production release
+        if: github.ref == 'refs/heads/main'
+        env:
+          FIREBASE_DEPLOY_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CSTR_CLASS_RECORD_GLOBAL }}
+        run: test -n "$FIREBASE_DEPLOY_ACCOUNT" || { echo 'Configure the canonical Firebase Hosting service account before releasing. Existing deployments remain unchanged.'; exit 1; }
       - name: Bundle client
         run: pnpm android:sync
       - name: Set release version
@@ -85,11 +94,22 @@ jobs:
       - name: Package website and verified downloads together
         if: github.ref == 'refs/heads/main' && steps.freshness.outputs.current == 'true'
         run: node tools/build-web.mjs
+      - name: Deploy canonical Firebase workspace
+        if: github.ref == 'refs/heads/main' && steps.freshness.outputs.current == 'true'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CSTR_CLASS_RECORD_GLOBAL }}
+          projectId: cstr-class-record-global
+          channelId: live
+      - name: Package Pages entry and Android downloads
+        if: github.ref == 'refs/heads/main' && steps.freshness.outputs.current == 'true'
+        run: pnpm build:pages
       - uses: actions/configure-pages@v5
         if: github.ref == 'refs/heads/main' && steps.freshness.outputs.current == 'true'
       - uses: actions/upload-pages-artifact@v3
         if: github.ref == 'refs/heads/main' && steps.freshness.outputs.current == 'true'
-        with: {path: site-dist}
+        with: {path: pages-dist}
   deploy:
     if: github.ref == 'refs/heads/main' && needs.android.outputs.publish_current == 'true'
     needs: android

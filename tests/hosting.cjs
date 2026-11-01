@@ -1,0 +1,11 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'..'),config=JSON.parse(fs.readFileSync(path.join(root,'firebase.json'),'utf8'));
+assert.equal(config.hosting.public,'site-dist');
+const headers=Object.fromEntries(config.hosting.headers.find(x=>x.source==='**').headers.map(x=>[x.key,x.value]));
+assert.equal(headers['X-Frame-Options'],'DENY');assert(headers['Content-Security-Policy'].includes("frame-ancestors 'none'"));
+const workflow=fs.readFileSync(path.join(root,'.github/workflows/android.yml'),'utf8');
+assert(workflow.includes('pull_request:'));assert(workflow.includes('pnpm test:rules'));
+assert(workflow.indexOf('Deploy canonical Firebase workspace')<workflow.indexOf('Package Pages entry'));
+assert(workflow.includes('with: {path: pages-dist}'));
+assert(workflow.includes('FIREBASE_SERVICE_ACCOUNT_CSTR_CLASS_RECORD_GLOBAL'));
+console.log('PASS Hosting uses a packaged canonical workspace with framing headers; CI tests rules and deploys canonical hosting before the legacy entry.');

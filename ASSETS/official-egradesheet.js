@@ -169,7 +169,7 @@
       size: 9.2,
       anchor: "middle"
     }));
-    pieces.push(svgText((left + right) / 2, 146.5, `REPORT ON RATINGS S.Y. ${cleanText(payload.schoolYear)}`, {
+    pieces.push(svgText((left + right) / 2, 146.5, `${payload.provisional ? "PROVISIONAL — " : ""}REPORT ON RATINGS S.Y. ${cleanText(payload.schoolYear)}`, {
       size: 13.1,
       anchor: "middle"
     }));
@@ -409,6 +409,7 @@
     const weights = Array.isArray(payload && payload.weights) ? payload.weights.map(Number) : [20, 50, 30];
     return {
       periodCount: payload && payload.periodCount === 3 ? 3 : 4,
+      provisional: payload?.provisional === true,
       schoolYear: cleanText(payload && payload.schoolYear),
       level: cleanText(payload && payload.level),
       section: cleanText(payload && payload.section),
@@ -602,7 +603,7 @@
         paragraph('CST-R FORM 1', { run: { size: 14 } }),
         paragraph('COLEGIO DE STO. TOMAS-RECOLETOS, INC.', { alignment: d.AlignmentType.CENTER, run: { bold: true, size: 23 } }),
         paragraph('Azcona St., San Carlos City, Negros Occidental', { alignment: d.AlignmentType.CENTER, run: { size: 16 } }),
-        paragraph(`REPORT ON RATINGS — S.Y. ${payload.schoolYear}`, { alignment: d.AlignmentType.CENTER, spacing: { before: 100, after: 100 }, run: { bold: true, size: 20 } }),
+        paragraph(`${payload.provisional ? "PROVISIONAL — " : ""}REPORT ON RATINGS — S.Y. ${payload.schoolYear}`, { alignment: d.AlignmentType.CENTER, spacing: { before: 100, after: 100 }, run: { bold: true, size: 20 } }),
         paragraph(`YEAR & SECTION: ${gradeAndSection(payload)}`, { run: { bold: true } }),
         paragraph(`SUBJECT: ${payload.subject}`, { spacing: { after: 100 }, run: { bold: true } }),
         new d.Table({ width: { size: 9600, type: d.WidthType.DXA }, columnWidths: widths, layout: d.TableLayoutType.FIXED, rows })

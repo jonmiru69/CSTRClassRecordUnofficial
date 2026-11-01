@@ -53,7 +53,12 @@ window.CSTRMobile = {
     const task=()=>Object.keys(data).length?Recovery.write({data:JSON.stringify(data)}):Recovery.clear();
     const result=recoveryQueue.then(task,task);recoveryQueue=result.catch(()=>{});await result;
   },
-  async clearRecovery() { if (native) {await recoveryQueue;await Recovery.clear();} },
+  async clearRecovery() {
+    if (!native) return;
+    const result = recoveryQueue.then(() => Recovery.clear());
+    recoveryQueue = result.catch(() => {});
+    await result;
+  },
   async openWebsite() { await Browser.open({url:'https://jonmiru69.github.io/CSTRClassRecordUnofficial/'}); }
 };
 if (native) {

@@ -6,10 +6,11 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
  const bytes=XLSX.write(workbook,{type:'array',bookType:'xlsx'});const reopened=XLSX.read(bytes,{type:'array'});assert.equal(reopened.Sheets.Sample.B2.v,0);assert.equal(reopened.Sheets.Sample.A3.f,undefined);assert.equal(reopened.Sheets.Sample.A3.v,'=not-a-formula');
  console.log('PASS Excel vendor serialization preserves numeric zero and treats text beginning with = as text.');
  const ctx={console,Blob,TextEncoder,TextDecoder,Uint8Array,ArrayBuffer,Buffer,setTimeout,clearTimeout,atob,btoa};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(base,'vendor/docx.iife.js'),'utf8'),ctx);vm.runInContext(fs.readFileSync(path.join(base,'official-egradesheet.js'),'utf8'),ctx);
- const result=await ctx.CSTROfficialGradesheet.createWord({subject:'Synthetic',teacherName:'Synthetic teacher',principalName:'Synthetic principal',schoolYear:'2026-2027',weights:[30,40,30],periodCount:4,students:[]});assert(result.blob.size>1000);
+ const result=await ctx.CSTROfficialGradesheet.createWord({subject:'Synthetic',teacherName:'Synthetic teacher',principalName:'Synthetic principal',schoolYear:'2026-2027',weights:[30,40,30],periodCount:4,provisional:true,students:[]});assert(result.blob.size>1000);
  const zip=require(path.join(base,'vendor/jszip.min.js'));const archive=await zip.loadAsync(await result.blob.arrayBuffer());const doc=await archive.file('word/document.xml').async('string');assert(doc.includes('Synthetic teacher'));assert(doc.includes('2026-2027'));
- console.log('PASS Official Word exporter generates a valid ZIP containing document.xml and supplied metadata.');
- const pages=ctx.CSTROfficialGradesheet.renderPages({subject:'Synthetic',teacherName:'Synthetic teacher',principalName:'Synthetic principal',schoolYear:'2026-2027',weights:[30,40,30],students:[]});assert(pages.length>0&&pages.every(p=>p.startsWith('<svg')));console.log('PASS Official SVG page generation.');
+ assert(doc.includes('PROVISIONAL'));
+ console.log('PASS Official Word exporter generates a valid ZIP containing document.xml, supplied metadata and provisional labeling.');
+ const pages=ctx.CSTROfficialGradesheet.renderPages({subject:'Synthetic',teacherName:'Synthetic teacher',principalName:'Synthetic principal',schoolYear:'2026-2027',weights:[30,40,30],provisional:true,students:[]});assert(pages.length>0&&pages.every(p=>p.startsWith('<svg')));assert(pages[0].includes('PROVISIONAL'));console.log('PASS Official SVG page generation includes provisional labeling.');
  // Exercise the real PDF exporter and all five fonts. This tiny DOM adapter
  // supplies text nodes only; browser/Poppler acceptance covers complete layout.
  vm.runInContext(fs.readFileSync(path.join(base,'vendor/pdf-lib.min.js'),'utf8'),ctx);const pdfApi=ctx.PDFLib;
