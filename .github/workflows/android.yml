@@ -1,0 +1,92 @@
+name: Android build and release
+on:
+  push:
+    branches: [main, codex/android-mobile]
+    paths-ignore: ['**/*.md', 'downloads/**', '.build-artifacts/**']
+  workflow_dispatch:
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - name: Install locked build tools
+        run: npm install --global pnpm@11.25.0 && pnpm install --frozen-lockfile
+      - name: Verify web and grading workflows
+        run: pnpm test
+      - name: Bundle client
+        run: pnpm android:sync
+      - name: Set release version
+        run: |
+          echo "CSTR_VERSION_CODE=$((10000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "CSTR_VERSION_NAME=1.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+      - name: Build review APK and unsigned release
+        if: github.ref != 'refs/heads/main'
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleDebug assembleRelease lintDebug --no-daemon
+      - name: Save review build on this branch
+        if: github.ref == 'refs/heads/codex/android-mobile'
+        run: |
+          mkdir -p .build-artifacts
+          cp android/app/build/outputs/apk/debug/app-debug.apk .build-artifacts/CSTR-test.apk
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk .build-artifacts/CSTR-unsigned.apk
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" .build-artifacts/apksigner.jar
+          printf '{"sourceCommit":"%s","version":"%s","versionCode":%s}\n' "$GITHUB_SHA" "$CSTR_VERSION_NAME" "$CSTR_VERSION_CODE" > .build-artifacts/build.json
+          git config user.name 'CSTR build'
+          git config user.email 'cstr-build@users.noreply.github.com'
+          git add -f .build-artifacts
+          git commit -m 'Attach Android review build [skip ci]'
+          git push origin HEAD:codex/android-mobile
+      - name: Sign production release
+        if: github.ref == 'refs/heads/main'
+        env:
+          KEYSTORE: ${{ secrets.CSTR_ANDROID_KEYSTORE_BASE64 }}
+          CSTR_STORE_PASSWORD: ${{ secrets.CSTR_ANDROID_STORE_PASSWORD }}
+          CSTR_KEY_ALIAS: ${{ secrets.CSTR_ANDROID_KEY_ALIAS }}
+          CSTR_KEY_PASSWORD: ${{ secrets.CSTR_ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE" || { echo 'Release signing is not configured. No unsigned app will be published.'; exit 1; }
+          export CSTR_KEYSTORE_PATH="$RUNNER_TEMP/cstr-release.jks"
+          printf '%s' "$KEYSTORE" | base64 --decode > "$CSTR_KEYSTORE_PATH"
+          trap 'rm -f "$CSTR_KEYSTORE_PATH"' EXIT
+          chmod +x android/gradlew
+          (cd android && ./gradlew assembleRelease lintRelease --no-daemon)
+          node tools/publish-release.mjs android/app/build/outputs/apk/release/app-release.apk "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" "$CSTR_VERSION_NAME" "$CSTR_VERSION_CODE"
+      - name: Commit verified APK and update feed
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name 'CSTR release'
+          git config user.email 'cstr-release@users.noreply.github.com'
+          git add downloads
+          git commit -m "Release Android $CSTR_VERSION_NAME [skip ci]"
+          git push origin HEAD:main
+      - name: Package website and verified downloads together
+        if: github.ref == 'refs/heads/main'
+        run: node tools/build-web.mjs
+      - uses: actions/configure-pages@v5
+        if: github.ref == 'refs/heads/main'
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main'
+        with: {path: site-dist}
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: android
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy website with matching download feed
+        id: deployment
+        uses: actions/deploy-pages@v4

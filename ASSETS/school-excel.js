@@ -403,6 +403,7 @@
   }
   async function download(payload) {
     const result=await build(payload),blob=new Blob([result.bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    if(root.CSTRFiles){await root.CSTRFiles.deliver(blob,[payload.section.level,payload.section.subject,payload.section.section,payload.period.name].filter(Boolean).join('-').replace(/[^a-z0-9]+/gi,'-')+'.xlsx');return result;}
     const url=URL.createObjectURL(blob),link=document.createElement('a');
     link.href=url;link.download=[payload.section.level,payload.section.subject,payload.section.section,payload.period.name].filter(Boolean).join('-').replace(/[^a-z0-9]+/gi,'-')+'.xlsx';
     document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);return result;

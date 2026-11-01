@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CST-R Class Record</string>
+    <string name="title_activity_main">CST-R Class Record</string>
+    <string name="package_name">ph.cstr.classrecord.unofficial</string>
+    <string name="custom_url_scheme">ph.cstr.classrecord.unofficial</string>
+</resources>

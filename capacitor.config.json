@@ -1,0 +1,15 @@
+{
+  "appId": "ph.cstr.classrecord.unofficial",
+  "appName": "CST-R Class Record",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#f1f3f4",
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "server": {
+    "androidScheme": "https",
+    "hostname": "localhost"
+  }
+}

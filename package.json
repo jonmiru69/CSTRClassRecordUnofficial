@@ -1,0 +1,23 @@
+{
+  "name": "cstr-class-record",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node tests/run.cjs && node tests/render-smoke.cjs && node tests/revision-20261024.cjs && node tests/score-adjustments.cjs && node tests/mobile.cjs",
+    "build": "node tools/build-mobile.mjs",
+    "android:sync": "node tools/build-mobile.mjs && cap sync android",
+    "preview": "node tools/preview.cjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/browser": "^8.0.0",
+    "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/share": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0",
+    "esbuild": "^0.27.0"
+  }
+}

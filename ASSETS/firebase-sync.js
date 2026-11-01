@@ -63,7 +63,7 @@
 
   const auth = firebase.auth();
   const db = firebase.database();
-  const authPersistence = auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+  const authPersistence = auth.setPersistence(window.CSTRMobile?.native ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION);
 
   function ensureReady() {
     if (auth.currentUser) return Promise.resolve(auth.currentUser);
@@ -98,6 +98,7 @@
 
     // Signs in with Google using OAuth popup
     async signInWithGoogle() {
+      if (window.CSTRMobile?.native) throw new Error('Google sign-in is available on the website. Add a password in website Settings, then use your approved email and password in this app.');
       await authPersistence;
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });

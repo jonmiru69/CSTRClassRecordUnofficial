@@ -50,6 +50,7 @@
   }
   async function download(workbook, filename) {
     const blob = await build(workbook);
+    if (root.CSTRFiles) return root.CSTRFiles.deliver(blob,filename);
     const url = URL.createObjectURL(blob), link = document.createElement('a');
     link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 30000);
