@@ -1505,7 +1505,8 @@
         </div>
         <div class="class-period-area">
           <div class="period-tabs" role="group" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-pressed="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index, state.calendarMode))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${recordCompletion(entry).complete ? "Complete" : "In progress"}">${recordCompletion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
-          <details class="period-settings"><summary>${icon("settings")}<span>Period options</span>${icon("chevron")}</summary><div class="period-toolbar">
+          <label class="phone-period-select">Period<select data-mobile-period aria-label="Grading period">${periods.map((entry,index)=>`<option value="${index}" ${index===activePeriodIndex?'selected':''}>${escapeHtml(window.CSTRRecordTools.periodLabel(entry,section.group,index,state.calendarMode))}${entry.locked?' · Locked':''}</option>`).join('')}</select></label>
+          <details class="period-settings"><summary aria-label="Period options">${icon("settings")}<span class="period-options-label">Period options</span><span class="phone-options-label">Options</span>${icon("chevron")}</summary><div class="period-toolbar">
             <label class="period-name-field" for="periodName"><span>Period name</span><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name ${period.locked ? "disabled" : ""}></label>
             <div id="periodCompletion" class="period-completion" role="status">${renderCompletionLabel(period, section, activePeriodIndex)}</div>
             <div class="period-actions">
@@ -4319,6 +4320,7 @@
     }
     if(event.target.matches('[data-mobile-kind]')) { mobileEntryKind=event.target.value;mobileEntryIndex=0;render(); }
     if(event.target.matches('[data-mobile-activity]')) { mobileEntryIndex=Number(event.target.value);render(); }
+    if(event.target.matches('[data-mobile-period]')) { activePeriodIndex=Number(event.target.value);render(); }
     if (event.target.matches('.editable-student-report [data-name-row]')) render();
   });
   document.addEventListener("click", event => {

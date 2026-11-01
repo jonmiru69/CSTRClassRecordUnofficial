@@ -1,6 +1,7 @@
 /* Phone task layouts. All measurements here are CSS pixels, not Android dp. */
 :root { --phone-gutter:16px; --phone-target:48px; --phone-nav:76px; }
 .mobile-navigation { display:none; }
+.phone-period-select,.phone-options-label {display:none;}
 .phone-entry { max-width:800px; margin:24px auto; }
 :root body .phone-entry :is(input,select,textarea) {font-size:1rem!important;min-height:48px;max-width:100%;width:100%;box-sizing:border-box;border-radius:4px!important;background:var(--surface)!important;color:var(--text)!important;}
 .phone-entry label {display:block;font-size:1rem;font-weight:600;}
@@ -66,6 +67,7 @@
   :root body .app-sidebar {display:none!important;}
   :root body .app-main {display:block!important;width:100%!important;min-width:0!important;height:auto!important;overflow:visible!important;margin:0!important;}
   :root body .app-shell {display:block!important;width:100%!important;max-width:none!important;height:auto!important;overflow:visible!important;padding:16px 16px calc(var(--phone-nav) + 36px + env(safe-area-inset-bottom,0px))!important;box-sizing:border-box;}
+  :root body #app .app-shell,:root body .modal {font-size:1rem!important;}
   :root body .app-header {position:sticky!important;top:0!important;z-index:30!important;height:auto!important;min-height:0!important;padding:12px 16px!important;background:var(--surface)!important;box-shadow:none!important;}
   :root body .app-header-inner {display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px!important;padding:0!important;min-height:0!important;}
   :root body .app-title {font-size:1.5rem!important;line-height:1.15!important;margin:0!important;white-space:normal!important;}
@@ -118,16 +120,27 @@
   :root body .archive-pills {display:flex;flex-wrap:wrap;gap:8px;}
   :root body .class-header-card {display:block!important;padding:20px!important;border-radius:0!important;min-height:0!important;}
   :root body .class-identity {min-width:0!important;}
+  :root body #app .class-header-card .class-identity {grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:"name name" "subject level" "context context"!important;gap:0 8px!important;padding-bottom:0!important;}
+  :root body #app .class-header-card .class-subject-line {grid-area:subject!important;}
+  :root body #app .class-header-card .class-name {grid-area:name!important;}
+  :root body #app .class-header-card .class-level {grid-area:level!important;align-self:center;}
+  :root body #app .class-header-card .class-context-line {grid-area:context!important;margin:0!important;}
   :root body .class-name {font-size:1.75rem!important;line-height:1.15!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere;}
   :root body .class-subject-line {flex-wrap:wrap;}
   :root body .subject-picker summary {white-space:normal!important;max-width:100%;font-size:1rem!important;}
   :root body .class-context-line {display:flex!important;flex-wrap:wrap!important;gap:6px 14px!important;}
   :root body .class-context-line span {white-space:normal!important;font-size:.875rem!important;}
-  :root body .class-period-area {width:100%!important;margin-top:20px!important;}
+  :root body #app .class-period-area {display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:12px!important;width:100%!important;margin-top:12px!important;align-items:end;}
+  :root body #app .class-header-card .period-tabs {display:none!important;}
+  :root body .phone-period-select {display:block;font-size:.875rem;}
+  :root body .phone-period-select select {width:100%;min-height:48px;max-width:100%;font-size:1rem;}
+  :root body .phone-options-label {display:inline;}
+  :root body .period-options-label {display:none;}
   :root body .period-tabs {display:flex!important;flex-wrap:wrap!important;overflow:visible!important;gap:8px!important;}
   :root body .period-tabs .tab {flex:1 1 auto!important;min-width:100px!important;}
-  :root body .period-settings {position:relative!important;margin-top:12px;}
+  :root body #app .period-settings {position:relative!important;margin-top:0!important;}
   :root body .period-toolbar {position:static!important;max-width:none!important;width:100%!important;box-sizing:border-box;max-height:none!important;overflow:visible!important;padding:16px!important;}
+  :root body #app .class-period-area:has(.period-settings[open]) {grid-template-columns:minmax(0,1fr)!important;}
   :root body .period-actions {display:grid!important;grid-template-columns:1fr!important;gap:12px!important;}
   :root body .sheet-utilities {display:flex!important;flex-wrap:wrap!important;gap:8px!important;padding:12px 0!important;}
   :root body .sheet-caption {display:none!important;}
