@@ -1589,6 +1589,7 @@
     const panel=document.querySelector('.phone-entry');
     if(!panel || !currentPeriod())return;
     const period=currentPeriod(),kind=mobileEntryKind,index=mobileEntryIndex;
+    if(!period[kind+'Dates'].length)return;
     panel.querySelector('[data-mobile-hps-label]').textContent=String(period[kind+'Hps'][index]||'—');
     let entered=0,total=0,visible=0;
     panel.querySelectorAll('[data-mobile-row]').forEach(row=>{
@@ -3915,6 +3916,7 @@
     if (!target) return;
     const action = target.dataset.action;
     if (target.disabled) return;
+    if (['go-home','go-records','select-section'].includes(action)) requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:'instant'}));
     if (action === 'open-web-workspace') { void window.CSTRMobile?.openWebsite(); return; }
     if (action === 'mobile-find' || action === 'mobile-more') { openMobileMore(action === 'mobile-find'); return; }
     if (action === 'mobile-previous' || action === 'mobile-next') {

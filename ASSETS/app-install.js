@@ -33,7 +33,7 @@
           if(!(await window.CSTRMobile.verifyRelease(release)).valid)throw new Error('This update uses a different signing identity. Keep your installed app and contact support.');
         }
         lastCheck=Date.now();if(dialog.open)contents(native&&(!release||release.versionCode<=Number(installed.build))?'You have the latest published version.':'');announce();
-      }catch(error){if(dialog.open)contents(error.message);}
+      }catch(error){release=null;document.querySelector('.update-banner')?.remove();if(dialog.open)contents(error.message);}
       finally{checking=null;}
     })();return checking;
   }
@@ -53,8 +53,10 @@
     }
     if(event.target.closest('[data-download-apk]')&&release){
       const before=new Event('cstr-before-update',{cancelable:true});if(native&&!window.dispatchEvent(before)){dialog.close();return;}
-      if(native){await window.CSTRMobile.checkpoint();await window.CSTRMobile.openDownload(release.url);}
-      else location.assign(release.url);
+      try {
+        if(native){await window.CSTRMobile.checkpoint();await window.CSTRMobile.openDownload(release.url);}
+        else location.assign(release.url);
+      }catch(error){contents('Could not start the download. Check your connection and try again.');}
     }
   });
   dialog.addEventListener('close',()=>{if(opener?.isConnected)opener.focus();});

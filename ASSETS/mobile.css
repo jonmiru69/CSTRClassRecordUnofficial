@@ -49,6 +49,8 @@
 .update-banner button {background:var(--surface);color:var(--text);border:0;padding:12px 18px;min-height:48px;font:600 1rem var(--font-sans);cursor:pointer;}
 :root body .install-dialog :is(a,button):focus-visible,:root body .phone-entry :focus-visible {outline:3px solid var(--focus)!important;outline-offset:3px;}
 @media screen and (max-width:1000px) {
+  :root {overflow-x:clip;}
+  :root body {overflow:visible!important;}
   :root body #app .app-header .app-header-inner {grid-template-columns:minmax(0,1fr) auto!important;}
   :root body #app .app-header .header-actions-wrap {display:contents!important;}
   :root body #app .app-header .save-feedback {grid-column:1/-1!important;grid-row:2!important;}
