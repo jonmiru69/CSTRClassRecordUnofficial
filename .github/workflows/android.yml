@@ -15,6 +15,8 @@ jobs:
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      publish_current: ${{ steps.freshness.outputs.current }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -61,8 +63,19 @@ jobs:
           (cd android && ./gradlew assembleRelease lintRelease --no-daemon)
           export CSTR_AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
           node tools/publish-release.mjs android/app/build/outputs/apk/release/app-release.apk "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" "$CSTR_VERSION_NAME" "$CSTR_VERSION_CODE"
-      - name: Commit verified APK and update feed
+      - name: Check source freshness before publication
         if: github.ref == 'refs/heads/main'
+        id: freshness
+        run: |
+          current_head=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$current_head" = "$GITHUB_SHA" ]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            echo 'A newer source patch is queued. This older build will not be published.'
+          fi
+      - name: Commit verified APK and update feed
+        if: github.ref == 'refs/heads/main' && steps.freshness.outputs.current == 'true'
         run: |
           git config user.name 'CSTR release'
           git config user.email 'cstr-release@users.noreply.github.com'
@@ -70,15 +83,15 @@ jobs:
           git commit -m "Release Android $CSTR_VERSION_NAME [skip ci]"
           git push origin HEAD:main
       - name: Package website and verified downloads together
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.freshness.outputs.current == 'true'
         run: node tools/build-web.mjs
       - uses: actions/configure-pages@v5
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.freshness.outputs.current == 'true'
       - uses: actions/upload-pages-artifact@v3
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.freshness.outputs.current == 'true'
         with: {path: site-dist}
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.android.outputs.publish_current == 'true'
     needs: android
     runs-on: ubuntu-latest
     environment:
