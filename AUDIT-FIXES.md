@@ -25,7 +25,9 @@ This change addresses all seven findings in the repository audit. The applicatio
 
 The corrected canonical website was deployed using the user's authenticated Firebase CLI session. Its served app.js matches the tested build exactly; live CSP framing protection and X-Frame-Options DENY were verified. Firebase's Spark plan prohibits APK hosting, so only the workspace and feed are deployed there; APK files remain on GitHub Pages.
 
-Automatic releases require repository secret `FIREBASE_SERVICE_ACCOUNT_CSTR_CLASS_RECORD_GLOBAL` with a service account permitted to deploy Hosting for `cstr-class-record-global`. Firebase's official GitHub integration is being configured. Production release fails before signing/committing an APK if this secret is absent. The legacy Pages entry is published only after a successful canonical deployment.
+Automatic releases use repository secret `FIREBASE_SERVICE_ACCOUNT_CSTR_CLASS_RECORD_GLOBAL`, securely uploaded by Firebase's official GitHub integration. The new service account is limited to Firebase Hosting Admin, API Keys Viewer and Service Usage Consumer; unrelated Auth, Functions and Run roles were removed. Production release fails before signing/committing an APK if this secret is absent. The legacy Pages entry is published only after a successful canonical deployment.
+
+Repair branch CI runs 41307365722 and 41307810084 passed application regressions, the real Firebase ownership-rule suite, Android builds and lint. Physical-device acceptance remains separate.
 
 Run CI on the repair PR. After the emulator and Android build/lint checks succeed and the deployment credential is configured, merge the reviewed changes to main. The release workflow packages the current app, deploys Firebase, then publishes the Pages entry and compatible APK download paths. Verify the canonical response contains `Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'` and `X-Frame-Options: DENY`, and that the old Pages entry opens the canonical site. Existing Android versions continue to use their original feed/APK URLs.
 
