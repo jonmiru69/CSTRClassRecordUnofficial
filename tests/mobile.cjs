@@ -6,6 +6,8 @@ const valid={schemaVersion:1,appId:'ph.cstr.classrecord.unofficial',available:tr
 assert(release.validate(valid));assert(release.updateFor(valid,10000).required);assert(!release.updateFor(valid,10001).required);assert.equal(release.updateFor(valid,10002),null);assert.equal(release.updateFor(valid,10003),null);
 for(const patch of [{available:false},{appId:'other.app'},{versionCode:NaN},{versionCode:2.5},{version:'latest'},{sha256:'invalid'},{certificateSha256:''},{minimumSupportedVersionCode:10003},{bytes:0},{url:'https://evil.example/app.apk'},{url:valid.url+'?redirect=evil'},{url:valid.url.replace('https:','http:')},{url:valid.url.replace('jonmiru69.github.io','jonmiru69.github.io.evil.test')},{url:'https://name:password@jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.2.apk'}])assert.equal(release.validate({...valid,...patch}),null,JSON.stringify(patch));
 console.log('PASS: Update validation rejects unavailable, malformed, foreign and downgraded releases; minimum-version urgency is explicit.');
+assert.equal(release.validate({...valid,versionCode:2147483648}),null);
+assert.equal(release.validate({...valid,url:valid.url.replace('1.0.2.apk','1.0.1.apk')}),null);
 
 const noop=()=>{},element={dataset:{theme:'light'},addEventListener:noop,querySelector:()=>null,querySelectorAll:()=>[],classList:{add:noop,remove:noop,toggle:noop},style:{},getBoundingClientRect:()=>({width:390,height:844})};
 const storage={getItem:()=>null,setItem:noop,removeItem:noop};

@@ -35,19 +35,16 @@ jobs:
         if: github.ref != 'refs/heads/main'
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleDebug assembleRelease lintDebug --no-daemon
-      - name: Save review build on this branch
-        if: github.ref == 'refs/heads/codex/android-mobile'
-        run: |
-          mkdir -p .build-artifacts
-          cp android/app/build/outputs/apk/debug/app-debug.apk .build-artifacts/CSTR-test.apk
-          cp android/app/build/outputs/apk/release/app-release-unsigned.apk .build-artifacts/CSTR-unsigned.apk
-          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" .build-artifacts/apksigner.jar
-          printf '{"sourceCommit":"%s","version":"%s","versionCode":%s}\n' "$GITHUB_SHA" "$CSTR_VERSION_NAME" "$CSTR_VERSION_CODE" > .build-artifacts/build.json
-          git config user.name 'CSTR build'
-          git config user.email 'cstr-build@users.noreply.github.com'
-          git add -f .build-artifacts
-          git commit -m 'Attach Android review build [skip ci]'
-          git push origin HEAD:codex/android-mobile
+      - name: Retain review-only builds briefly
+        if: github.ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-review-${{ github.run_number }}
+          retention-days: 1
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/release/app-release-unsigned.apk
+            android/app/build/reports/lint-results-debug.html
       - name: Sign production release
         if: github.ref == 'refs/heads/main'
         env:
@@ -62,6 +59,7 @@ jobs:
           trap 'rm -f "$CSTR_KEYSTORE_PATH"' EXIT
           chmod +x android/gradlew
           (cd android && ./gradlew assembleRelease lintRelease --no-daemon)
+          export CSTR_AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
           node tools/publish-release.mjs android/app/build/outputs/apk/release/app-release.apk "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" "$CSTR_VERSION_NAME" "$CSTR_VERSION_CODE"
       - name: Commit verified APK and update feed
         if: github.ref == 'refs/heads/main'

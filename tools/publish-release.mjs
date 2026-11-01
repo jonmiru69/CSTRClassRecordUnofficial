@@ -9,6 +9,10 @@ const root=path.resolve(import.meta.dirname,'..');
 const output=execFileSync(process.env.CSTR_JAVA||'java',['-jar',signerJar,'verify','--verbose','--print-certs',apk],{encoding:'utf8'});
 const certificate=output.match(/Signer #1 certificate SHA-256 digest:\s*([a-f0-9]{64})/i)?.[1]?.toLowerCase();
 if(!certificate)throw new Error('No verified APK signing certificate. Release was not published.');
+if(!process.env.CSTR_AAPT)throw new Error('Set CSTR_AAPT to the Android SDK aapt executable for package identity verification.');
+const metadata=execFileSync(process.env.CSTR_AAPT,['dump','badging',apk],{encoding:'utf8'});
+const identity=metadata.match(/package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'/);
+if(!identity||identity[1]!=='ph.cstr.classrecord.unofficial'||identity[2]!==String(Number(code))||identity[3]!==version)throw new Error('The verified APK package/version does not match the proposed release feed.');
 const bytes=await readFile(apk),name=`CSTR-Class-Record-${version}.apk`;
 await mkdir(path.join(root,'downloads'),{recursive:true});await copyFile(apk,path.join(root,'downloads',name));
 let previous;try{previous=JSON.parse(await readFile(path.join(root,'downloads/latest.json'),'utf8'));}catch(_){}
