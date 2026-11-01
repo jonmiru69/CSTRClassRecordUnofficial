@@ -1,6 +1,14 @@
 {
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
-  "available": false,
-  "reason": "A verified signed release has not been published yet."
+  "available": true,
+  "version": "1.0.13",
+  "versionCode": 10013,
+  "minimumSupportedVersionCode": 0,
+  "sha256": "241fb3633dd0838bc186a49095048660e38a0dc669d09612f34955a568b4e950",
+  "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
+  "bytes": 6030413,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.13.apk",
+  "publishedAt": "2026-11-01T03:51:23.600Z",
+  "notes": "Updated class record workflows and reliability fixes."
 }
