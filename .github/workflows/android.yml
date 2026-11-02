@@ -29,6 +29,8 @@ jobs:
         run: npm install --global pnpm@11.25.0 && pnpm install --frozen-lockfile --ignore-scripts
       - name: Verify web and grading workflows
         run: pnpm test
+      - name: Verify visual layouts with synthetic records
+        run: pnpm test:visual
       - name: Verify Firebase ownership rules
         run: pnpm test:rules
       - name: Require canonical hosting credentials before production release

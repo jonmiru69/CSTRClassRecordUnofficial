@@ -1,0 +1,329 @@
+/* November 2026 visual remaster. Screen presentation only.
+   Keep record geometry, sticky cells, print output and native phone entry intact. */
+@media screen {
+  :root, :root[data-theme="light"] {
+    --canvas:#f1f4f6; --base:#f1f4f6; --surface:#fff; --surface-subtle:#eaf0f3;
+    --text:#182f3e; --muted:#526675; --border:#bbcbd4; --border-light:#dce5eb;
+    --brand:#78253e; --brand-hover:#5a1930; --brand-soft:#f3e8ed;
+    --action-ink:var(--brand); --action-hover:var(--brand-hover); --on-brand:#fff;
+    --focus:#15778c; --ink-surface:#123347; --section-surface:#eaf0f3;
+    --sidebar-ink:#f6f8fa; --sidebar-muted:#bdcfd9; --sidebar-field:#204456;
+    --sidebar-field-border:#648494; --review-accent:var(--brand); --review-danger:#ae243d;
+    --radius-sm:4px; --radius-md:4px; --radius-lg:4px; --radius-xl:4px;
+    --remaster-navy:#123347; --remaster-navy-hover:#244b60; --remaster-gold:#ddbc72;
+    --remaster-sheet:#fff; --remaster-cover:#123347; --remaster-cover-ink:#fff;
+    --remaster-ease:cubic-bezier(.22,1,.36,1);
+    --shadow:none; --shadow-sm:none; --shadow-md:none;
+  }
+  :root[data-theme="dark"] {
+    --canvas:#101f2a; --base:#101f2a; --surface:#192e3c; --surface-subtle:#223d4d;
+    --text:#edf4f8; --muted:#b9cbd6; --border:#617d8e; --border-light:#304e60;
+    --brand:#efb1c3; --brand-hover:#ffcfdd; --brand-soft:#462d3d; --on-brand:#321524;
+    --action-ink:var(--brand); --action-hover:var(--brand-hover); --focus:#89d7e7;
+    --section-surface:var(--surface-subtle); --review-danger:#ffa5b9;
+    --remaster-sheet:#192e3c; --remaster-cover:#0e293b;
+    --success:#9cdbb4; --success-soft:#183f34;
+    --warning:#edce91; --warning-soft:#3b3528; --danger:#ffa5b9; --danger-soft:#462b38;
+  }
+  html, body {background:var(--canvas); color:var(--text);}
+  :root body {font-family:var(--font-sans);}
+  :root body :is(h1,h2,h3,h4) {font-family:var(--font-sans);font-weight:600;letter-spacing:-.035em;text-wrap:balance;}
+  :root body :is(button,a,summary,input,select,textarea):focus-visible {outline:3px solid var(--focus)!important;outline-offset:3px;}
+  :root body button {letter-spacing:normal;}
+  :root body :is(.button,.button-google,.install-entry,.install-download) {border-radius:4px!important;font-weight:600;}
+  :root body button:is(.button-primary,#saveChanges),
+  :root body #app button:is(.button-primary,#saveChanges) {background:var(--brand)!important;color:var(--on-brand)!important;text-decoration:none!important;padding:12px 20px;min-height:46px;}
+  :root body button:is(.button-primary,#saveChanges):hover:not(:disabled) {background:var(--brand-hover)!important;}
+  :root body button:is(.button-secondary,.button-outline,.button-google),
+  :root body #app button:is(.button-secondary,.button-outline,.button-google) {background:var(--surface-subtle)!important;color:var(--text)!important;}
+  :root body button:is(.button-secondary,.button-outline,.button-google):hover:not(:disabled) {background:var(--border-light)!important;}
+  :root body button.button-danger {background:var(--danger-soft)!important;color:var(--danger)!important;}
+  :root body :is(.button,.button-google,.sidebar-link,.tab,.level-card,.section-card,.recent-class-row) .action-label::after {display:none;}
+  :root body :is(button,a,summary):not(:disabled) {transition:background-color 160ms ease,color 160ms ease,transform 180ms var(--remaster-ease)!important;}
+  :root body #app button:is(.section-card,.recent-class-row,.level-card):not(:disabled):hover {transform:none!important;filter:none!important;}
+  :root body a[data-action]:hover {transform:none!important;filter:none!important;}
+  :root body button:disabled {cursor:not-allowed;}
+
+  /* The entrance is a campus prospectus beside a working sign-in slip. */
+  :root body .welcome-nav {min-height:96px;padding:20px max(32px,calc((100vw - 1320px)/2));background:var(--canvas);gap:24px;}
+  :root body .welcome-brand {gap:13px;}
+  :root body .welcome-brand img {width:39px;height:48px;}
+  :root body .welcome-brand-copy strong {font-size:19px;font-weight:700;letter-spacing:-.025em;}
+  :root body .welcome-brand-copy small {font-size:13px;}
+  :root body .welcome-tools {gap:20px;}
+  :root body .welcome-tools :is(.theme-toggle,.welcome-policy,.install-entry) {font-size:13px;min-height:44px;color:var(--text)!important;padding:8px;}
+  :root body .welcome-tools .install-entry {background:var(--surface-subtle);}
+  :root body .login-screen {grid-template-columns:minmax(0,1.25fr) minmax(350px,.85fr);max-width:1320px;gap:0 64px;margin:20px auto 0;padding:0 32px 48px;align-items:start;}
+  :root body .welcome-story {position:relative;display:flex;padding:0;margin:0;background:var(--remaster-cover);color:var(--remaster-cover-ink);overflow:hidden;animation:none;}
+  :root body .welcome-story-copy {padding:42px 40px 28px;}
+  :root body .welcome-story h2 {font-family:var(--font-serif);font-size:clamp(44px,4.8vw,66px);font-weight:400;line-height:1.02;letter-spacing:-.045em;max-width:none;margin:0 0 20px;color:var(--remaster-cover-ink);}
+  :root body .welcome-story-copy>p {max-width:39ch;color:#d7e4ec;font-size:17px;line-height:1.6;margin:0;}
+  :root body .welcome-story figure {order:initial;width:100%;margin:0;background:var(--remaster-cover);}
+  :root body .campus-window {height:268px;overflow:hidden;}
+  :root body .welcome-story figure img {width:100%;height:calc(100% + 44px);max-width:none;object-fit:cover;object-position:center 62%;transform:translateY(calc(-22px + var(--cover-travel,0px)));}
+  :root body #app .welcome-story figcaption {display:flex;justify-content:space-between;gap:12px;background:var(--remaster-cover);padding:18px 28px 8px;margin:0;color:#edf4f8;font-size:13px;line-height:1.5;}
+  :root body #app .welcome-story .welcome-unofficial {order:initial;margin:0;width:100%;padding:0 28px 22px;background:var(--remaster-cover);color:#bdcfd9;font-size:13px;line-height:1.5;}
+  :root body .login-card {position:relative;margin:0;padding:36px 0 20px;align-self:start;animation:none;}
+  :root body .login-card::before {content:"";display:block;width:48px;height:5px;background:var(--brand);margin-bottom:28px;}
+  :root body .login-card h1 {font-size:34px;letter-spacing:-.045em;margin:0 0 8px;line-height:1.12;}
+  :root body .signin-context {font-size:16px;color:var(--muted);margin:0 0 28px;line-height:1.5;}
+  :root body .login-card .field-label {font-size:14px;margin:0 0 16px!important;}
+  :root body .login-card :is(input,textarea) {background:var(--surface);border:1px solid var(--border);border-radius:4px!important;min-height:50px;}
+  :root body .login-card .legacy-login-box .button {margin-top:8px!important;min-height:50px;}
+  :root body .login-card .legacy-toggle-link {color:var(--brand);}
+  :root body .login-card .login-divider {margin:18px 0 14px;}
+  :root body .login-card .button-google {width:100%;justify-content:center;border:1px solid var(--border)!important;} /* taste-skill-ignore: Boundary for a real sign-in form control. */
+  :root body .login-card .login-policy-note {margin-top:22px;}
+  :root body .project-about {position:relative;grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin:80px 0 0;padding:40px 0 0;gap:24px 64px;background:transparent;}
+  :root body .project-about h2 {font:400 clamp(32px,3vw,42px)/1.1 var(--font-serif);color:var(--text);margin:0;}
+  :root body .project-subtitle {font-size:15px;line-height:1.6;max-width:48ch;}
+  :root body .project-subtitle em {font-style:normal;}
+  :root body .project-about section {padding:16px 0;}
+  :root body .project-about section h3 {font-size:21px;margin-bottom:14px;}
+  :root body .project-about section p {font-size:16px;line-height:1.7;max-width:58ch;margin:0 0 14px;}
+  :root body .project-about .project-standout {padding:28px 32px;background:var(--surface-subtle);}
+
+  /* A continuous navy spine anchors the paper working surface. */
+  :root body :is(.app-layout,.app-layout.sheet-layout) {--sidebar-width:236px;}
+  :root body .app-sidebar {padding:28px 16px 20px;background:var(--remaster-navy)!important;gap:16px;}
+  :root body .sidebar-brand {padding:0 12px;gap:12px;}
+  :root body .sidebar-brand-copy strong {font-size:23px;letter-spacing:-.04em;}
+  :root body .sidebar-brand-copy small {color:var(--sidebar-muted);font-size:12px;}
+  :root body #app .sidebar-label {font-size:12px!important;color:var(--sidebar-muted)!important;margin:16px 12px 8px;}
+  :root body #app .app-sidebar .sidebar-link {color:#e6eff4!important;border-radius:4px!important;font-size:14px;min-height:44px;}
+  :root body #app .app-sidebar .sidebar-link:hover:not(:disabled) {background:var(--remaster-navy-hover)!important;color:#fff!important;}
+  :root body #app .app-sidebar .sidebar-link[aria-current="page"] {background:#eaf1f5!important;color:#15394e!important;}
+  :root body #app .app-sidebar .sidebar-link[aria-current="page"] .ui-icon {color:#15394e!important;}
+  :root body #app .sidebar-mode-option[aria-pressed="true"] {background:var(--remaster-navy-hover)!important;color:#fff!important;}
+  :root body #app .sidebar-mode-option[aria-pressed="true"]::before {background:var(--remaster-gold);}
+  :root body #app .sidebar-search-block {padding:6px 0 0;margin:0;}
+  :root body #app .sidebar-search label {color:var(--sidebar-muted)!important;font-size:12px;line-height:1.5;}
+  :root body #app .sidebar-search input {background:#204456!important;color:#fff!important;border-color:#648494!important;border-radius:4px!important;font-size:14px;}
+  :root body #app .sidebar-search input::placeholder {color:#c7d6df!important;}
+  :root body #app .sidebar-search button {background:#315569!important;color:#fff!important;min-height:42px;}
+  :root body #app .sidebar-toggle {margin:0 0 0 auto;background:transparent!important;}
+  :root body .sidebar-owner {color:var(--sidebar-muted);font-size:12px;line-height:1.6;overflow-wrap:anywhere;}
+  /* Match the legacy selector's ID specificity, including its dormant save ID. */
+  :root body #app .app-sidebar :is(button,#saveChanges):is([aria-pressed="true"]) {color:#fff!important;}
+  :root body #app .app-sidebar :is(button,#saveChanges):is([aria-current="page"]) {color:#15394e!important;}
+  :root body #app .app-sidebar button.sidebar-link[aria-current="page"] {background:#eaf1f5!important;color:#15394e!important;}
+  :root body #app .app-sidebar button.sidebar-link :is(span,.action-copy,.action-label) {color:inherit!important;}
+  :root body #app .sidebar-link[aria-current="page"]::before {display:none;}
+  :root body .app-header {background:var(--surface)!important;padding:20px 36px;border:0;box-shadow:none;}
+  :root body .app-header-inner {max-width:none;min-height:54px;gap:18px;}
+  :root body .app-title {font-size:23px;letter-spacing:-.035em;}
+  :root body .policy-note {font-size:12px;color:var(--muted);}
+  :root body .header-actions-wrap {gap:18px;}
+  :root body .save-feedback {text-align:right;}
+  :root body .save-status {font-size:13px;color:var(--text);}
+  :root body .save-meta {font-size:12px;color:var(--muted);}
+  :root body #app #saveChanges {min-height:44px;border-radius:4px!important;}
+  :root body .app-shell {max-width:1540px;padding:36px;}
+  :root body .dashboard {display:flex;gap:28px;}
+  :root body .workspace-intro {order:0;margin:0;padding:0 0 4px;align-items:center;gap:20px;}
+  :root body .workspace-intro h2 {font-size:clamp(28px,2.6vw,38px);line-height:1.15;letter-spacing:-.04em;margin:0 0 8px;}
+  :root body .workspace-intro p {font-size:15px;color:var(--muted);margin:0;}
+  :root body .metric-grid {order:1;padding:26px 8px;background:var(--surface);border-radius:4px;}
+  :root body .metric-card {padding:0 24px;}
+  :root body .metric-card p {font-size:13px;margin-bottom:12px;}
+  :root body .metric-card strong {font-size:38px;letter-spacing:-.045em;line-height:1.05;font-variant-numeric:tabular-nums;}
+  :root body .metric-card small {font-size:12px;line-height:1.5;}
+  :root body .metric-card.metric-progress strong {color:var(--brand);}
+  :root body .progress-track {background:var(--surface-subtle);height:5px;}
+  :root body .progress-track span {background:var(--brand);}
+  :root body .dashboard-grid {order:2;}
+  :root body .dashboard-panel.recent-panel {padding:28px 30px;border-radius:4px;}
+  :root body .panel-heading h3 {font-size:22px;letter-spacing:-.025em;}
+  :root body .panel-count {font-size:13px;padding:4px 8px;border-radius:4px;}
+  :root body .recent-class-group-heading {font-size:12px;padding:10px 14px;background:var(--canvas);color:var(--muted);}
+  :root body #app button.recent-class-row {padding:20px 14px;background:var(--surface)!important;gap:22px;border-radius:4px!important;}
+  :root body #app button.recent-class-row:hover {background:var(--surface-subtle)!important;}
+  :root body #app .recent-class-main strong {font-size:18px;font-weight:600;letter-spacing:-.025em;}
+  :root body .recent-class-main small {font-size:14px;}
+  :root body .recent-class-stat strong {font-size:19px;}
+  :root body .recent-class-stat small {font-size:12px;}
+  :root body .dashboard-hero {order:3;grid-template-columns:180px minmax(0,1fr);gap:32px;padding:30px;border-radius:4px;background:var(--surface);}
+  :root body .dashboard-hero h2 {font-size:22px;margin:0 0 8px;}
+  :root body .dashboard-hero .owner-context {font-size:13px;color:var(--muted);}
+  :root body .dashboard-hero .photo-frame {width:88px;height:88px;border-radius:50%!important;margin-top:22px;background:var(--surface-subtle)!important;}
+  :root body #app .dashboard-hero .owner-intro {align-items:flex-start;text-align:left;gap:8px;}
+  :root body #app .dashboard-hero button.photo-frame {width:96px!important;height:96px!important;min-height:96px!important;flex:0 0 96px;margin:12px 0 0!important;background:var(--surface-subtle)!important;overflow:hidden;}
+  :root body #app .photo-placeholder {flex:0 0 auto;width:24px;height:24px;}
+  :root body #app .photo-caption {display:block;max-width:88px;font-size:12px;line-height:1.4;}
+  :root body .profile-field>span {font-size:13px!important;color:var(--muted)!important;font-weight:500;}
+  :root body .profile-editor :is(input,select,textarea) {padding:10px 12px!important;background:var(--surface-subtle)!important;border:1px solid transparent!important;border-radius:4px!important;min-height:44px;font-size:16px!important;color:var(--text)!important;}
+  :root body .profile-editor :is(input,select,textarea):focus {background:var(--surface)!important;border-color:var(--focus)!important;}
+  :root body .profile-editor .teacher-name-input {font-weight:600;font-size:20px!important;}
+  :root body .owner-footer {padding-top:18px;}
+
+  /* Class covers and period tabs use the same filled paper vocabulary. */
+  :root body .record-chooser .section-heading h2 {font-size:34px;letter-spacing:-.04em;}
+  :root body .level-grid {margin:28px 0 24px;gap:16px;}
+  :root body #app button.level-card {background:var(--surface)!important;padding:24px 28px;min-height:104px;border-radius:4px!important;}
+  :root body #app button.level-card.is-active {background:var(--remaster-navy)!important;color:#fff!important;}
+  :root body #app button.level-card.is-active strong {color:#fff!important;}
+  :root body #app .level-card .level-edge {top:0;bottom:0;width:4px;}
+  :root body #app .level-card .edge-yellow,:root body #app .level-card .edge-baby-blue {left:4px;}
+  :root body #app .level-card .edge-red,:root body #app .level-card .edge-deep-red {left:8px;}
+  :root body #app .level-card .edge-blue {left:12px;}
+  :root body .level-card strong {font-size:21px;}
+  :root body .archive-toggle-bar {background:transparent;padding:0;}
+  :root body #app button.archive-pill {padding:12px 18px;border-radius:4px!important;color:var(--muted)!important;}
+  :root body #app button.archive-pill[aria-pressed="true"] {background:var(--surface)!important;color:var(--text)!important;}
+  :root body .section-card-grid {gap:20px;}
+  :root body .section-card-wrap {border-radius:4px;background:var(--surface);}
+  :root body #app button.section-card {min-height:218px;padding:28px;border:0!important;border-radius:4px!important;background:var(--surface)!important;}
+  :root body #app button.section-card:hover {background:var(--surface-subtle)!important;}
+  :root body #app .section-card .class-card-edge {top:0;bottom:0;width:5px;}
+  :root body .section-card strong {font-size:26px;letter-spacing:-.035em;}
+  :root body .section-card-weights {font-variant-numeric:tabular-nums;gap:12px;}
+  :root body .section-card-link {align-self:flex-end;}
+  :root body .kebab-btn {min-height:44px;width:44px;top:8px;right:8px;}
+  :root body .empty-state {padding:40px 24px;}
+  :root body .empty-icon {background:var(--surface-subtle);color:var(--brand);border-radius:50%;}
+
+  /* No transforms on sheet ancestors: sticky headers and selections stay exact. */
+  :root body .sheet-layout .app-shell {padding:28px;}
+  :root body #app .record-section .class-header-card {padding:24px 28px;border-radius:4px;background:var(--surface)!important;}
+  :root body #app .record-section .class-name {font-size:clamp(28px,2.8vw,40px)!important;letter-spacing:-.045em;}
+  :root body .record-section .class-context-line {gap:16px;font-size:13px;}
+  :root body #app .record-section .period-tabs button.tab {border-radius:4px!important;padding:11px 17px;color:var(--muted)!important;}
+  :root body #app .record-section .period-tabs button.tab[aria-pressed="true"] {background:var(--brand)!important;color:var(--on-brand)!important;}
+  :root body .period-completion-dot {color:inherit!important;}
+  :root body .table-scroll {background:var(--surface);border-radius:4px;}
+  :root body .record-section .sheet-utilities {gap:12px;}
+  :root body .record-section :is(.sheet-caption,.entry-focus-controls p) {color:var(--muted);}
+  :root body :is(.activity-register,.student-report-card,.student-report-editor) {background:var(--surface);border-radius:4px;}
+  :root body :is(.modal,.backup-dialog,.install-dialog,.policy-dialog) {background:var(--surface);color:var(--text);border-radius:8px!important;}
+  :root body :is(.modal h2,.policy-dialog h1) {letter-spacing:-.035em;}
+  :root body .modal :is(input,select,textarea) {background:var(--surface-subtle);border-color:var(--border);color:var(--text);border-radius:4px;}
+  :root body .theme-toggle {color:var(--text)!important;}
+  :root body .theme-switch-track {background:var(--border)!important;}
+  :root body [aria-pressed="true"] .theme-switch-track {background:var(--brand)!important;}
+
+  @media (min-width:1001px) {
+    :root body .sidebar-collapsed .sidebar-brand {padding:0;}
+    :root body .sidebar-collapsed .sidebar-toggle {margin:0;}
+    :root body .sidebar-collapsed .app-sidebar {padding-inline:12px;}
+    :root body .sidebar-collapsed .sidebar-link {padding:12px!important;}
+  }
+  @media (max-width:1150px) and (min-width:1001px) {
+    :root body .app-shell {padding:28px;}
+    :root body .app-header {padding:18px 28px;}
+    :root body .policy-note {display:none;}
+    :root body .metric-card {padding-inline:16px;}
+    :root body .dashboard-hero {grid-template-columns:150px minmax(0,1fr);gap:24px;}
+  }
+  @media (max-width:1000px) {
+    :root body .welcome-nav {padding:18px 24px;min-height:88px;flex-wrap:wrap;gap:12px;}
+    :root body .welcome-brand-copy small {max-width:35ch;}
+    :root body .welcome-tools {gap:8px;}
+    :root body .welcome-tools .theme-toggle-label {display:none;}
+    :root body .welcome-tools .install-entry {font-size:12px;}
+    :root body .login-screen {grid-template-columns:minmax(0,1fr) minmax(300px,.9fr);gap:0 32px;padding-inline:24px;margin-top:12px;}
+    :root body .welcome-story-copy {padding:32px 28px 24px;}
+    :root body .welcome-story h2 {font-size:44px;}
+    :root body .welcome-story-copy>p {font-size:16px;}
+    :root body .campus-window {height:250px;}
+    :root body .welcome-story figcaption {display:block;}
+    :root body .welcome-story figcaption>span:last-child {display:none;}
+    :root body .login-card {padding-top:24px;}
+    :root body .login-card h1 {font-size:30px;}
+    :root body #app .login-card {padding:24px 16px!important;}
+    :root body #app .login-card h1 {font-size:42px!important;}
+    :root body #app .welcome-story figure {display:flex!important;min-height:0;max-height:none;width:100%;margin:0;}
+    :root body #app .welcome-story h2 {font-size:44px!important;line-height:1.04!important;}
+    :root body .project-about {gap:20px 32px;margin-top:56px;}
+    :root body #app .app-header {padding:14px 20px!important;background:var(--surface)!important;}
+    :root body #app .app-shell {padding:24px 20px calc(var(--phone-nav) + 32px + env(safe-area-inset-bottom,0px))!important;}
+    :root body #app .workspace-intro h2 {font-size:30px!important;}
+    :root body #app .workspace-intro {margin:0!important;align-items:center;}
+    :root body #app .metric-grid {padding:20px 8px;gap:24px 0!important;}
+    :root body #app .metric-card {padding:8px 18px!important;}
+    :root body #app .metric-card strong {font-size:34px;}
+    :root body #app .dashboard-panel.recent-panel {padding:24px 20px;}
+    :root body #app .dashboard-hero {padding:24px!important;}
+    :root body #app .mobile-navigation {background:var(--remaster-navy)!important;color:#f6f8fa;border:0!important;padding-top:8px;}
+    :root body #app .mobile-navigation button {color:#d8e6ee!important;border-radius:4px!important;}
+    :root body #app .mobile-navigation button[aria-current="page"] {background:var(--remaster-navy-hover)!important;color:#fff!important;}
+    :root body #app .phone-entry {margin-top:20px;}
+    :root body #app .phone-assessment {padding:20px;border-radius:4px;background:var(--surface);}
+    :root body #app .phone-score-row {background:var(--surface);border-radius:4px;padding:16px;}
+    :root body #app .phone-code-tools:not(.is-active) {position:static;}
+    :root body #app .record-section .class-header-card {padding:20px!important;}
+  }
+  @media (max-width:700px) {
+    :root body .welcome-nav {padding:16px 20px;}
+    :root body .welcome-brand-copy strong {font-size:17px;}
+    :root body .welcome-brand-copy small {font-size:12px;max-width:27ch;}
+    :root body .welcome-brand img {width:32px;height:41px;}
+    :root body .welcome-tools {width:100%;justify-content:flex-end;gap:12px;}
+    :root body .welcome-tools .theme-toggle {margin-right:auto;}
+    :root body .welcome-tools .welcome-policy {font-size:12px;}
+    :root body .login-screen {display:flex!important;flex-direction:column;gap:0;max-width:540px;padding:0 20px 32px;margin-top:8px;}
+    :root body .welcome-story {width:100%;order:0;}
+    :root body .welcome-story-copy {padding:26px 26px 22px;}
+    :root body .welcome-story h2 {font-size:clamp(34px,8.5vw,48px);line-height:1.04;margin-bottom:16px;}
+    :root body .welcome-story-copy>p {font-size:15px;line-height:1.55;}
+    :root body .campus-window {height:152px;}
+    :root body .welcome-story figcaption {font-size:11px;padding:12px 20px 4px;}
+    :root body .welcome-story .welcome-unofficial {font-size:11px;padding:0 20px 14px;}
+    :root body .login-card {order:1;width:100%;padding:32px 0 0;}
+    :root body .login-card::before {margin-bottom:20px;}
+    :root body .login-card h1 {font-size:32px;}
+    :root body #app .login-card h1 {font-size:32px!important;}
+    :root body #app .welcome-story h2 {font-size:clamp(32px,8.5vw,44px)!important;}
+    :root body #app .welcome-story figcaption {padding:12px 20px 4px;font-size:13px;}
+    :root body #app .welcome-story .welcome-unofficial {padding:0 20px 16px;font-size:13px;}
+    :root body .signin-context {margin-bottom:24px;}
+    :root body .project-about {order:2;display:block;width:100%;margin-top:48px;padding-top:0;}
+    :root body .project-about h2 {font-size:32px;}
+    :root body .project-subtitle {margin:16px 0 24px;}
+    :root body .project-about section {padding-block:20px;}
+    :root body .project-about .project-standout {padding:24px;margin-top:16px;}
+    :root body #app .workspace-intro {flex-wrap:wrap;gap:16px;}
+    :root body #app .workspace-intro h2 {font-size:30px!important;}
+    :root body #app .workspace-intro>.button {min-height:44px;padding:10px 16px;}
+    :root body #app .dashboard {gap:24px;}
+    :root body #app .panel-heading {gap:12px;align-items:flex-start;}
+    :root body #app .panel-heading h3 {font-size:20px;}
+    :root body #app .panel-heading>.button {font-size:13px;padding:0;min-height:44px;white-space:nowrap;}
+    :root body #app button.recent-class-row {gap:12px;padding:18px 0;}
+    :root body #app .recent-class-main strong {font-size:17px;}
+    :root body #app .recent-class-main small {font-size:13px;}
+    :root body #app .dashboard-hero {padding:24px 20px!important;}
+    :root body #app .owner-intro {margin-bottom:20px;}
+    :root body #app .record-chooser .section-heading {gap:16px;}
+    :root body #app .record-chooser .section-heading h2 {font-size:28px;}
+    :root body #app .level-grid {gap:12px;}
+    :root body #app button.level-card {padding:20px 20px 20px 24px;min-height:104px;}
+    :root body #app .level-card strong {font-size:18px;line-height:1.3;}
+    :root body #app .section-card-grid {gap:16px;}
+    :root body #app .archive-pills {gap:4px;}
+    :root body #app button.archive-pill {padding:10px 12px;font-size:14px;}
+    :root body #app .record-section .class-name {font-size:30px!important;}
+    :root body #app .class-context-line {font-size:13px;gap:8px 14px;}
+  }
+  @media (prefers-reduced-motion:no-preference) {
+    :root body .welcome-story-copy h2,
+    :root body .welcome-story-copy>p,
+    :root body .welcome-story figure,
+    :root body .welcome-story .welcome-unofficial,
+    :root body .login-card h1,
+    :root body .signin-context,
+    :root body .login-card .legacy-login-box,
+    :root body .login-card .login-cta-group {animation:remaster-arrive 650ms var(--remaster-ease) both;}
+    :root body .welcome-story-copy>p {animation-delay:60ms;}
+    :root body .welcome-story figure {animation-delay:90ms;}
+    :root body .welcome-story .welcome-unofficial {animation-delay:120ms;}
+    :root body .login-card h1 {animation-delay:80ms;}
+    :root body .signin-context {animation-delay:140ms;}
+    :root body .login-card .legacy-login-box {animation-delay:180ms;}
+    :root body .login-card .login-cta-group {animation-delay:220ms;}
+    @keyframes remaster-arrive {from {transform:translateY(12px);}to {transform:translateY(0);}}
+  }
+  @media (prefers-reduced-motion:reduce) {
+    :root body *, :root body *::before, :root body *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important;}
+    :root body .welcome-story figure img {transform:translateY(-22px);}
+  }
+}

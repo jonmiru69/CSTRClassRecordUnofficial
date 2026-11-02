@@ -22,7 +22,7 @@ const fixture=`<script>
 })();</script>`;
 html=html.replace(/<script src="ASSETS\/app\.js[^"<]*"><\/script>/,fixture+'<script src="ASSETS/app.js?v=preview"></script>');
 html=html.replaceAll('="ASSETS/','="../ASSETS/');
-html=html.replace('<div id="app"','<p style="margin:0;padding:8px 16px;background:#731c32;color:white;font:16px Arial">Synthetic mobile preview. No live teacher records.</p><div id="app"');
+html=html.replace('<div id="app"','<p style="position:relative;z-index:90;text-align:center;margin:0;padding:8px 16px;background:#123347;color:white;font:14px Arial">Synthetic preview. No live teacher records.</p><div id="app"');
 html=html.replace('</body>',`<script>
 if(new URLSearchParams(location.search).get('export')==='pdf'){
   const button=document.createElement('button');button.textContent='Export synthetic PDF';button.type='button';button.style.cssText='position:fixed;right:16px;top:8px;z-index:9999;padding:14px;background:white;color:black';
