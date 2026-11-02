@@ -1,5 +1,7 @@
 # Faculty ledger visual remaster
 
+The later teacher-introduction revision places Teacher details first in the Overview. See `TEACHER-INTRODUCTION.md`; it supersedes the original overview ordering described below.
+
 The visual system now links the real campus cover, navy navigation, burgundy actions, class directory and paper-like grade sheet. Classes and completion lead the teaching desk; teacher details remain fully editable below. The source order matches the visual order for keyboard navigation.
 
 ## Scope

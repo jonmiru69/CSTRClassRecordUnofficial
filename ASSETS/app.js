@@ -1377,6 +1377,30 @@
     const recentClasses = buildActiveClassRows(metrics.activeSections);
 
     return `<section class="dashboard">
+      <section class="dashboard-hero" aria-labelledby="ownerTitle">
+        <div class="owner-intro">
+          <p class="eyebrow">Teacher profile</p>
+          <h2 id="ownerTitle">Teacher details</h2>
+          <p class="owner-context">${state.calendarMode === "trimester" ? "Trimester" : "Quarterly / Semestral"} workspace</p>
+          <input id="photoInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" hidden>
+          <button class="photo-frame" type="button" data-action="choose-photo" data-has-photo="${Boolean(state.photo)}" aria-label="${state.photo ? "Change" : "Upload"} teacher photo" title="${state.photo ? "Change" : "Upload"} teacher photo">${portrait}</button>
+        </div>
+        <div class="owner-workspace">
+          <p class="teacher-welcome">The teacher behind every class.</p>
+          <div class="profile-editor">
+            <div class="teacher-block">
+              <label class="profile-field profile-name-field"><span>Full name</span><input type="text" class="teacher-name-input" data-teacher="name" value="${safeValue(state.teacher.name)}" placeholder="Full name"></label>
+              <label class="profile-field"><span>School level</span><select class="teacher-meta-input" data-teacher="level"><option value="Elementary" ${state.teacher.level === "Elementary" ? "selected" : ""}>Elementary</option><option value="Secondary" ${state.teacher.level === "Secondary" ? "selected" : ""}>Secondary</option></select></label>
+              <label class="profile-field"><span>Specialization</span><input type="text" class="teacher-meta-input" data-teacher="specialization" value="${safeValue(state.teacher.specialization)}" placeholder="e.g. Science and Research"></label>
+              <label class="profile-field profile-bio-field"><span>Professional bio</span><textarea class="teacher-bio-input" data-teacher="bio" placeholder="Short bio or role description">${safeValue(state.teacher.bio)}</textarea></label>
+            </div>
+          </div>
+          <div class="owner-footer"><div class="dashboard-hero-actions">
+            ${button(`${icon("records")}<span>Open class records</span>`, "go-records", "button button-primary")}
+            ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-secondary")}
+          </div></div>
+        </div>
+      </section>
       <div class="workspace-intro"><div><h2>Your teaching desk</h2><p>${state.calendarMode === "trimester" ? "Trimester" : "Quarterly / Semestral grading"}.</p></div>${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}</div>
       <div class="metric-grid" aria-label="Class record overview">
         <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
@@ -1392,29 +1416,7 @@
         </section>
       </div>
 
-      <section class="dashboard-hero" aria-labelledby="ownerTitle">
-        <div class="owner-intro">
-          <p class="eyebrow">Teacher profile</p>
-          <h2 id="ownerTitle">Teacher details</h2>
-          <p class="owner-context">${state.calendarMode === "trimester" ? "Trimester" : "Quarterly / Semestral"} workspace</p>
-          <input id="photoInput" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" hidden>
-          <button class="photo-frame" type="button" data-action="choose-photo" data-has-photo="${Boolean(state.photo)}" aria-label="${state.photo ? "Change" : "Upload"} teacher photo" title="${state.photo ? "Change" : "Upload"} teacher photo">${portrait}</button>
-        </div>
-        <div class="owner-workspace">
-          <div class="profile-editor">
-            <div class="teacher-block">
-              <label class="profile-field profile-name-field"><span>Full name</span><input type="text" class="teacher-name-input" data-teacher="name" value="${safeValue(state.teacher.name)}" placeholder="Full name"></label>
-              <label class="profile-field"><span>School level</span><select class="teacher-meta-input" data-teacher="level"><option value="Elementary" ${state.teacher.level === "Elementary" ? "selected" : ""}>Elementary</option><option value="Secondary" ${state.teacher.level === "Secondary" ? "selected" : ""}>Secondary</option></select></label>
-              <label class="profile-field"><span>Specialization</span><input type="text" class="teacher-meta-input" data-teacher="specialization" value="${safeValue(state.teacher.specialization)}" placeholder="e.g. Science and Research"></label>
-              <label class="profile-field profile-bio-field"><span>Professional bio</span><textarea class="teacher-bio-input" data-teacher="bio" placeholder="Short bio or role description">${safeValue(state.teacher.bio)}</textarea></label>
-            </div>
-          </div>
-          <div class="owner-footer"><div class="dashboard-hero-actions">
-            ${button(`${icon("records")}<span>Open class records</span>`, "go-records", "button button-primary")}
-            ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-secondary")}
-          </div></div>
-        </div>
-      </section>
+
 
     </section>`;
   }

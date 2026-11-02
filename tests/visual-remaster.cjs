@@ -63,7 +63,7 @@ async function run(){
       await contrast(page,'.metric-card p',label+' metric labels');
       if(width>1000)await contrast(page,'.app-sidebar button[aria-current="page"] .action-label',label+' active navigation');
       const order=await page.locator('.workspace-intro,.metric-grid,.dashboard-hero').evaluateAll(es=>Object.fromEntries(es.map(e=>[e.className,e.getBoundingClientRect().top])));
-      check(label+' classes lead teacher profile',order['workspace-intro']<order['metric-grid']&&order['metric-grid']<order['dashboard-hero']);
+      check(label+' teacher introduction leads the overview',order['dashboard-hero']<order['workspace-intro']&&order['workspace-intro']<order['metric-grid']);
       if(width===1440||width===390)await shot(page,'desk-'+label);
       if(width>1000){await page.locator('[data-action="toggle-sidebar"]').click();await layout(page,label+' collapsed navigation');await page.locator('[data-action="toggle-sidebar"]').click();}
       await page.locator('.recent-class-row').first().click();await settle(page);await layout(page,label+' assessment');
