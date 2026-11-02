@@ -973,13 +973,13 @@
       : renderSignInPanel();
 
     return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/logo-compact.png" alt=""><span class="welcome-brand-copy"><strong>CST-R Class Record</strong><small>Colegio de Sto. Tomás–Recoletos · Unofficial</small></span></a><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen">
-      <div class="welcome-story"><h2>Every class.<br>Clearly recorded.</h2><p>Keep class rosters, assessment scores, and grade reviews together in your teacher workspace.</p><div class="welcome-features"><span>${icon("records")} Class records</span><span>${icon("save")} Visible save status</span><span>${icon("lock")} Teacher access</span></div><figure><img src="ASSETS/campus.webp" width="1400" height="788" loading="lazy" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"><figcaption>Colegio de Sto. Tomás – Recoletos</figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
+      <div class="welcome-story"><div class="welcome-story-copy"><h2>Every class.<br>Clearly recorded.</h2><p>From the first assessment to the final grade. A considered workspace for the CST-R faculty.</p></div><figure><div class="campus-window"><img src="ASSETS/campus.webp" width="1400" height="788" fetchpriority="high" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"></div><figcaption><span>Colegio de Sto. Tomás – Recoletos</span><span>Faculty workspace</span></figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
       <div class="login-card">
         <div class="login-header-logo">
           <img src="ASSETS/logo-compact.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
         </div>
 
-        <h1>${titles[loginPanel]}</h1>
+        <h1>${titles[loginPanel]}</h1><p class="signin-context">${loginPanel === "signin" ? "Your teaching desk is ready." : loginPanel === "signup" ? "A workspace for your teaching day." : "Return to your teaching workspace."}</p>
 
 
         ${panelBody}
@@ -988,12 +988,12 @@
         <p id="loginSuccess" class="login-success" role="status" style="display: none;"></p>
       </div>
       <article class="project-about" aria-labelledby="projectTitle">
-        <h2 id="projectTitle">Built by a teacher.<br>For the faculty.</h2>
+        <h2 id="projectTitle">Made for the faculty.</h2>
         <p class="project-subtitle"><em>Unofficial Digital Grading Platform of Colegio de Sto. Tomás – Recoletos, Incorporated</em></p>
         <section><h3>About the Project</h3><p>This platform is the unofficial class record system of Colegio de Sto. Tomás – Recoletos, Incorporated, built to bring accuracy, consistency, and convenience to everyday classroom grade management.</p></section>
-        <section><h3>About the Developer</h3><p>Designed and developed through vibe coding by Sir Ramelito &quot;Johnmil&quot; Jr. C. Sanchez, LPT — a Licensed Professional Teacher, Science and Research educator, and graduate of Science Education — as a personal initiative to give CSTR faculty a faster, more reliable way to handle their records.</p></section>
-        <section><h3>Features &amp; Advantages</h3><p>Configurable grade computation across Written Work, Performance Tasks, and Quarterly Assessments. Color-coded, easy-to-navigate class and section management. Teacher-assisted lookup of an individual learner’s results within the signed-in workspace.</p><p>Real-time sync across devices — log in anywhere and pick up right where you left off. Developer-approved account access. Excel, PDF and Word exports for teacher review before submission.</p></section>
-        <section class="project-standout"><h3>The Standout Feature</h3><p>What sets this system apart is its live, cross-device synchronization — access to the latest successfully saved record from another approved sign-in. Your class record simply follows you, available across signed-in devices after a successful cloud save. Check the save status before switching devices.</p></section>
+        <section><h3>About the Developer</h3><p>Designed and developed through vibe coding by Sir Ramelito &quot;Johnmil&quot; Jr. C. Sanchez, LPT, a Licensed Professional Teacher, Science and Research educator, and graduate of Science Education, as a personal initiative to give CSTR faculty a faster, more reliable way to handle their records.</p></section>
+        <section><h3>Features &amp; Advantages</h3><p>Configurable grade computation across Written Work, Performance Tasks, and Quarterly Assessments. Color-coded, easy-to-navigate class and section management. Teacher-assisted lookup of an individual learner’s results within the signed-in workspace.</p><p>Real-time sync across devices. Log in anywhere and pick up right where you left off. Developer-approved account access. Excel, PDF and Word exports for teacher review before submission.</p></section>
+        <section class="project-standout"><h3>The Standout Feature</h3><p>What sets this system apart is its live, cross-device synchronization: access to the latest successfully saved record from another approved sign-in. Your class record simply follows you, available across signed-in devices after a successful cloud save. Check the save status before switching devices.</p></section>
       </article>
     </section>`;
   }
@@ -1377,6 +1377,21 @@
     const recentClasses = buildActiveClassRows(metrics.activeSections);
 
     return `<section class="dashboard">
+      <div class="workspace-intro"><div><h2>Your teaching desk</h2><p>${state.calendarMode === "trimester" ? "Trimester" : "Quarterly / Semestral grading"}.</p></div>${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}</div>
+      <div class="metric-grid" aria-label="Class record overview">
+        <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
+        <article class="metric-card"><span class="metric-icon">${icon("users")}</span><div><p>Total learners</p><strong>${metrics.learners}</strong><small>Across active class rosters</small></div></article>
+        <article class="metric-card"><span class="metric-icon">${icon("chart")}</span><div><p>Complete periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>All required entries present</small></div></article>
+        <article class="metric-card metric-progress"><span class="metric-icon">${icon("chart")}</span><div><p>Entry completion</p><strong>${metrics.completion}%</strong><div class="progress-track" aria-label="${metrics.completion}% of periods complete"><span style="width:${metrics.completion}%"></span></div></div></article>
+      </div>
+
+      <div class="dashboard-grid">
+        <section class="dashboard-panel recent-panel">
+          <div class="panel-heading"><div><h3>Active class records${metrics.activeSections.length ? ` <span class="panel-count">${metrics.activeSections.length}</span>` : ""}</h3></div>${button(`View all ${icon("arrow")}`, "go-records", "button button-ghost button-small")}</div>
+          <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
+        </section>
+      </div>
+
       <section class="dashboard-hero" aria-labelledby="ownerTitle">
         <div class="owner-intro">
           <p class="eyebrow">Teacher profile</p>
@@ -1400,21 +1415,6 @@
           </div></div>
         </div>
       </section>
-      <div class="workspace-intro"><div><h2>Your teaching desk</h2><p>${state.calendarMode === "trimester" ? "Trimester" : "Quarterly / Semestral grading"}.</p></div>${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}</div>
-
-      <div class="metric-grid" aria-label="Class record overview">
-        <article class="metric-card metric-primary"><span class="metric-icon">${icon("classes")}</span><div><p>Active classes</p><strong>${metrics.activeSections.length}</strong><small>${metrics.archivedSections.length} archived record${metrics.archivedSections.length === 1 ? "" : "s"}</small></div></article>
-        <article class="metric-card"><span class="metric-icon">${icon("users")}</span><div><p>Total learners</p><strong>${metrics.learners}</strong><small>Across active class rosters</small></div></article>
-        <article class="metric-card"><span class="metric-icon">${icon("chart")}</span><div><p>Complete periods</p><strong>${metrics.lockedPeriods}<span> / ${metrics.totalPeriods}</span></strong><small>All required entries present</small></div></article>
-        <article class="metric-card metric-progress"><span class="metric-icon">${icon("chart")}</span><div><p>Entry completion</p><strong>${metrics.completion}%</strong><div class="progress-track" aria-label="${metrics.completion}% of periods complete"><span style="width:${metrics.completion}%"></span></div></div></article>
-      </div>
-
-      <div class="dashboard-grid">
-        <section class="dashboard-panel recent-panel">
-          <div class="panel-heading"><div><h3>Active class records${metrics.activeSections.length ? ` <span class="panel-count">${metrics.activeSections.length}</span>` : ""}</h3></div>${button(`View all ${icon("arrow")}`, "go-records", "button button-ghost button-small")}</div>
-          <div class="recent-class-list">${recentClasses || `<div class="empty-state compact-empty"><span class="empty-icon">${icon("classes")}</span><h4>No classes yet</h4>${button(`${icon("plus")}<span>Create first class</span>`, "open-add-class", "button button-primary")}</div>`}</div>
-        </section>
-      </div>
 
     </section>`;
   }

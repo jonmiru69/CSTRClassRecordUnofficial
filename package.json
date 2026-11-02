@@ -9,7 +9,8 @@
     "android:sync": "node tools/build-mobile.mjs && cap sync android",
     "preview": "node tools/preview.cjs",
     "test:rules": "firebase emulators:exec --only database --project demo-cstr-review \"node tests/firebase-emulator.cjs\"",
-    "build:pages": "node tools/build-pages.mjs"
+    "build:pages": "node tools/build-pages.mjs",
+    "test:visual": "node tests/create-mobile-preview.cjs && node tests/visual-remaster.cjs"
   },
   "dependencies": {
     "@capacitor/android": "8.6.0",
@@ -24,6 +25,7 @@
     "@firebase/rules-unit-testing": "^6.0.0",
     "esbuild": "^0.27.0",
     "firebase": "^13.1.0",
-    "firebase-tools": "^15.34.2"
+    "firebase-tools": "^15.34.2",
+    "playwright-core": "1.62.1"
   }
 }
