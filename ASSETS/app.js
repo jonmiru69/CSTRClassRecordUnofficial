@@ -45,7 +45,12 @@
   try { const stored = localStorage.getItem("cstr-sidebar-collapsed"); if (stored !== null) sidebarCollapsed = matchMedia("(max-width: 760px)").matches || stored === "true"; } catch (_) {}
   const hpsEdits = new WeakMap();
   let lastRenderedRecord = "";
-  let lastMotionView = "";
+  // Presentation state only; never stored with teacher records.
+  let sheetAnimation = null;
+  let keyboardInteraction = false;
+  document.addEventListener('keydown', () => { keyboardInteraction = true; }, true);
+  document.addEventListener('pointerdown', () => { keyboardInteraction = false; }, true);
+  matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', () => sheetAnimation?.cancel());
   const completionSeen = new WeakMap();
   let archiveFilter = "active"; // "active" | "archived"
   let state = createInitialState();
@@ -916,15 +921,6 @@
       app.innerHTML = signedIn ? renderApp() : renderLogin();
     }
     lastRenderedRecord = recordKey;
-    const motionView = `${signedIn}:${currentView}:${activeSectionId}:${activePeriodIndex}:${sheetEntryView}`;
-    if (lastMotionView !== motionView && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      const panel = app.querySelector(".app-shell") || app.querySelector(".login-card");
-      const phone=window.innerWidth<=1000 || window.CSTRMobile?.native;
-      // A transformed ancestor would temporarily anchor fixed score tools to the scrolling panel.
-      const frames=phone?[{opacity:.5},{opacity:1}]:[{ opacity: .5, transform: "perspective(1200px) translate3d(0,8px,-10px) rotateX(.5deg)" }, { opacity: 1, transform: "none" }];
-      panel?.animate?.(frames, { duration: phone?160:240, easing: "cubic-bezier(.22,1,.36,1)" });
-    }
-    lastMotionView = motionView;
     if (sessionStorage.getItem("cstr-class-record-login") === "true") {
       syncSaveControl();
       updateSaveIndicators();
@@ -1508,6 +1504,14 @@
         <div class="class-period-area">
           <div class="period-tabs" role="group" aria-label="Grading periods">${periods.map((entry,index) => `<button type="button" class="tab" data-action="select-period" data-period="${index}" aria-pressed="${activePeriodIndex === index}">${entry.locked ? icon("lock") : ""}<span>${escapeHtml(window.CSTRRecordTools.periodLabel(entry, section.group, index, state.calendarMode))}</span><span class="period-completion-dot" data-period-dot="${index}" aria-label="${recordCompletion(entry).complete ? "Complete" : "In progress"}">${recordCompletion(entry).complete ? "✓" : "·"}</span></button>`).join("")}</div>
           <label class="phone-period-select">Period<select data-mobile-period aria-label="Grading period">${periods.map((entry,index)=>`<option value="${index}" ${index===activePeriodIndex?'selected':''}>${escapeHtml(window.CSTRRecordTools.periodLabel(entry,section.group,index,state.calendarMode))}${entry.locked?' · Locked':''}</option>`).join('')}</select></label>
+
+        </div>
+      </section>
+      <section class="sheet-folder" aria-label="Class record folder">
+        <div class="folder-toolbar">
+          <div class="folder-tabs" role="tablist" aria-label="Grade sheet views">
+            ${[['sheet','Full grade sheet'],['activity','One assessment'],['one','One learner']].map(([view,label]) => `<button type="button" class="folder-tab" role="tab" id="view-tab-${view}" aria-controls="record-paper" aria-selected="${sheetEntryView === view}" tabindex="${sheetEntryView === view ? 0 : -1}" data-action="select-entry-view" data-view="${view}">${escapeHtml(label)}</button>`).join('')}
+          </div>
           <details class="period-settings"><summary aria-label="Period options">${icon("settings")}<span class="period-options-label">Period options</span><span class="phone-options-label">Options</span>${icon("chevron")}</summary><div class="period-toolbar">
             <label class="period-name-field" for="periodName"><span>Period name</span><input id="periodName" class="period-name" value="${safeValue(period.name)}" data-period-name ${period.locked ? "disabled" : ""}></label>
             <div id="periodCompletion" class="period-completion" role="status">${renderCompletionLabel(period, section, activePeriodIndex)}</div>
@@ -1520,7 +1524,9 @@
             </div>
           </div></details>
         </div>
-      </section>
+        <div class="sheet-paper" id="record-paper" role="tabpanel" aria-labelledby="view-tab-${sheetEntryView}">
+        <div class="paper-heading"><h3>${escapeHtml(window.CSTRRecordTools.periodLabel(period, section.group, activePeriodIndex, state.calendarMode))}</h3><span>${period.locked ? icon('lock') + ' Locked record' : 'Assessment entries'}</span></div>
+
       ${period.locked ? '<p class="locked-period-note">Period locked.</p>' : ""}
       <div id="periodIntegrity">${integrityNote}</div>
       <details class="phone-class-tools" ${matchMedia("(max-width: 1000px)").matches ? "" : "open"}><summary>Class tools</summary><div class="sheet-utilities">
@@ -1543,9 +1549,77 @@
       ${sheetEntryView === "activity" ? renderMobileEntry(section,period) : ''}
       ${renderRecordTable(section, period, sheetEntryView !== "sheet")}
       ${sheetEntryView === "activity" ? '' : renderActivityRegister(section, period)}
-
+        </div>
+      </section>
     </div>`;
   }
+
+  // Animate the already-rendered sheet, never defer a selection or data update.
+  function animateRecordSheet(direction = 0) {
+    sheetAnimation?.cancel();
+    sheetAnimation = null;
+    if (keyboardInteraction || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const paper = app.querySelector('.sheet-paper');
+    if (!paper?.animate) return;
+    // Mobile score tools are fixed: do not introduce a transformed ancestor there.
+    const turn = direction && window.innerWidth > 1000 && !window.CSTRMobile?.native;
+    sheetAnimation = paper.animate(turn ? [
+      {opacity: .72, transform: `perspective(1800px) rotateY(${direction * 1.8}deg) translateX(${direction * 5}px)`, transformOrigin: direction > 0 ? 'left center' : 'right center'},
+      {opacity: 1, transform: 'none', transformOrigin: direction > 0 ? 'left center' : 'right center'}
+    ] : [{opacity: .78}, {opacity: 1}], {duration: turn ? 220 : 140, easing: 'cubic-bezier(.23,1,.32,1)'});
+  }
+
+  function selectRecordPeriod(index) {
+    const periods = activeSections()[currentSection()?.id]?.periods;
+    if (!Number.isInteger(index) || !periods?.[index] || index === activePeriodIndex) return;
+    commitHpsField(document.activeElement);
+    commitActiveFieldEdit();
+    const direction = Math.sign(index - activePeriodIndex);
+    const focusPeriod = document.activeElement?.matches('[data-action="select-period"], [data-mobile-period]');
+    activePeriodIndex = index;
+    render();
+    if (focusPeriod) {
+      const selector = window.innerWidth <= 1000 ? '[data-mobile-period]' : `[data-action="select-period"][data-period="${index}"]`;
+      app.querySelector(selector)?.focus({preventScroll: true});
+    }
+    animateRecordSheet(direction);
+  }
+
+  function selectEntryView(view, focusTab = false) {
+    if (!['one','activity','sheet'].includes(view)) return;
+    if (view === sheetEntryView) {
+      if (focusTab) {
+        app.querySelectorAll('.folder-tab').forEach(tab => { tab.tabIndex = tab.dataset.view === view ? 0 : -1; });
+        app.querySelector(`#view-tab-${view}`)?.focus({preventScroll: true});
+      }
+      return;
+    }
+    commitHpsField(document.activeElement);
+    commitActiveFieldEdit();
+    sheetEntryView = view;
+    render();
+    if (focusTab) app.querySelector(`#view-tab-${view}`)?.focus({preventScroll: true});
+    animateRecordSheet();
+  }
+
+  app.addEventListener('keydown', event => {
+    const tab = event.target.closest('.folder-tab');
+    if (!tab || !['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+    event.preventDefault();
+    const tabs = Array.from(tab.parentElement.querySelectorAll('[role="tab"]'));
+    const index = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (tabs.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    tabs.forEach((item, i) => { item.tabIndex = i === index ? 0 : -1; });
+    tabs[index].focus(); // Manual activation: Enter/Space uses the normal click handler.
+  });
+
+  app.addEventListener('toggle', event => {
+    if (!event.target.matches('.period-settings') || !event.target.open || keyboardInteraction || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    event.target.querySelector('.period-toolbar')?.animate?.(
+      [{opacity: .8, transform: 'translateY(-3px)'}, {opacity: 1, transform: 'none'}],
+      {duration: 160, easing: 'cubic-bezier(.23,1,.32,1)'}
+    );
+  }, true);
+
 
   function renderCompletionLabel(period, section, index) {
     const result = recordCompletion(period);
@@ -4241,7 +4315,8 @@
       render(); 
     }
     if (action === "select-section") { activeSectionId = target.dataset.section; activeGroup = currentSection().group; activePeriodIndex = 0; currentView = "record"; render(); }
-    if (action === "select-period") { activePeriodIndex = Number(target.dataset.period); render(); }
+    if (action === "select-period") selectRecordPeriod(Number(target.dataset.period));
+    if (action === "select-entry-view") selectEntryView(target.dataset.view, true);
     if (action === "add-period") addPeriod();
     if (action === "save-changes") saveToFirebase();
     if (action === "open-settings") renderSettings();
@@ -4341,8 +4416,7 @@
   app.addEventListener("change", event => commitHpsField(event.target));
   app.addEventListener("change", event => {
     if (event.target.matches('[data-entry-view]')) {
-      sheetEntryView = ['one','activity','sheet'].includes(event.target.value) ? event.target.value : 'sheet';
-      render();
+      selectEntryView(event.target.value);
     }
     if (event.target.matches('[data-entry-row]')) {
       activeOneLearnerRowIndex = Number(event.target.value);
@@ -4350,7 +4424,7 @@
     }
     if(event.target.matches('[data-mobile-kind]')) { mobileEntryKind=event.target.value;mobileEntryIndex=0;render(); }
     if(event.target.matches('[data-mobile-activity]')) { mobileEntryIndex=Number(event.target.value);render(); }
-    if(event.target.matches('[data-mobile-period]')) { activePeriodIndex=Number(event.target.value);render(); }
+    if(event.target.matches('[data-mobile-period]')) selectRecordPeriod(Number(event.target.value));
     if (event.target.matches('.editable-student-report [data-name-row]')) render();
   });
   document.addEventListener("click", event => {

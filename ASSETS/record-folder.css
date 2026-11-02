@@ -1,0 +1,264 @@
+/* The record folder is presentation only. Print and exported documents retain
+   their existing styles. Table boundaries and paper shadows are intentional. */
+@media screen {
+  :root, :root[data-theme="light"] {
+    /* Exact sampled palette. Paper and quiet tints support readable records. */
+    --ledger-amber: #ffa322;
+    --ledger-red: #bb1414;
+    --ledger-navy: #042134;
+    --ledger-charcoal: #181818;
+    --ledger-black: #000000;
+    --brand: var(--ledger-red);
+    --brand-hover: #941010;
+    --brand-soft: #faeaea;
+    --on-brand: #ffffff;
+    --action-ink: var(--brand);
+    --action-hover: var(--brand-hover);
+    --focus: var(--ledger-navy);
+    --ink-surface: var(--ledger-navy);
+    --remaster-navy: var(--ledger-navy);
+    --remaster-navy-hover: #173649;
+    --remaster-gold: var(--ledger-amber);
+    --remaster-cover: var(--ledger-navy);
+    --canvas: #f2f2f0;
+    --base: #f2f2f0;
+    --surface: #ffffff;
+    --surface-subtle: #e9edef;
+    --text: var(--ledger-charcoal);
+    --muted: #505b62;
+    --border: #b8c4cb;
+    --border-light: #dce3e3;
+    --folder: var(--ledger-navy);
+    --folder-tab: #274352;
+    --paper: #ffffff;
+    --paper-edge: #b5c4c7;
+    --paper-shadow: 0 2px 3px #0000000a, 0 12px 28px #0000000c;
+    --font-sans: "CSTR Sans", "Segoe UI", Arial, sans-serif;
+    --font-serif: "CSTR Serif", Georgia, "Times New Roman", serif;
+    --ledger-ease: cubic-bezier(.23,1,.32,1);
+  }
+  :root[data-theme="dark"] {
+    --brand: var(--ledger-amber);
+    --brand-hover: #ffc36b;
+    --brand-soft: #372a18;
+    --on-brand: var(--ledger-black);
+    --focus: var(--ledger-amber);
+    --canvas: var(--ledger-charcoal);
+    --base: var(--ledger-charcoal);
+    --surface: #242424;
+    --surface-subtle: #303030;
+    --text: #f5f5f4;
+    --muted: #c7c7c5;
+    --border: #777775;
+    --border-light: #414140;
+    --folder: var(--ledger-navy);
+    --folder-tab: #274352;
+    --paper: #242424;
+    --paper-edge: #4b4b49;
+    --paper-shadow: 0 2px 3px #0002, 0 12px 28px #0002;
+  }
+
+  /* Brand chrome is separate from record colors. Keep the existing table,
+     attendance, descriptor and calculation colors in both themes. Class accent
+     variables and the theme selector's color mapping are never reassigned. */
+  :root body #app :is(.record-table, .activity-register table) {
+    --canvas:#f1f4f6;--base:#f1f4f6;--surface:#fff;--surface-subtle:#eaf0f3;
+    --text:#182f3e;--muted:#526675;--border:#bbcbd4;--border-light:#dce5eb;
+    --brand:#78253e;--brand-hover:#5a1930;--brand-soft:#f3e8ed;--on-brand:#fff;
+    --section-surface:#eaf0f3;
+  }
+  :root[data-theme="dark"] body #app :is(.record-table, .activity-register table) {
+    --canvas:#101f2a;--base:#101f2a;--surface:#192e3c;--surface-subtle:#223d4d;
+    --text:#edf4f8;--muted:#b9cbd6;--border:#617d8e;--border-light:#304e60;
+    --brand:#efb1c3;--brand-hover:#ffcfdd;--brand-soft:#462d3d;--on-brand:#321524;
+    --section-surface:#223d4d;
+  }
+  :root body #app button:is(.button-primary,#saveChanges),
+  :root body button.button-primary {
+    background:var(--ledger-red)!important;color:#fff!important;
+  }
+  :root body #app button:is(.button-primary,#saveChanges):hover:not(:disabled),
+  :root body button.button-primary:hover:not(:disabled) {background:#941010!important;}
+  :root body #app .app-sidebar button.sidebar-link[aria-current="page"],
+  :root body #app .app-sidebar :is(button,#saveChanges):is([aria-current="page"]) {
+    background:var(--ledger-amber)!important;color:var(--ledger-navy)!important;
+  }
+  :root body #app .app-sidebar .sidebar-link[aria-current="page"] .ui-icon {color:var(--ledger-navy)!important;}
+  :root body #app .sidebar-search input {background:#173649!important;border-color:#6a7b85!important;}
+  :root body #app .sidebar-search button {background:#274352!important;}
+  :root body #app .dashboard-hero button.photo-frame {background:#173649!important;outline-color:#49616f;}
+  :root body #app .mobile-navigation button[aria-current="page"] {background:var(--ledger-amber)!important;color:var(--ledger-navy)!important;}
+  :root body #app .app-sidebar :is(button,input):focus-visible,
+  :root body #app button.folder-tab[aria-selected="false"]:focus-visible {outline-color:var(--ledger-amber)!important;}
+
+  /* Two voices: a document title, then the precise everyday UI. */
+  :root body #app :is(.workspace-intro h2, .record-chooser .section-heading h2,
+    .record-section .class-name, .login-card h1, .welcome-story h2),
+  :root body .modal h2 {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    letter-spacing: -.025em;
+    line-height: 1.1;
+  }
+  :root body #app .workspace-intro h2 {font-size: 40px;}
+  :root body #app .record-chooser .section-heading h2 {font-size: 40px;}
+  :root body #app .app-title {font: 400 25px/1.2 var(--font-serif);letter-spacing: -.02em;}
+  :root body :is(input, select, textarea, .metric-card, .record-table, .class-weights, .save-feedback) {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  :root body #app .app-shell {padding: 28px 32px;}
+  :root body #app .app-header {padding: 16px 32px;box-shadow: none;} /* taste-skill-ignore: Requested real paper depth or functional overlay boundary. */
+  :root body #app .app-header-inner {padding: 0;min-height: 48px;}
+  :root body #app .policy-note {font-style: normal;color: var(--muted);}
+  :root body #app .app-sidebar {background: var(--ledger-navy)!important;}
+  :root body #app .sidebar-brand-copy strong {font: 400 25px/1.1 var(--font-serif);}
+  :root body #app .sidebar-link {min-height: 44px;}
+  :root body #app .sidebar-label {font-size: 13px;letter-spacing: 0;text-transform: none;}
+  :root body #app :is(.metric-card small,.recent-class-stat small,.sidebar-owner,
+    .sidebar-search label,.save-meta,.policy-note,.sidebar-brand-copy small) {font-size: 13px;}
+  :root body #app .period-name-field>span {font-size: 14px;letter-spacing: 0;text-transform: none;}
+
+  /* Shared paper language on the desk, directory, and dialogs. */
+  :root body #app .dashboard .dashboard-hero {border-top: 0;border-radius: 6px;box-shadow: var(--paper-shadow);} /* taste-skill-ignore: Requested real paper depth or functional overlay boundary. */
+  :root body #app .dashboard-hero .owner-intro {background: var(--ledger-navy);}
+  :root body #app .dashboard-hero .owner-intro h2 {font: 400 28px/1.15 var(--font-serif);}
+  :root body #app .dashboard-hero .owner-workspace {padding: 26px 32px;}
+  :root body #app .metric-grid {background: transparent;padding: 12px 0 20px;}
+  :root body #app .metric-card {padding: 0 24px;}
+  :root body #app .metric-card:first-child {padding-left: 0;}
+  :root body #app .metric-card strong {font-size: 42px;font-weight: 400;letter-spacing: -.03em;}
+  :root body #app .dashboard-panel.recent-panel {box-shadow: var(--paper-shadow);} /* taste-skill-ignore: Requested real paper depth or functional overlay boundary. */
+  :root body #app .recent-class-group-heading {background: var(--surface-subtle);font-size: 13px;}
+  :root body #app .section-card-wrap {position: relative;margin-top: 14px;box-shadow: var(--paper-shadow);} /* taste-skill-ignore: Requested real paper depth or functional overlay boundary. */
+  :root body #app .section-card-wrap::before {
+    content: "";position: absolute;top: -10px;left: 0;width: 96px;height: 16px;
+    background: var(--surface);border-radius: 5px 10px 0 0;pointer-events: none;
+  }
+  :root body #app button.section-card {min-height: 206px;}
+  :root body #app .section-card strong {font-family: var(--font-serif);font-size: 30px;font-weight: 400;letter-spacing: -.02em;}
+  :root body .modal {box-shadow: 0 20px 60px #10283033;} /* taste-skill-ignore: Requested real paper depth or functional overlay boundary. */
+
+  /* Context sits above the folder; neither controls nor sticky cells move. */
+  :root body #app .sheet-layout .app-shell {padding: 24px 24px 40px;}
+  :root body #app .record-section .class-header-card {
+    padding: 0 4px 22px!important;margin: 0;background: transparent!important;
+    border: 0!important;border-left: 4px solid var(--class-color)!important;padding-left: 16px!important;box-shadow: none;border-radius: 0; /* taste-skill-ignore: Preserve the existing class color edge. */
+  }
+  :root body #app .record-section .class-identity {gap: 0 18px;padding-bottom: 14px;}
+  :root body #app .record-section .class-name {font-size: clamp(32px,3.2vw,46px)!important;line-height: 1.12;}
+  :root body #app .record-section .class-context-line {margin-top: 10px;font-size: 14px;}
+  :root body #app .record-section .class-period-area {margin: 0;}
+  :root body #app .record-section .period-tabs {gap: 6px;}
+  :root body #app .record-section .period-tabs button.tab {
+    background: transparent!important;color: var(--muted)!important;
+    min-height: 40px;padding: 10px 15px;border-radius: 4px!important;
+  }
+  :root body #app .record-section .period-tabs button.tab[aria-pressed="true"] {
+    background: var(--ledger-navy)!important;color: #fff!important;
+  }
+  :root[data-theme="dark"] body #app .record-section .period-tabs button.tab[aria-pressed="true"] {
+    background: var(--ledger-amber)!important;color: var(--ledger-black)!important;
+  }
+  :root body #app .sheet-folder {background: var(--folder);border-radius: 7px;padding: 8px;min-width: 0;}
+  :root body #app .folder-toolbar {display: flex;align-items: flex-end;gap: 12px;position: relative;min-width: 0;}
+  :root body #app .folder-tabs {display: flex;gap: 4px;min-width: 0;flex: 1;overflow-x: auto;padding: 4px 4px 0;}
+  :root body #app button.folder-tab {
+    position: relative;flex: 0 0 auto;min-height: 48px;padding: 13px 20px;
+    border-radius: 6px 6px 0 0!important;background: var(--folder-tab)!important;
+    color: #fff!important;font: 600 14px/1.4 var(--font-sans);
+    text-decoration: none!important;transform: none!important;white-space: nowrap;
+  }
+  :root body #app button.folder-tab[aria-selected="true"] {background: var(--paper)!important;color: var(--text)!important;}
+  :root body #app button.folder-tab:not(:disabled):is(:hover,:active,:focus) {transform: none!important;transition: none!important;}
+  :root body #app .folder-tab .action-label::after {display: none!important;}
+  :root body #app button.folder-tab[aria-selected="true"]::before {
+    content: "";position: absolute;inset: 0 14px auto;height: 3px;
+    border-radius: 0 0 2px 2px;background: var(--ledger-amber);
+  }
+  :root body #app .folder-tab:focus-visible {outline-offset: -5px;}
+  :root body #app .folder-toolbar .period-settings {position: static!important;margin: 0 4px 4px 0;width: auto!important;flex: 0 0 auto;}
+  :root body #app .folder-toolbar .period-settings>summary {
+    min-height: 44px;padding: 10px 14px;background: transparent!important;color: #fff!important;
+    border-radius: 4px!important;white-space: nowrap;
+  }
+  :root body #app .folder-toolbar .period-settings[open]>summary {background: var(--paper)!important;color: var(--text)!important;}
+  :root body #app .folder-toolbar .period-toolbar {
+    position: absolute;inset: calc(100% + 6px) 0 auto auto;z-index: 65;
+    width: min(620px,100%);max-width: 100%;max-height: 65vh;overflow-y: auto;
+    padding: 24px;margin: 0;background: var(--paper);box-shadow: 0 12px 36px #10283030; /* taste-skill-ignore: Requested real paper depth or functional overlay boundary. */
+    border: 1px solid var(--paper-edge);border-radius: 6px; /* taste-skill-ignore: Requested real paper depth or functional overlay boundary. */
+  }
+  :root body #app .period-actions {display: flex;flex-wrap: wrap;gap: 10px;}
+  :root body #app .sheet-paper {
+    min-width: 0;position: relative;padding: 20px;background: var(--paper);
+    border-radius: 3px;box-shadow: var(--paper-shadow),0 3px 0 var(--paper-edge); /* taste-skill-ignore: Requested real paper depth or functional overlay boundary. */
+  }
+  :root body #app .paper-heading {display: flex;align-items: baseline;justify-content: space-between;gap: 16px;margin-bottom: 8px;}
+  :root body #app .paper-heading h3 {margin: 0;font: 400 25px/1.2 var(--font-serif);letter-spacing: -.02em;}
+  :root body #app .paper-heading>span {display: flex;align-items: center;gap: 6px;font-size: 13px;color: var(--muted);}
+  :root body #app .sheet-utilities {margin: 0;padding: 0;gap: 8px;min-height: 42px;}
+  :root body #app .sheet-caption {display: none;}
+  :root body #app .entry-focus-controls {margin: 0;padding: 8px 0 14px;}
+  :root body #app .entry-focus-controls label {font-size: 13px;color: var(--muted);}
+  :root body #app .entry-focus-controls select {min-height: 38px;font-size: 14px;background: var(--paper);}
+  :root body #app .record-section .table-wrap {border-radius: 2px;border-color: var(--paper-edge);}
+  :root body #app .record-section .record-table input[data-score] {font-size: 13px!important;}
+  :root body #app .record-section .record-table input[data-name-row] {font-size: 13px!important;}
+  :root body #app .activity-register {margin: 24px 0 0;padding: 20px 0 0;border-radius: 0;background: var(--paper);}
+  :root body #app .activity-register-heading h3 {font: 400 25px/1.2 var(--font-serif);}
+  :root body #app .locked-period-note {margin: 8px 0;background: var(--surface-subtle);color: var(--text);}
+
+  /* Frequent data entry stays still, including hover on score adjustments. */
+  :root body #app :is(button,summary):not(:disabled) {transform: none!important;transition: background-color 120ms ease,color 120ms ease!important;}
+  :root body #app .record-table :is(button,input) {animation: none!important;transition: none!important;}
+  :root body #app .dashboard-hero :is(.owner-intro,.owner-workspace) {animation: none!important;}
+  @media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
+    :root body #app button.button:not(:disabled):active {transform: scale(.98)!important;}
+  }
+  :root body #app :is(button,summary):focus-visible {outline: 3px solid var(--focus)!important;outline-offset: 2px;}
+  :root body #app button.folder-tab:focus-visible {outline-offset: -5px;}
+
+  @media (max-width:1000px) {
+    :root body #app .app-shell {padding: 20px 16px calc(var(--phone-nav) + 32px + env(safe-area-inset-bottom,0px))!important;}
+    :root body #app .sheet-layout .app-shell {padding-inline: 12px!important;}
+    :root body #app .record-section .class-header-card {padding: 4px 8px 18px!important;}
+    :root body #app .class-period-area {grid-template-columns: minmax(0,1fr)!important;}
+    :root body #app .phone-period-select {max-width: 380px;}
+    :root body #app .sheet-folder {padding: 5px;border-radius: 6px;}
+    :root body #app .folder-toolbar {flex-wrap: wrap;gap: 0;}
+    :root body #app .folder-tabs {flex-basis: 100%;padding-inline: 0;}
+    :root body #app button.folder-tab {padding: 12px 16px;font-size: 14px;min-height: 48px;}
+    :root body #app .folder-toolbar .period-settings {width: 100%!important;margin: 0;background: var(--paper);padding: 4px 8px;}
+    :root body #app .folder-toolbar .period-settings>summary {width: fit-content;color: var(--text)!important;}
+    :root body #app .period-options-label {display: inline;}
+    :root body #app .phone-options-label {display: none;}
+    :root body #app .folder-toolbar .period-toolbar {position: static!important;width: 100%;max-height: none;box-shadow: none;border: 0;padding: 12px!important;} /* taste-skill-ignore: Requested real paper depth or functional overlay boundary. */
+    :root body #app .sheet-paper {padding: 16px 10px;}
+    :root body #app .paper-heading {gap: 10px;flex-wrap: wrap;}
+    :root body #app .paper-heading h3 {font-size: 24px;}
+    :root body #app .entry-focus-controls {padding: 10px 0 14px!important;gap: 12px;}
+    :root body #app .entry-focus-controls select {font-size: 16px;min-height: 48px;}
+    :root body #app .phone-entry {margin-top: 0;}
+    :root body #app .phone-assessment {padding: 16px 0;}
+    :root body #app .phone-score-row {padding: 14px 8px;}
+    :root body #app .record-section .record-table input:is([data-score],[data-name-row]) {font-size: 16px!important;min-height: 48px!important;}
+    :root body #app .record-section .record-table .score-entry {min-height: 48px;height: auto;}
+    :root body #app .record-section .table-wrap {scrollbar-width: auto;}
+    :root body #app .activity-register {padding-top: 20px;}
+    :root body #app .workspace-intro h2 {font-size: 34px!important;}
+    :root body #app .record-chooser .section-heading h2 {font-size: 34px;}
+    :root body #app .metric-card:first-child {padding-left: 18px;}
+  }
+  @media (max-width:400px) {
+    :root body #app .sheet-layout .app-shell {padding-inline: 6px!important;}
+    :root body #app button.folder-tab {padding-inline: 12px;font-size: 13px;}
+    :root body #app .record-section .class-name {font-size: 32px!important;}
+  }
+  @media (prefers-reduced-motion:reduce) {
+    :root body #app *, :root body #app *::before, :root body #app *::after {animation: none!important;transition: none!important;scroll-behavior: auto!important;}
+  }
+}
+@media print {
+  .folder-toolbar, .paper-heading {display: none!important;}
+  .sheet-folder, .sheet-paper {display: contents!important;}
+}

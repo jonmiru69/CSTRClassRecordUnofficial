@@ -10,7 +10,8 @@
     "preview": "node tools/preview.cjs",
     "test:rules": "firebase emulators:exec --only database --project demo-cstr-review \"node tests/firebase-emulator.cjs\"",
     "build:pages": "node tools/build-pages.mjs",
-    "test:visual": "node tests/create-mobile-preview.cjs && node tests/visual-remaster.cjs"
+    "test:visual": "node tests/create-mobile-preview.cjs && node tests/visual-remaster.cjs && node tests/record-folder.cjs",
+    "test:folder": "node tests/create-mobile-preview.cjs && node tests/record-folder.cjs"
   },
   "dependencies": {
     "@capacitor/android": "8.6.0",
