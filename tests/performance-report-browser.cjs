@@ -132,6 +132,13 @@ async function run() {
     const tommyNote = first.nth(0).locator('[data-ai-note]');
     await tommyNote.waitFor({ state: 'visible' });
     await tommyNote.fill('Teacher-reviewed Tommy note <sample>.');
+    const include = first.nth(0).getByRole('checkbox', { name: 'Include this reviewed feedback in the PNG' });
+    assert.equal(await include.isChecked(), false);
+    await include.check();
+    await first.nth(0).getByRole('button', { name: 'Hide Tommy’s assessment' }).click();
+    assert.equal(await findings(first.nth(0)).isVisible(), false);
+    await first.nth(0).getByRole('button', { name: 'Show Tommy’s assessment' }).click();
+    assert.equal(await tommyNote.inputValue(), 'Teacher-reviewed Tommy note <sample>.');
     assert.equal(await findings(first.nth(1)).isVisible(), false);
     await page.evaluate(() => {
       const serialize = XMLSerializer.prototype.serializeToString;

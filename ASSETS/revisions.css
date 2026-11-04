@@ -141,22 +141,30 @@
 :root body .report-ai {margin-top:16px}
 :root body .report-ai-actions {display:flex;flex-wrap:wrap;gap:8px}
 :root body .report-ai p {margin:8px 0 0;color:var(--muted)}
-:root body .report-ai [data-ai-editor]:not([hidden]) {display:grid;gap:6px;margin-top:12px}
-:root body .report-ai textarea {box-sizing:border-box;width:100%;min-width:0;padding:10px;font:inherit;font-size:1rem;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;resize:vertical}
+:root body .student-analysis [data-ai-editor]:not([hidden]) {display:grid;gap:6px;margin-top:16px}
+:root body .student-analysis textarea {box-sizing:border-box;width:100%;min-width:0;padding:10px;font:inherit;font-size:1rem;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;resize:vertical}
 :root body .report-ai [hidden] {display:none!important}
-:root body .report-ai [data-ai-editor] > label {display:grid;gap:6px}
-:root body .tommy-assessment {display:grid;grid-template-columns:66px minmax(0,1fr);align-items:start;gap:12px;margin:0 0 16px}
-:root body .tommy-avatar {display:grid;place-items:center;width:66px;aspect-ratio:1;background:var(--surface-subtle);border-radius:18px;perspective:180px}
-:root body .tommy-robot {width:60px;height:60px}
+:root body .student-analysis [data-ai-editor] > label {display:grid;gap:6px}
+:root body .tommy-assessment {margin:0 0 16px}
+:root body .tommy-assessment .tommy-trigger {display:inline-flex;gap:12px;align-items:center;max-width:100%;text-align:left}
+:root body .tommy-avatar {display:grid;place-items:center;flex:none;width:58px;aspect-ratio:1;background:var(--surface-subtle);border-radius:16px;perspective:180px}
+:root body .tommy-robot {width:55px;height:55px}
 :root body .tommy-scan {opacity:0}
-:root body .tommy-assessment [data-tommy-include] {width:auto;margin:0}
-:root body .tommy-assessment [data-ai-editor] > label:has([data-tommy-include]) {display:flex;align-items:center;gap:8px}
+:root body .student-analysis [data-tommy-include] {width:auto;margin:0}
+:root body .student-analysis [data-ai-editor] > label:has([data-tommy-include]) {display:flex;align-items:center;gap:8px}
 :root body .student-analysis > [data-tommy-findings][hidden] {display:none!important}
 @media (prefers-reduced-motion:no-preference) {
   :root body .tommy-robot {transform:rotateY(-10deg);transition:transform 200ms var(--ease-control)}
   :root body .tommy-assessment:has([aria-expanded="true"]) .tommy-robot {transform:rotateY(9deg) rotateZ(-4deg)}
+  :root body .tommy-trigger:focus-visible .tommy-robot {transform:rotateY(0) rotateZ(-5deg)}
+  :root body .tommy-eyes {transform-box:fill-box;transform-origin:center}
   :root body .tommy-assessment[data-tommy-busy="true"] .tommy-scan {animation:tommy-scan 800ms linear 3}
+  @media (hover:hover) and (pointer:fine) {
+    :root body .tommy-trigger:hover .tommy-robot {transform:rotateY(14deg) rotateZ(-6deg) translateY(-2px)}
+    :root body .tommy-trigger:hover .tommy-eyes {animation:tommy-blink 160ms var(--ease-control)}
+  }
   @keyframes tommy-scan {0%{transform:translateY(0);opacity:0} 15%,85%{opacity:.8} 100%{transform:translateY(15px);opacity:0}}
+  @keyframes tommy-blink {50%{transform:scaleY(.12)}}
 }
 :root body .editable-student-report [data-report-live="one-export"] {margin-block:16px}
 :root body .report-quarter-tabs {display:flex;flex-wrap:wrap;gap:4px 16px;margin-block:10px 16px}

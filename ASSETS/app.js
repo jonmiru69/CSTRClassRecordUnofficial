@@ -2740,19 +2740,19 @@
     const localModel = typeof window.LanguageModel?.availability === 'function' && typeof window.LanguageModel?.create === 'function';
     const owner = JSON.stringify([entry.section.id, entry.periodIndex, entry.rowIndex, entry.learner.name]);
     const label = tommy ? `Let Tommy assess ${entry.learner.name}’s performance?` : 'Draft feedback with AI';
+    const editorMarkup = `<div hidden data-ai-editor><label>Review and edit this draft before sharing<textarea rows="4" data-ai-note maxlength="900"></textarea></label>
+      ${tommy ? '<label><input type="checkbox" data-tommy-include> Include this reviewed feedback in the PNG</label>' : '<small>The draft is separate from the PNG export.</small>'}
+    </div>`;
     const feedback = !tommy && !analysis.draft ? '' : `<div class="report-ai${tommy ? ' tommy-assessment' : ''}" data-report-owner="${escapeHtml(owner)}" data-draft="${escapeHtml(JSON.stringify(analysis.draft))}">
-      ${tommy ? tommyRobot() : ''}
       <div class="report-ai-copy">
-      ${localModel || tommy ? `<div class="report-ai-actions"><button type="button" class="button button-secondary" data-action="draft-student-feedback"${tommy ? ' aria-expanded="false"' : ''}><span class="action-label">${escapeHtml(label)}</span></button><button type="button" class="button button-secondary" data-action="cancel-student-feedback" hidden>Cancel</button></div>
+      ${localModel || tommy ? `<div class="report-ai-actions"><button type="button" class="button button-secondary${tommy ? ' tommy-trigger' : ''}" data-action="draft-student-feedback"${tommy ? ' aria-expanded="false"' : ''}>${tommy ? tommyRobot() : ''}<span class="action-label">${escapeHtml(label)}</span></button><button type="button" class="button button-secondary" data-action="cancel-student-feedback" hidden>Cancel AI draft</button></div>
         <p data-ai-status role="status">${tommy ? 'Tommy checks the recorded scores and assessment details for this grading period.' : 'Runs on this device. The first use may download the model.'}</p>
-        <div hidden data-ai-editor><label>Review and edit this draft before sharing<textarea rows="4" data-ai-note maxlength="900"></textarea></label>
-          ${tommy ? '<label><input type="checkbox" data-tommy-include checked> Include this feedback in the PNG</label>' : '<small>The draft is separate from the PNG export.</small>'}
-        </div>` : '<p>AI drafting requires a supported desktop browser. The performance analysis is available on this device.</p>'}
+        ${tommy ? '' : editorMarkup}` : '<p>AI drafting requires a supported desktop browser. The performance analysis is available on this device.</p>'}
       </div></div>`;
     return `<section class="student-analysis" aria-label="${tommy ? 'Tommy’s assessment' : 'Performance analysis'}">${tommy ? feedback : ''}
       <div ${tommy ? 'data-tommy-findings hidden' : ''}><h3>${tommy ? 'Tommy’s assessment' : 'Performance analysis'}</h3><div class="student-analysis-grid">
       ${analysis.sections.map(({ title, lines }) => `<section><h4>${title}</h4><ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul></section>`).join('')}
-      </div></div>${tommy ? '' : feedback}</section>`;
+      </div></div>${tommy ? editorMarkup : feedback}</section>`;
   }
 
   function tommyRobot() {
@@ -2764,8 +2764,9 @@
       <rect x="17" y="18" width="49" height="40" rx="16" fill="#4d7e96"/><rect x="15" y="15" width="48" height="40" rx="16" fill="#c8e4ee"/>
       <path d="M24 24q5-6 15-6h9" stroke="#f5fdff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
       <rect x="21" y="26" width="36" height="20" rx="8" fill="#102d45"/>
-      <circle cx="31" cy="36" r="3.2" fill="#65f1d3"/><circle cx="47" cy="36" r="3.2" fill="#65f1d3"/>
-      <path d="M36 42q3 2 6 0" stroke="#65f1d3" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+      <g class="tommy-eyes" fill="#65f1d3"><ellipse cx="31" cy="35" rx="3.5" ry="4.3"/><ellipse cx="47" cy="35" rx="3.5" ry="4.3"/></g>
+      <g fill="#ffacc1" opacity=".84"><ellipse cx="25" cy="41" rx="2.5" ry="1.2"/><ellipse cx="53" cy="41" rx="2.5" ry="1.2"/></g>
+      <path d="M35 41q4 5 8 0" stroke="#65f1d3" stroke-width="1.5" stroke-linecap="round" fill="none"/>
       <rect class="tommy-scan" x="24" y="28" width="30" height="2" rx="1" fill="#65f1d3"/>
     </svg></span>`;
   }
@@ -2778,17 +2779,25 @@
     const { draft, reportOwner } = panel.dataset;
     const findings = panel.parentElement.querySelector('[data-tommy-findings]');
     const status = panel.querySelector('[data-ai-status]');
+    const editor = panel.parentElement.querySelector('[data-ai-editor]');
     if (findings) {
+      if (panel.dataset.tommyReady === 'true') {
+        findings.hidden = !findings.hidden;
+        editor.hidden = findings.hidden || editor.dataset.tommyDraft !== 'true';
+        button.setAttribute('aria-expanded', String(!findings.hidden));
+        button.querySelector('.action-label').textContent = findings.hidden ? 'Show Tommy’s assessment' : 'Hide Tommy’s assessment';
+        return;
+      }
       findings.hidden = false;
       button.setAttribute('aria-expanded', 'true');
       if (draft === 'null' || typeof window.LanguageModel?.availability !== 'function' || typeof window.LanguageModel?.create !== 'function') {
         status.textContent = 'Assessment ready from the recorded scores.';
+        finishTommyAssessment(panel, button);
         return;
       }
     }
     const controller = new AbortController();
     activeFeedback.set(panel, controller);
-    const editor = panel.querySelector('[data-ai-editor]');
     const cancel = panel.querySelector('[data-action="cancel-student-feedback"]');
     const visible = () => panel.isConnected && !panel.closest('[hidden]') &&
       panel.dataset.draft === draft && panel.dataset.reportOwner === reportOwner;
@@ -2811,7 +2820,9 @@
       if (note) {
         editor.querySelector('textarea').value = note;
         editor.hidden = false;
+        if (findings) editor.dataset.tommyDraft = 'true';
       }
+      if (findings) finishTommyAssessment(panel, button);
       status.textContent = note ? 'Draft ready for teacher review.' : findings
         ? 'Assessment ready from the recorded scores. This device has no available AI model.'
         : 'The on-device model is unavailable here. Use the performance analysis above.';
@@ -2827,6 +2838,11 @@
       button.disabled = false;
       cancel.hidden = true;
     }
+  }
+
+  function finishTommyAssessment(panel, button) {
+    panel.dataset.tommyReady = 'true';
+    button.querySelector('.action-label').textContent = 'Hide Tommy’s assessment';
   }
 
   function renderStudentExport(entry, analysis, label, disambiguate = false) {
@@ -2918,16 +2934,16 @@
   }
 
   function addTommyAssessmentToSvg(svg, article) {
-    if (!article?.querySelector('[data-tommy-findings]:not([hidden])')) return;
+    if (!article?.querySelector('.tommy-trigger[aria-expanded="true"], .tommy-assessment[data-tommy-ready="true"]')) return;
     const heading = svg.querySelector('[data-analysis-heading]');
     heading.textContent = 'Tommy’s performance assessment';
-    const editor = article.querySelector('.tommy-assessment [data-ai-editor]:not([hidden])');
+    const editor = article.querySelector('.student-analysis [data-ai-editor]');
     const note = editor?.querySelector('[data-tommy-include]').checked ? editor.querySelector('[data-ai-note]').value.trim() : '';
     if (!note) return;
 
     const group = svg.querySelector('[data-tommy-note-y]');
     const start = Number(group.dataset.tommyNoteY);
-    const lines = reportLines(note, 58);
+    const lines = note.split(/\r?\n/).flatMap(line => line.trim() ? reportLines(line, 58) : ['']);
     ['Tommy’s feedback', ...lines].forEach((line, index) => {
       const node = document.createElementNS(svg.namespaceURI, 'text');
       node.setAttribute('x', index ? '55' : '44');

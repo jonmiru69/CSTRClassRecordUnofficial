@@ -67,7 +67,6 @@
       : `Review the feedback on ${low.label}, correct missed items, and try a similar activity.` });
     if (!actions.length) actions.push(high ? { kind: 'extend', text: 'Try a new activity that applies what you practiced this period.' }
       : { kind: 'evidence', text: 'Review this report with your teacher when graded work is available.' });
-    const nextSteps = actions.length <= 3 ? actions : [actions[0], actions[1], actions.at(-1)];
 
     return {
       sections: [
@@ -77,7 +76,7 @@
             : high ? 'Recorded results are tied at the displayed precision.' : 'No usable numeric scores yet.'] },
         { title: 'Areas to improve', lines: gaps.length ? ['Lowest relative results in this period', ...summarize(gaps)]
           : ['The recorded scores do not establish a relative low result.'] },
-        { title: 'What to do next', lines: nextSteps.map(action => action.text) }
+        { title: 'What to do next', lines: actions.map(action => action.text) }
       ],
       draft: evidence.length || Object.values(issues).some(list => list.length) ? {
         context: { usable: evidence.length, strongest: high?.percentage ?? null, lowest: low?.percentage ?? null,
