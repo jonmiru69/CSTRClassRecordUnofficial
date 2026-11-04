@@ -72,6 +72,17 @@ async function run() {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin + '/test-preview/index.html?screen=record');
+    const sheetCheck = page.locator('#tommy-sheet-check');
+    await sheetCheck.locator('summary').click();
+    await sheetCheck.getByRole('heading', { name: /Blank scores for named learners/ }).waitFor();
+    const invalidScore = page.locator('.record-table input[data-score="ww"][data-row="0"][data-index="0"]');
+    await invalidScore.fill('12x');
+    await sheetCheck.getByRole('heading', { name: /Invalid score entries/ }).waitFor();
+    await sheetCheck.getByRole('button', { name: 'Alvarez, Sample (row 1) · WW 1' }).first().click();
+    assert.equal(await invalidScore.evaluate(node => node === document.activeElement), true);
+    await invalidScore.fill('12');
+    await invalidScore.press('Tab');
+    await sheetCheck.getByRole('heading', { name: /Invalid score entries/ }).waitFor({ state: 'hidden' });
     await page.locator('#view-tab-one').click();
     const report = page.locator('.editable-student-report');
     const analysis = report.locator('.student-analysis');
@@ -152,7 +163,7 @@ async function run() {
     await first.nth(0).locator('[data-action="export-student-png"]').click();
     const tommyPng = fs.readFileSync(await (await tommyDownload).path());
     assert.equal(tommyPng.subarray(1, 4).toString(), 'PNG');
-    assert.match(await page.evaluate(() => exportedStudentSvg), /Tommy’s performance assessment.*Teacher-reviewed Tommy note &lt;sample&gt;.*Activity record/s);
+    assert.match(await page.evaluate(() => exportedStudentSvg), /AI Tommy's performance assessment.*Teacher-reviewed Tommy note &lt;sample&gt;.*Activity record/s);
     await page.evaluate(() => { testModel.mode = 'unavailable'; });
     await assess(first.nth(1)).click();
     await first.nth(1).getByText('Assessment ready from the recorded scores.', { exact: false }).waitFor();

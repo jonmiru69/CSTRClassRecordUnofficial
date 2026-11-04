@@ -841,36 +841,54 @@
 
   // Scores remain text while a teacher is typing so partial decimals stay
   // usable. This only drives integrity feedback; grading formulas stay intact.
-  function getPeriodInputIntegrity(period) {
-    const issues = { invalidHps: 0, invalidScores: 0, aboveHps: 0, missingHps: 0, invalidGroups: 0 };
+  function getPeriodInputIntegrity(period, details) {
+    const issues = { invalidHps: 0, invalidScores: 0, aboveHps: 0, missingHps: 0, invalidGroups: 0, pending: 0, unnamed: 0, unconfigured: 0 };
     if (!period) return issues;
     const section = activeRegistry().find(item => activeSections()[item.id]?.periods?.includes(period)) || currentSection();
+    const hasEntry = value => String(value ?? '').trim() !== '';
+    const add = (type, kind, index, row, group) => {
+      issues[type]++;
+      const examples = details?.[type];
+      if (examples && examples.length < 12) examples.push({ kind, index, row, group });
+    };
+    const learners = (period.roster || []).flatMap((learner, row) => getRowCategory(learner) ? [] : [{ learner, row }]);
+    for (const { learner, row } of learners) {
+      if (!hasEntry(learner.name) && ['ww', 'pt', 'qa'].some(kind => learner[kind]?.some(hasEntry))) {
+        add('unnamed', undefined, undefined, row);
+      }
+    }
     ["ww", "pt", "qa"].forEach((kind, componentIndex) => {
       if (section?.weights[componentIndex] === 0) return;
       const hpsValues = period[`${kind}Hps`] || [];
+      const maxima = hpsValues.map(window.CSTRGrading.numberOrNull);
+      if (!maxima.some(value => value > 0)) add('unconfigured', kind);
       const options = window.CSTRGrading.componentOptions(section,period,kind);
-      if (options.groups && hpsValues.some(value=>Number(value)>0)) {
-        issues.invalidGroups += hpsValues.filter((value,index)=>Number(value)>0&&!options.groups.some(group=>group.id===options.roles[index])).length;
-        issues.invalidGroups += options.groups.filter(group=>!hpsValues.some((value,index)=>Number(value)>0&&options.roles[index]===group.id)).length;
+      if (options.groups && maxima.some(value => value > 0)) {
+        maxima.forEach((value, index) => {
+          if (value > 0 && !options.groups.some(group => group.id === options.roles[index])) add('invalidGroups', kind, index);
+        });
+        options.groups.forEach(group => {
+          if (!maxima.some((value, index) => value > 0 && options.roles[index] === group.id)) add('invalidGroups', kind, undefined, undefined, group.id);
+        });
       }
-      hpsValues.forEach((value) => {
-        if (value === "" || value === null || value === undefined) return;
-        const hps = window.CSTRGrading.numberOrNull(value);
-        if (!Number.isFinite(hps) || hps <= 0) issues.invalidHps += 1;
+      hpsValues.forEach((value, index) => {
+        if (hasEntry(value) && !(maxima[index] > 0)) add('invalidHps', kind, index);
       });
-      (period.roster || []).forEach((learner) => {
-        if (getRowCategory(learner)) return;
+      learners.forEach(({ learner, row }) => {
         (learner[kind] || []).forEach((value, index) => {
-          if (value === "" || value === null || value === undefined) return;
-          if (!(Number(hpsValues[index]) > 0)) issues.missingHps += 1;
+          const hps = maxima[index];
+          if (!hasEntry(value)) {
+            if (hps > 0 && hasEntry(learner.name)) add('pending', kind, index, row);
+            return;
+          }
+          if (!(hps > 0)) add('missingHps', kind, index, row);
           if (isAttendanceCode(value)) return;
           const score = window.CSTRGrading.numberOrNull(value);
           if (!Number.isFinite(score) || score < 0) {
-            issues.invalidScores += 1;
+            add('invalidScores', kind, index, row);
             return;
           }
-          const hps = Number(hpsValues[index]);
-          if (Number.isFinite(hps) && hps > 0 && score > hps) issues.aboveHps += 1;
+          if (hps > 0 && score > hps) add('aboveHps', kind, index, row);
         });
       });
     });
@@ -879,6 +897,56 @@
 
   function hasPeriodInputIssues(issues) {
     return issues.invalidHps > 0 || issues.invalidScores > 0 || issues.aboveHps > 0 || issues.missingHps > 0 || issues.invalidGroups > 0;
+  }
+
+  const tommyIssueLabels = {
+    invalidHps: ['Invalid maximum scores', 'Enter a positive highest possible score (HPS).'],
+    invalidScores: ['Invalid score entries', 'Use a valid number or a supported attendance code.'],
+    aboveHps: ['Scores above the maximum', 'Compare the score with the highest possible score.'],
+    missingHps: ['Marks without a valid maximum', 'Set a positive HPS for this activity.'],
+    invalidGroups: ['Assessment setup issues', 'Check the assessment group or competency domain in the activity register.'],
+    unnamed: ['Scored rows without a learner name', 'Enter or confirm the learner’s name.'],
+    unconfigured: ['Components without a positive maximum', 'Set an HPS for the required assessment component.'],
+    pending: ['Blank scores for named learners', 'Enter the result when available or confirm the correct attendance code.']
+  };
+
+  function tommyIssueDetails() {
+    return Object.fromEntries(Object.keys(tommyIssueLabels).map(type => [type, []]));
+  }
+
+  function renderTommySheetCheck() {
+    return `<details class="tommy-helper tommy-sheet-helper" id="tommy-sheet-check">
+      <summary>${tommyRobot()}<span class="action-label">Check this grade sheet with AI Tommy</span><small data-tommy-count></small></summary>
+      <div class="tommy-helper-body" data-tommy-issues></div>
+    </details>`;
+  }
+
+  function updateTommySheetCheck(check, period, issues, details, gradingIssue) {
+    const count = Object.keys(tommyIssueLabels).reduce((total, type) => total + issues[type], Number(Boolean(gradingIssue)));
+    const badge = check.querySelector('[data-tommy-count]');
+    const label = count ? `${count} to review` : 'No flags';
+    if (badge.textContent !== label) badge.textContent = label;
+    if (!details) return;
+    const body = check.querySelector('[data-tommy-issues]');
+    const groups = Object.entries(tommyIssueLabels).filter(([type]) => issues[type]).map(([type, [title, help]]) => {
+      const list = details[type].map(({ kind, index, row, group }) => {
+        const student = row === undefined ? '' : `${period.roster[row].name.trim() || 'Unnamed learner'} (row ${row + 1})`;
+        const activity = kind ? `${kind.toUpperCase()}${index === undefined ? '' : ` ${index + 1}`}` : '';
+        const target = [student, activity, group?.toUpperCase()].filter(Boolean).join(' · ');
+        const field = type === 'unnamed' ? `input[data-name-row="${row}"]`
+          : type === 'invalidHps' || type === 'missingHps' ? `input[data-hps="${kind}"][data-index="${index}"]`
+          : row !== undefined ? `input[data-score="${kind}"][data-index="${index}"][data-row="${row}"]` : '';
+        return `<li>${field && !period.locked
+          ? `<button type="button" class="tommy-find-field" data-action="tommy-find-field" data-field="${escapeHtml(field)}"><span class="action-label">${escapeHtml(target)}</span></button>`
+          : escapeHtml(target)}</li>`;
+      });
+      return `<section><h4>${issues[type]} · ${title}</h4><p>${help}</p><ul>${list.join('')}</ul>
+        ${issues[type] > list.length ? `<p>Showing the first ${list.length} of ${issues[type]}.</p>` : ''}</section>`;
+    });
+    const html = `<p>Checking ${escapeHtml(period.name)}. Tommy flags entries for your review.</p>
+      ${gradingIssue ? `<p><strong>Class grading settings</strong> · ${escapeHtml(gradingIssue)}</p>` : ''}
+      ${groups.length ? `<div class="tommy-issue-grid">${groups.join('')}</div>` : gradingIssue ? '' : '<p>All clear for the checks I ran.</p>'}`;
+    if (body.innerHTML !== html) body.innerHTML = html;
   }
 
   function periodInputIssueMessage(issues) {
@@ -970,13 +1038,14 @@
       : renderSignInPanel();
 
     return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/logo-compact.png" alt=""><span class="welcome-brand-copy"><strong>CST-R Class Record</strong><small>Colegio de Sto. Tomás–Recoletos · Unofficial</small></span></a><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen">
-      <div class="welcome-story"><div class="welcome-story-copy"><h2>Your digital<br> class record</h2><p>Record scores, check how grades were calculated, and prepare individual learner reports in one workspace for CST-R teachers.</p></div><figure><div class="campus-window"><img src="ASSETS/campus.webp" width="1400" height="788" fetchpriority="high" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"></div><figcaption><span>Colegio de Sto. Tomás – Recoletos</span><span>Faculty workspace</span></figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
+      <div class="welcome-story"><div class="welcome-story-copy"><h2>Your digital<br> class record</h2><p>Record scores, check how grades were calculated, and prepare learner reports with AI Tommy.</p>${renderTommyWelcome('signin')}</div><figure><div class="campus-window"><img src="ASSETS/campus.webp" width="1400" height="788" fetchpriority="high" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"></div><figcaption><span>Colegio de Sto. Tomás – Recoletos</span><span>Faculty workspace</span></figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
       <div class="login-card">
         <div class="login-header-logo">
           <img src="ASSETS/logo-compact.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
         </div>
 
         <h1>${titles[loginPanel]}</h1><p class="signin-context">${loginPanel === "signin" ? "Sign in with your approved teacher account." : loginPanel === "signup" ? "Request access to the CST-R faculty workspace." : "Request help finding your saved class records."}</p>
+        ${loginPanel === 'signin' ? `<button type="button" class="tommy-login-link" data-action="tommy-intro">${tommyRobot()}<span class="action-label">About AI Tommy</span></button>` : ''}
 
 
         ${panelBody}
@@ -996,8 +1065,9 @@
           <p>The record calculates grades from scores and class weights for Written Work, Performance Tasks, and Examinations. Component totals and weighted scores let you trace each result back to the assessments. A pending score is shown separately from a recorded zero.</p>
         </section>
         <section>
-          <h3>Support each learner</h3>
-          <p>Find a learner inside the signed-in workspace. See current performance, strengths, areas to improve, and suggested next steps based on recorded scores. On supported desktop Chrome devices, optional AI can draft feedback on the device for teacher review, with no monthly AI fee.</p>
+          <h3>Meet AI Tommy</h3>
+          <p>Tommy checks the current grade sheet for blank scores, invalid entries, scores above the maximum, and setup issues. In Student Lookup, he uses the learner’s recorded results to show strengths, areas to improve, and next steps.</p>
+          <p>On supported desktop Chrome, Tommy can draft feedback using the browser’s on-device AI, with no monthly AI fee. Teachers can review the draft and choose to include it in the learner’s PNG. Grade-sheet checks and score-based assessments also work on Android and in browsers without that model.</p>
         </section>
         <section>
           <h3>Prepare records for review</h3>
@@ -1307,6 +1377,7 @@
   async function completeOnboardLegacyLink() { alert("Record recovery requires developer verification. Contact SANCHEZRAMIL2202@GMAIL.COM."); }
 
   function renderApp() {
+    if (currentView === 'record') tommyVisit = undefined;
     const content = currentView === "home" ? renderHome() : currentView === "chooser" ? renderClassRecord() : renderSectionRecord();
     const viewTitle = currentView === "home" ? "Overview" : currentView === "chooser" ? "Class records" : "Grade sheet";
     return `<div class="aura-bg"><div class="aura-content app-layout ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${currentView === "record" ? "sheet-layout" : ""}" data-calendar-mode="${state.calendarMode}">
@@ -1339,7 +1410,7 @@
           ${themeControl()}
           ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", 'id="saveChanges"')}
         </div>
-      </div></header><div class="app-shell">${content}</div></div>
+      </div></header><div class="app-shell">${currentView === 'record' ? '' : renderTommyWelcome(currentView)}${content}</div></div>
     </div>${renderMobileNavigation()}</div>`;
   }
 
@@ -1554,6 +1625,7 @@
 
       ${period.locked ? '<p class="locked-period-note">Period locked.</p>' : ""}
       <div id="periodIntegrity">${integrityNote}</div>
+      ${renderTommySheetCheck()}
       <details class="phone-class-tools" ${matchMedia("(max-width: 1000px)").matches ? "" : "open"}><summary>Class tools</summary><div class="sheet-utilities">
         ${button(`${icon("back")}<span>Sections</span>`, "go-records", "button button-ghost")}
         <details class="roster-options"><summary>Manage rows ${icon("chevron")}</summary><div class="bulk-column-tools roster-slots-tools"><label for="rosterSlotCount">Add learner rows (this period only)</label><input id="rosterSlotCount" type="number" min="1" max="100" value="10" data-column-count="roster" ${period.locked ? "disabled" : ""}>${button("Add rows","add-roster-slots","button button-secondary",period.locked ? "disabled" : "")}</div></details>
@@ -1638,6 +1710,10 @@
   });
 
   app.addEventListener('toggle', event => {
+    if (event.target.id === 'tommy-sheet-check' && event.target.open) {
+      const period = currentPeriod(), details = tommyIssueDetails();
+      if (period) updateTommySheetCheck(event.target, period, getPeriodInputIntegrity(period, details), details, window.CSTRGrading.gradingIssue(currentSection()));
+    }
     if (!event.target.matches('.period-settings') || !event.target.open || keyboardInteraction || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     event.target.querySelector('.period-toolbar')?.animate?.(
       [{opacity: .8, transform: 'translateY(-3px)'}, {opacity: 1, transform: 'none'}],
@@ -1802,8 +1878,13 @@
       dot.textContent = value ? "✓" : "·";
       dot.setAttribute("aria-label", value ? "Complete" : "In progress");
     });
-    const issues = getPeriodInputIntegrity(period), integrity = document.querySelector("#periodIntegrity");
-    if (integrity) integrity.innerHTML = hasPeriodInputIssues(issues) ? `<p class="integrity-note">Review needed: ${escapeHtml(periodInputIssueMessage(issues))}.</p>` : "";
+    const check = document.querySelector('#tommy-sheet-check');
+    const details = check?.open ? tommyIssueDetails() : undefined;
+    const issues = getPeriodInputIntegrity(period, details), integrity = document.querySelector("#periodIntegrity");
+    const gradingIssue = window.CSTRGrading.gradingIssue(section);
+    if (integrity) integrity.innerHTML = gradingIssue ? `<p class="integrity-note">${escapeHtml(gradingIssue)}</p>`
+      : hasPeriodInputIssues(issues) ? `<p class="integrity-note">Review needed: ${escapeHtml(periodInputIssueMessage(issues))}.</p>` : '';
+    if (check) updateTommySheetCheck(check, period, issues, details, gradingIssue);
   }
 
   function calendarDate(value) {
@@ -2749,16 +2830,37 @@
         <p data-ai-status role="status">${tommy ? 'Tommy checks the recorded scores and assessment details for this grading period.' : 'Runs on this device. The first use may download the model.'}</p>
         ${tommy ? '' : editorMarkup}` : '<p>AI drafting requires a supported desktop browser. The performance analysis is available on this device.</p>'}
       </div></div>`;
-    return `<section class="student-analysis" aria-label="${tommy ? 'Tommy’s assessment' : 'Performance analysis'}">${tommy ? feedback : ''}
-      <div ${tommy ? 'data-tommy-findings hidden' : ''}><h3>${tommy ? 'Tommy’s assessment' : 'Performance analysis'}</h3><div class="student-analysis-grid">
+    return `<section class="student-analysis" aria-label="${tommy ? "AI Tommy's performance assessment" : 'Performance analysis'}">${tommy ? feedback : ''}
+      <div ${tommy ? 'data-tommy-findings hidden' : ''}><h3>${tommy ? "AI Tommy's performance assessment" : 'Performance analysis'}</h3><div class="student-analysis-grid">
       ${analysis.sections.map(({ title, lines }) => `<section><h4>${title}</h4><ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul></section>`).join('')}
       </div></div>${tommy ? editorMarkup : feedback}</section>`;
   }
 
+  let tommyVisit;
+  function renderTommyWelcome(view) {
+    const greetings = ['Hi, teacher! Tommy here.', 'Oh, hi! Ready when you are.', 'Beep! Good to see you, teacher.'];
+    if (tommyVisit?.view !== view) {
+      tommyVisit = { view, greeting: greetings[Math.floor(Math.random() * greetings.length)], atEnd: Math.random() < .5 };
+    }
+    const signin = view === 'signin';
+    return `<details class="tommy-helper ${signin ? 'tommy-welcome' : 'tommy-workspace'}${tommyVisit.atEnd ? ' tommy-at-end' : ''}" id="tommy-welcome">
+      <summary>${tommyRobot()}<span class="action-label">${signin ? 'Meet AI Tommy' : 'Say hi to AI Tommy'}</span></summary>
+      <div class="tommy-helper-body"><p><strong>${tommyVisit.greeting}</strong></p>
+        <p>${signin ? 'Sign in to check a grade sheet with me or ask for a learner’s performance assessment.' : 'Open a grade sheet and I’ll help spot entries to review. Find a learner to see an assessment based on their recorded scores.'}</p>
+      </div>
+    </details>`;
+  }
+
   function tommyRobot() {
-    return `<span class="tommy-avatar" aria-hidden="true"><svg viewBox="0 0 80 80" class="tommy-robot">
-      <ellipse cx="41" cy="71" rx="22" ry="3" fill="#0d3751" opacity=".18"/>
-      <path d="M33 53h15l6 15H27z" fill="#376784"/><path d="M33 53h15l3 11H29z" fill="#a5ccdd"/>
+    return `<span class="tommy-avatar" aria-hidden="true"><svg viewBox="0 0 80 100" class="tommy-robot">
+      <ellipse cx="40" cy="95" rx="24" ry="3" fill="#0d3751" opacity=".22"/>
+      <g class="tommy-leg-left"><path d="M33 78v12" stroke="#376784" stroke-width="7"/><rect x="24" y="88" width="15" height="6" rx="3" fill="#91c1d7"/></g>
+      <g class="tommy-leg-right"><path d="M47 78v12" stroke="#376784" stroke-width="7"/><rect x="42" y="88" width="15" height="6" rx="3" fill="#91c1d7"/></g>
+      <path d="M22 62l-7 10" stroke="#376784" stroke-width="7" stroke-linecap="round"/><circle cx="14" cy="74" r="4" fill="#a5ccdd"/>
+      <g class="tommy-wave-arm"><path d="M56 62l7 4 5-7" stroke="#376784" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="69" cy="57" r="4" fill="#a5ccdd"/></g>
+      <rect x="23" y="56" width="35" height="25" rx="10" fill="#376784"/><rect x="21" y="54" width="34" height="24" rx="10" fill="#a5ccdd"/>
+      <rect x="29" y="61" width="18" height="11" rx="5" fill="#102d45"/>
+      <path d="M38 70c-8-4-2-8 0-4 2-4 8 0 0 4z" fill="#ffacc1"/>
       <path d="M40 17V9" stroke="#376784" stroke-width="4" stroke-linecap="round"/><circle cx="40" cy="8" r="4" fill="#46d8bd"/>
       <rect x="9" y="29" width="12" height="18" rx="6" fill="#5789a0"/><rect x="60" y="29" width="11" height="18" rx="5" fill="#376784"/>
       <rect x="17" y="18" width="49" height="40" rx="16" fill="#4d7e96"/><rect x="15" y="15" width="48" height="40" rx="16" fill="#c8e4ee"/>
@@ -2936,7 +3038,7 @@
   function addTommyAssessmentToSvg(svg, article) {
     if (!article?.querySelector('.tommy-trigger[aria-expanded="true"], .tommy-assessment[data-tommy-ready="true"]')) return;
     const heading = svg.querySelector('[data-analysis-heading]');
-    heading.textContent = 'Tommy’s performance assessment';
+    heading.textContent = "AI Tommy's performance assessment";
     const editor = article.querySelector('.student-analysis [data-ai-editor]');
     const note = editor?.querySelector('[data-tommy-include]').checked ? editor.querySelector('[data-ai-note]').value.trim() : '';
     if (!note) return;
@@ -4518,6 +4620,20 @@
     if (action === "choose-photo") choosePhoto();
     if (action === "search-student") searchStudent();
     if (action === "draft-student-feedback") void draftStudentFeedback(target);
+    if (action === 'tommy-intro') {
+      const welcome = app.querySelector('#tommy-welcome');
+      if (welcome) {
+        welcome.open = true;
+        welcome.querySelector('summary').focus({ preventScroll: true });
+        welcome.scrollIntoView({ block: 'center' });
+      }
+    }
+    if (action === 'tommy-find-field') {
+      selectEntryView('sheet');
+      const field = app.querySelector(`.record-table ${target.dataset.field}`);
+      field?.scrollIntoView({ block: 'center', inline: 'nearest' });
+      field?.focus({ preventScroll: true });
+    }
     if (action === "cancel-student-feedback") activeFeedback.get(target.closest(".report-ai"))?.abort();
     if (action === "export-student-png") exportStudentReportPng(target);
   });

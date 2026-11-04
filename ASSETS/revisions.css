@@ -148,8 +148,32 @@
 :root body .tommy-assessment {margin:0 0 16px}
 :root body .tommy-assessment .tommy-trigger {display:inline-flex;gap:12px;align-items:center;max-width:100%;text-align:left}
 :root body .tommy-avatar {display:grid;place-items:center;flex:none;width:58px;aspect-ratio:1;background:var(--surface-subtle);border-radius:16px;perspective:180px}
-:root body .tommy-robot {width:55px;height:55px}
+:root body .tommy-robot {display:block;width:80%;height:auto;max-height:100%;overflow:visible}
 :root body .tommy-scan {opacity:0}
+:root body .tommy-helper {max-width:100%;margin-block:0 14px;color:var(--text)}
+:root body .tommy-helper > summary {display:flex;gap:10px;align-items:center;min-height:44px;padding:4px 8px;text-align:left;list-style:none}
+:root body .tommy-helper > summary::-webkit-details-marker {display:none}
+:root body .tommy-helper > summary::after {content:"+";margin-inline-start:auto}
+:root body .tommy-helper[open] > summary::after {content:"−"}
+:root body .tommy-helper > summary .action-label {overflow-wrap:anywhere}
+:root body .tommy-helper .tommy-avatar {width:44px;border-radius:12px}
+:root body .tommy-welcome {width:min(100%,28rem);margin-block:14px 0;padding:4px 8px;background:#11364b;border-radius:10px;color:#f2fbff}
+:root body .welcome-story .tommy-welcome > summary {color:#f2fbff!important}
+:root body .tommy-welcome .tommy-helper-body p {color:#f2fbff}
+:root body .tommy-login-link {display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:3px 9px;margin:6px 0 10px;color:var(--brand);background:var(--surface-subtle);border:0;border-radius:8px;font:inherit;font-weight:650}
+:root body .tommy-login-link .tommy-avatar {width:33px;border-radius:7px}
+:root body .tommy-workspace {width:min(100%,26rem);margin-inline-end:auto;background:var(--surface-subtle);border-radius:12px}
+:root body .tommy-workspace.tommy-at-end {margin-inline-start:auto;margin-inline-end:0}
+:root body .tommy-sheet-helper {margin:10px 0 14px;background:var(--surface-subtle);border-radius:10px}
+:root body .tommy-helper [data-tommy-count] {font-size:.8rem;color:var(--muted);overflow-wrap:anywhere}
+:root body .tommy-helper-body {padding:4px 14px 12px;overflow-wrap:anywhere}
+:root body .tommy-helper-body p {margin:6px 0}
+:root body .tommy-issue-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px;margin-top:10px}
+:root body .tommy-issue-grid section {background:var(--surface);border-radius:8px;padding:12px;min-width:0}
+:root body .tommy-issue-grid h4 {margin:0}
+:root body .tommy-issue-grid ul {margin:4px 0 0;padding-inline-start:1.2em}
+:root body .tommy-find-field {min-height:32px;padding:3px 0;color:var(--brand);background:none;border:0;text-align:left;font:inherit}
+:root body .tommy-find-field .action-label {text-decoration:underline;text-underline-offset:.16em}
 :root body .student-analysis [data-tommy-include] {width:auto;margin:0}
 :root body .student-analysis [data-ai-editor] > label:has([data-tommy-include]) {display:flex;align-items:center;gap:8px}
 :root body .student-analysis > [data-tommy-findings][hidden] {display:none!important}
@@ -158,13 +182,24 @@
   :root body .tommy-assessment:has([aria-expanded="true"]) .tommy-robot {transform:rotateY(9deg) rotateZ(-4deg)}
   :root body .tommy-trigger:focus-visible .tommy-robot {transform:rotateY(0) rotateZ(-5deg)}
   :root body .tommy-eyes {transform-box:fill-box;transform-origin:center}
+  :root body .tommy-wave-arm {transform-origin:56px 62px}
+  :root body .tommy-leg-left {transform-origin:33px 78px}
+  :root body .tommy-leg-right {transform-origin:47px 78px}
+  :root body .tommy-helper[open] .tommy-robot {animation:tommy-step-in 500ms var(--ease-control) both}
+  :root body .tommy-helper[open] .tommy-leg-left {animation:tommy-step 260ms ease-in-out 2}
+  :root body .tommy-helper[open] .tommy-leg-right {animation:tommy-step 260ms ease-in-out 2 reverse}
+  :root body .tommy-helper[open] .tommy-wave-arm {animation:tommy-wave 220ms ease-in-out 2 alternate}
   :root body .tommy-assessment[data-tommy-busy="true"] .tommy-scan {animation:tommy-scan 800ms linear 3}
   @media (hover:hover) and (pointer:fine) {
     :root body .tommy-trigger:hover .tommy-robot {transform:rotateY(14deg) rotateZ(-6deg) translateY(-2px)}
     :root body .tommy-trigger:hover .tommy-eyes {animation:tommy-blink 160ms var(--ease-control)}
+    :root body .tommy-helper > summary:hover .tommy-eyes {animation:tommy-blink 160ms var(--ease-control)}
   }
   @keyframes tommy-scan {0%{transform:translateY(0);opacity:0} 15%,85%{opacity:.8} 100%{transform:translateY(15px);opacity:0}}
   @keyframes tommy-blink {50%{transform:scaleY(.12)}}
+  @keyframes tommy-step-in {from{transform:translateX(-9px) rotateY(-12deg)}to{transform:translateX(0) rotateY(8deg)}}
+  @keyframes tommy-step {50%{transform:rotate(16deg) translateY(-2px)}}
+  @keyframes tommy-wave {to{transform:rotate(-27deg)}}
 }
 :root body .editable-student-report [data-report-live="one-export"] {margin-block:16px}
 :root body .report-quarter-tabs {display:flex;flex-wrap:wrap;gap:4px 16px;margin-block:10px 16px}

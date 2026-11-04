@@ -27,6 +27,18 @@ async function main(){
  for(const token of ['0','0.00','.5','8.50','10.'])assert.equal(grading.numberOrNull(token),Number(token));
  assert.equal(h.sanitizeScoreValue(' m '),'M');
  console.log('PASS Invalid pasted/typed tokens retain their meaning and block grades; zero, decimals and attendance codes remain supported.');
+ const sheet=period(1);
+ sheet.wwHps=['10','10','10',''];
+ sheet.wwDates=['','','',''];
+ sheet.roster[0].ww=['0','','11','A'];
+ sheet.roster[0].pt=['E'];
+ h.setState(state(h,[sheet]));
+ const review=h.getPeriodInputIntegrity(h.getState().sections.synthetic.periods[0]);
+ assert.equal(review.pending,1);
+ assert.equal(review.aboveHps,1);
+ assert.equal(review.missingHps,1);
+ assert.equal(review.invalidScores,0);
+ console.log('PASS Tommy flags configured blanks and out-of-range scores while preserving recorded zero and attendance codes.');
  h.setState(state(h,[period(1)]));const target={...section,gradingMode:'zero-based'},p=period(1,'8');
  assert.equal(h.learnerResult(p.roster[0],p,target).initial.transmuted,80);
  assert.equal(h.learnerResult(p.roster[0],p,section).initial.transmuted,83);

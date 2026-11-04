@@ -73,7 +73,10 @@ jobs:
           chmod +x android/gradlew
           (cd android && ./gradlew assembleRelease lintRelease --no-daemon)
           export CSTR_AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
-          node tools/publish-release.mjs android/app/build/outputs/apk/release/app-release.apk "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" "$CSTR_VERSION_NAME" "$CSTR_VERSION_CODE"
+          release_notes=$(git log -1 --format='%(trailers:key=CSTR-Release-Notes,valueonly,separator=%x20,unfold)')
+          release_args=()
+          if [ -n "$release_notes" ]; then release_args+=("$release_notes"); fi
+          node tools/publish-release.mjs android/app/build/outputs/apk/release/app-release.apk "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" "$CSTR_VERSION_NAME" "$CSTR_VERSION_CODE" "${release_args[@]}"
       - name: Check source freshness before publication
         if: github.ref == 'refs/heads/main'
         id: freshness

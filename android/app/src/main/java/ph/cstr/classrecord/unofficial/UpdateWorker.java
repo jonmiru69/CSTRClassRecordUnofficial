@@ -70,8 +70,17 @@ public class UpdateWorker extends Worker {
             if(Build.VERSION.SDK_INT>=26)manager.createNotificationChannel(new NotificationChannel("app-updates","App updates",NotificationManager.IMPORTANCE_DEFAULT));
             Intent intent=new Intent(context,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
             PendingIntent action=PendingIntent.getActivity(context,2461,intent,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-            manager.notify(2461,new NotificationCompat.Builder(context,"app-updates").setSmallIcon(R.drawable.ic_update).setContentTitle("Update CST-R Class Record")
-                .setContentText("Version "+release.getString("version")+" is ready. Save your work and update now.").setContentIntent(action).setAutoCancel(true).build());
+            String versionLabel = release.getString("version");
+            String notes = release.optString("notes", "").trim();
+            if (notes.length() > 500) notes = notes.substring(0, 500).trim() + "…";
+            String reminder = "Save your work before updating.";
+            String expanded = notes.isEmpty() ? reminder : notes + "\n\n" + reminder;
+            manager.notify(2461, new NotificationCompat.Builder(context, "app-updates")
+                .setSmallIcon(R.drawable.ic_update)
+                .setContentTitle("CST-R " + versionLabel + " is ready")
+                .setContentText(notes.isEmpty() ? reminder : notes)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(expanded))
+                .setContentIntent(action).setAutoCancel(true).build());
             prefs.edit().putLong("lastVersion",release.getLong("versionCode")).putLong("lastNotice",System.currentTimeMillis()).apply();return Result.success();
         }catch(Exception error){return Result.retry();}finally{if(connection!=null)connection.disconnect();}
     }
