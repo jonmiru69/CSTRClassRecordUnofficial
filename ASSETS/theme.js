@@ -5,10 +5,9 @@
   const saved = () => {
     try { return localStorage.getItem(key); } catch (_) { return null; }
   };
-  const current = () => {
-    const choice = saved();
-    return choice === 'light' || choice === 'dark' ? choice : system.matches ? 'dark' : 'light';
-  };
+  const storedTheme = saved();
+  let choice = storedTheme === 'light' || storedTheme === 'dark' ? storedTheme : null;
+  const current = () => choice ?? (system.matches ? 'dark' : 'light');
   const apply = theme => {
     document.documentElement.dataset.theme = theme;
     document.querySelectorAll('[data-toggle-theme]').forEach(button => {
@@ -25,8 +24,9 @@
   document.addEventListener('click', event => {
     if (!event.target.closest('[data-toggle-theme]')) return;
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    choice = next;
     try { localStorage.setItem(key, next); } catch (_) {}
     apply(next);
   });
-  system.addEventListener('change', () => { if (!saved()) apply(current()); });
+  system.addEventListener('change', () => { if (!choice) apply(current()); });
 })();

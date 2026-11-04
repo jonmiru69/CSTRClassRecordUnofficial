@@ -722,7 +722,7 @@
 
   function themeControl() {
     const dark = document.documentElement.dataset.theme === "dark";
-    return `<button type="button" class="theme-toggle" data-toggle-theme aria-pressed="${dark}" aria-label="Switch to ${dark ? "light" : "dark"} mode" title="Switch to ${dark ? "light" : "dark"} mode"><span class="theme-switch-track" aria-hidden="true"><svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg><span class="theme-switch-thumb"></span><svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.2 15.5A8.4 8.4 0 0 1 8.5 3.8 8.5 8.5 0 1 0 20.2 15.5Z"/></svg></span><span class="theme-toggle-label">${dark ? "Light mode" : "Dark mode"}</span></button>`;
+    return `<button type="button" class="theme-toggle" data-toggle-theme aria-pressed="${dark}" aria-label="Switch to ${dark ? "light" : "dark"} mode" title="Switch to ${dark ? "light" : "dark"} mode"><span class="theme-switch-track" aria-hidden="true"><svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg><span class="theme-switch-thumb"></span><svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.2 15.5A8.4 8.4 0 0 1 8.5 3.8 8.5 8.5 0 1 0 20.2 15.5Z"/></svg></span><span class="theme-toggle-label action-label">${dark ? "Light mode" : "Dark mode"}</span></button>`;
   }
 
   function computeLearnerNumbering(roster) {
@@ -917,9 +917,11 @@
   function renderTommySheetCheck() {
     return `<details class="tommy-helper tommy-sheet-helper" id="tommy-sheet-check">
       <summary>${tommyRobot()}<span class="action-label">Check this grade sheet with AI Tommy</span><small data-tommy-count></small></summary>
-      <div class="tommy-helper-body" data-tommy-issues></div>
+      <div class="tommy-helper-body" data-tommy-issues data-preserve-children></div>
     </details>`;
   }
+
+  const tommyIssueMarkup = new WeakMap();
 
   function updateTommySheetCheck(check, period, issues, details, gradingIssue) {
     const count = Object.keys(tommyIssueLabels).reduce((total, type) => total + issues[type], Number(Boolean(gradingIssue)));
@@ -946,7 +948,10 @@
     const html = `<p>Checking ${escapeHtml(period.name)}. Tommy flags entries for your review.</p>
       ${gradingIssue ? `<p><strong>Class grading settings</strong> · ${escapeHtml(gradingIssue)}</p>` : ''}
       ${groups.length ? `<div class="tommy-issue-grid">${groups.join('')}</div>` : gradingIssue ? '' : '<p>All clear for the checks I ran.</p>'}`;
-    if (body.innerHTML !== html) body.innerHTML = html;
+    if (tommyIssueMarkup.get(body) !== html) {
+      body.innerHTML = html;
+      tommyIssueMarkup.set(body, html);
+    }
   }
 
   function periodInputIssueMessage(issues) {
@@ -975,6 +980,7 @@
   function showRegistrationCodeModal() { alert("Contact SANCHEZRAMIL2202@GMAIL.COM for account approval. Do not send passwords or student records by email."); }
 
   function render() {
+    const focusedGreeting = document.activeElement?.closest('#tommy-welcome > summary')?.parentElement.dataset.tommyView;
     updateSiteBackground();
     ensureActiveSelectionValid();
     const scrollLeft = currentView === "record" ? rememberTableScroll() : null;
@@ -988,6 +994,10 @@
       window.CSTRStableDOM.patch(existing, template.content.querySelector(".app-layout"));
     } else {
       app.innerHTML = signedIn ? renderApp() : renderLogin();
+      const greeting = app.querySelector('#tommy-welcome');
+      if (focusedGreeting && greeting?.dataset.tommyView === focusedGreeting) {
+        greeting.querySelector('summary').focus({ preventScroll: true });
+      }
     }
     lastRenderedRecord = recordKey;
     if (sessionStorage.getItem("cstr-class-record-login") === "true") {
@@ -1406,6 +1416,7 @@
       </aside>
       <div class="app-main"><header class="app-header"><div class="app-header-inner">
         <div class="page-context"><h1 class="app-title">${viewTitle}</h1></div>
+        <p class="policy-note" role="note" aria-label="Grading policy reference"><em>DepEd Order No. 015, s. 2026</em></p>
         <div class="header-actions-wrap"><div class="save-feedback"><p id="statusMessage" class="save-status" role="status" aria-live="polite"></p><p id="saveMeta" class="save-meta" aria-live="polite"></p></div>
           ${themeControl()}
           ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", 'id="saveChanges"')}
@@ -2843,7 +2854,9 @@
       tommyVisit = { view, greeting: greetings[Math.floor(Math.random() * greetings.length)], atEnd: Math.random() < .5 };
     }
     const signin = view === 'signin';
-    return `<details class="tommy-helper ${signin ? 'tommy-welcome' : 'tommy-workspace'}${tommyVisit.atEnd ? ' tommy-at-end' : ''}" id="tommy-welcome">
+    const previous = app.querySelector('#tommy-welcome');
+    const open = previous?.dataset.tommyView === view && previous.open;
+    return `<details class="tommy-helper ${signin ? 'tommy-welcome' : 'tommy-workspace'}${tommyVisit.atEnd ? ' tommy-at-end' : ''}" id="tommy-welcome" data-tommy-view="${view}"${open ? ' open' : ''}>
       <summary>${tommyRobot()}<span class="action-label">${signin ? 'Meet AI Tommy' : 'Say hi to AI Tommy'}</span></summary>
       <div class="tommy-helper-body"><p><strong>${tommyVisit.greeting}</strong></p>
         <p>${signin ? 'Sign in to check a grade sheet with me or ask for a learner’s performance assessment.' : 'Open a grade sheet and I’ll help spot entries to review. Find a learner to see an assessment based on their recorded scores.'}</p>
@@ -4625,7 +4638,7 @@
       if (welcome) {
         welcome.open = true;
         welcome.querySelector('summary').focus({ preventScroll: true });
-        welcome.scrollIntoView({ block: 'center' });
+        welcome.scrollIntoView({ block: 'nearest', behavior: 'instant' });
       }
     }
     if (action === 'tommy-find-field') {

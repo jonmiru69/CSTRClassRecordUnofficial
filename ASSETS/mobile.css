@@ -58,7 +58,7 @@
   :root body #app {min-width:0!important;}
   :root body #app .app-header .app-header-inner {grid-template-columns:minmax(0,1fr) auto!important;}
   :root body #app .app-header .header-actions-wrap {display:contents!important;}
-  :root body #app .app-header .save-feedback {grid-column:1/-1!important;grid-row:2!important;}
+  :root body #app .app-header .save-feedback {grid-column:1!important;grid-row:2!important;}
   :root body #app .app-header #saveChanges {grid-column:2!important;grid-row:1!important;}
   :root body .phone-class-tools {margin-top:12px;}
   :root body .phone-class-tools>summary {display:flex;align-items:center;min-height:48px;padding:8px 0;font-weight:600;font-size:1rem;}
@@ -74,7 +74,7 @@
   :root body .app-header .policy-note {display:none!important;}
   :root body .header-actions-wrap {display:contents!important;}
   :root body .save-feedback {grid-column:1/-1;grid-row:2;min-width:0!important;max-width:none!important;}
-  :root body .header-actions-wrap>.theme-toggle {display:none!important;}
+  :root body #app .app-header .theme-toggle {display:inline-flex!important;grid-column:2;grid-row:2;justify-self:end;align-self:start;min-height:44px;}
   :root body #saveChanges {grid-column:2;grid-row:1;min-height:48px!important;padding:10px 14px!important;max-width:160px;}
   :root body .save-status {font-size:.875rem!important;margin:0!important;white-space:normal!important;}
   :root body .save-meta {font-size:.8125rem!important;margin:2px 0 0!important;white-space:normal!important;}
@@ -86,6 +86,7 @@
   :root.large-text body #app .app-header .app-header-inner {grid-template-columns:1fr!important;}
   :root.large-text body #app .app-header #saveChanges {grid-column:1!important;grid-row:2!important;max-width:none!important;width:100%;}
   :root.large-text body #app .app-header .save-feedback {grid-row:3!important;}
+  :root.large-text body #app .app-header .theme-toggle {grid-column:1;grid-row:4;justify-self:start;}
   :root.large-text body .phone-assessment-meta {grid-template-columns:1fr;}
   :root body :is(.button,.icon-button,.tab,.archive-pill,summary) {min-height:48px!important;}
   :root body :is(.button,.tab,.archive-pill) {font-size:1rem!important;white-space:normal!important;}

@@ -19,7 +19,7 @@ const server=http.createServer((req,res)=>{
 });
 const app=fs.readFileSync(path.join(root,'ASSETS/app.js'),'utf8');
 assert(app.includes('  initApp();'));
-const instrumented=app.replace('  initApp();','  window.__visualRecordState=()=>JSON.stringify(state);\n  initApp();');
+const instrumented=app.replace('  initApp();','  window.__visualRecordState=()=>JSON.stringify(state);\n  window.__visualRefresh=render;\n  initApp();');
 function check(name,condition){assert(condition,name);report.checks.push(name);}
 async function settle(page){await page.evaluate(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode().catch(()=>{})));});await page.waitForTimeout(800);}
 async function layout(page,label){const size=await page.evaluate(()=>({viewport:innerWidth,width:document.documentElement.scrollWidth}));check(label+' has no document overflow',size.width<=size.viewport+1);}
@@ -43,7 +43,7 @@ async function run(){
     for(const config of [{width:1440,theme:'light'},{width:1440,theme:'dark'},{width:1024,theme:'light'},{width:1000,theme:'light'},{width:768,theme:'light'},{width:390,theme:'light'},{width:390,theme:'dark'},{width:320,theme:'light'},{width:390,theme:'light',reduced:true}]){
       const {width,theme}=config,label=`${width}-${theme}${config.reduced?'-reduced':''}`;
       console.log('Checking '+label);
-      const context=await browser.newContext({viewport:{width,height:900},colorScheme:theme,reducedMotion:config.reduced?'reduce':'no-preference',acceptDownloads:true});
+      const context=await browser.newContext({viewport:{width,height:900},hasTouch:width<=1000,colorScheme:theme,reducedMotion:config.reduced?'reduce':'no-preference',acceptDownloads:true});
       await context.addInitScript(()=>{Element.prototype.requestPointerLock=()=>{};Element.prototype.setPointerCapture=()=>{};});
       await context.route('**/*',async route=>{
         const url=route.request().url();
@@ -53,12 +53,23 @@ async function run(){
         return route.continue();
       });
       const page=await context.newPage();page.on('pageerror',e=>report.errors.push({label,message:e.message}));
+      const activate=control=>width<=1000?control.tap():control.click();
       await page.goto(origin+'/');await settle(page);await layout(page,label+' sign-in');
       check(label+' sign-in retains email/password and Google actions',await page.locator('#signinEmail').isVisible()&&await page.locator('#signinPassword').isVisible()&&await page.locator('[data-action="google-login"]').isVisible());
+      const greeting=page.locator('#tommy-welcome');
+      await activate(page.getByRole('button',{name:'About AI Tommy'}));
+      check(label+' login shortcut opens Tommy',await greeting.locator('.tommy-helper-body').isVisible());
+      await page.evaluate(()=>window.__visualRefresh());
+      check(label+' login greeting stays open after refresh',await greeting.locator('.tommy-helper-body').isVisible());
+      await greeting.locator('summary').press('Enter');
+      check(label+' login greeting closes with keyboard',!(await greeting.locator('.tommy-helper-body').isVisible()));
       if(width===1440||width===390)await shot(page,'welcome-'+label);
       await page.locator('[data-open-policies]').first().click();check(label+' privacy dialog opens',await page.locator('#policy-dialog').evaluate(e=>e.open));await page.keyboard.press('Escape');check(label+' privacy dialog closes',!(await page.locator('#policy-dialog').evaluate(e=>e.open)));
       if(config.reduced)check('Reduced motion suppresses welcome animations',(await page.evaluate(()=>document.getAnimations().filter(a=>a.playState==='running').length))===0);
       await page.goto(origin+'/test-preview/index.html');await page.locator('.recent-class-row').first().waitFor();await settle(page);const before=await snapshot(page);await layout(page,label+' overview');
+      await activate(greeting.locator('summary'));
+      await page.evaluate(()=>window.__visualRefresh());
+      check(label+' workspace greeting stays open after refresh',await greeting.locator('.tommy-helper-body').isVisible());
       await contrast(page,'.workspace-intro h2',label+' desk heading');
       await contrast(page,'.metric-card p',label+' metric labels');
       if(width>1000)await contrast(page,'.app-sidebar button[aria-current="page"] .action-label',label+' active navigation');
@@ -67,6 +78,24 @@ async function run(){
       if(width===1440||width===390)await shot(page,'desk-'+label);
       if(width>1000){await page.locator('[data-action="toggle-sidebar"]').click();await layout(page,label+' collapsed navigation');await page.locator('[data-action="toggle-sidebar"]').click();}
       await page.locator('.recent-class-row').first().click();await settle(page);await layout(page,label+' assessment');
+      const sheetTommy=page.locator('#tommy-sheet-check');
+      await activate(sheetTommy.locator('summary'));
+      await sheetTommy.getByRole('heading',{name:/Blank scores/}).waitFor();
+      const issueList=await sheetTommy.locator('.tommy-issue-grid').elementHandle();
+      const themeToggle=page.locator('.app-header [data-toggle-theme]');
+      const paperColor=()=>page.locator('.sheet-paper').evaluate(node=>getComputedStyle(node).backgroundColor);
+      const initialPaper=await paperColor();
+      await activate(themeToggle);
+      check(label+' grade-sheet theme switch changes the paper color',(await paperColor())!==initialPaper);
+      check(label+' grade-sheet theme switch preserves Tommy’s open review',await sheetTommy.getByRole('heading',{name:/Blank scores/}).isVisible());
+      await page.evaluate(()=>window.__visualRefresh());
+      check(label+' grade-sheet review stays open after refresh',await sheetTommy.getByRole('heading',{name:/Blank scores/}).isVisible());
+      check(label+' refresh retains the open review’s content nodes',await issueList.evaluate(node=>node.isConnected));
+      await issueList.dispose();
+      await themeToggle.press('Space');
+      check(label+' theme switch restores the paper color with keyboard',(await paperColor())===initialPaper);
+      check(label+' theme changes leave student records intact',before===await snapshot(page));
+      await activate(sheetTommy.locator('summary'));
       if(width===1440||width===390)await shot(page,'assessment-'+label);
       check(label+' navigation does not mutate records',before===await snapshot(page));
       await page.locator('[data-entry-view]').selectOption('one');await page.locator('[data-entry-row]').waitFor();await layout(page,label+' one learner');

@@ -152,6 +152,12 @@
 :root body .tommy-scan {opacity:0}
 :root body .tommy-helper {max-width:100%;margin-block:0 14px;color:var(--text)}
 :root body .tommy-helper > summary {display:flex;gap:10px;align-items:center;min-height:44px;padding:4px 8px;text-align:left;list-style:none}
+:root body .tommy-helper > summary,
+:root body .tommy-login-link,
+:root body .theme-toggle {touch-action:manipulation;transform:none!important}
+:root body .tommy-helper > summary .tommy-avatar {pointer-events:none}
+:root body .tommy-helper:not([open]) > .tommy-helper-body {display:none}
+:root body #app .theme-toggle {min-inline-size:6rem!important;min-height:44px}
 :root body .tommy-helper > summary::-webkit-details-marker {display:none}
 :root body .tommy-helper > summary::after {content:"+";margin-inline-start:auto}
 :root body .tommy-helper[open] > summary::after {content:"−"}

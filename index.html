@@ -7,14 +7,14 @@
     <meta name="theme-color" content="#042134">
     <title>CST-R Digital Class Record with AI Tommy</title>
     <link rel="icon" type="image/png" href="ASSETS/logo-compact.png">
-    <script src="ASSETS/theme.js?v=20261013"></script>
+    <script src="ASSETS/theme.js?v=20261104-controls"></script>
     <link rel="stylesheet" href="ASSETS/design-system.css?v=20261016-3">
   <link rel="stylesheet" href="ASSETS/review.css?v=20261018">
   <link rel="stylesheet" href="ASSETS/workspace.css?v=20261018b">
-    <link rel="stylesheet" href="ASSETS/revisions.css?v=20261104-tommy-workspace">
+    <link rel="stylesheet" href="ASSETS/revisions.css?v=20261104-controls">
 <link rel="stylesheet" href="ASSETS/ui-refinements.css?v=20261024-polish">
     <link rel="stylesheet" href="ASSETS/sheet-emphasis.css?v=20261025-2">
-    <link rel="stylesheet" href="ASSETS/mobile.css?v=20261101">
+    <link rel="stylesheet" href="ASSETS/mobile.css?v=20261104-controls">
     <link rel="stylesheet" href="ASSETS/visual-remaster.css?v=20261102">
     <link rel="stylesheet" href="ASSETS/record-folder.css?v=20261102">
 </head>
@@ -38,10 +38,10 @@
     <script src="ASSETS/vendor/firebase-compat.bundle.js"></script>
     <script src="ASSETS/firebase-sync.js?v=20261013"></script>
     <script src="ASSETS/record-tools.js?v=20261025"></script>
-    <script src="ASSETS/stable-dom.js?v=20261013"></script>
+    <script src="ASSETS/stable-dom.js?v=20261104-controls"></script>
     <script src="ASSETS/registration.js?v=20261013"></script>
     <script src="ASSETS/performance-analysis.js?v=20261104-tommy"></script>
-    <script src="ASSETS/app.js?v=20261104-tommy-workspace"></script>
+    <script src="ASSETS/app.js?v=20261104-controls"></script>
     <script src="ASSETS/apple.js?v=20261013" defer></script>
     <script>
       (() => {
@@ -80,20 +80,6 @@
             }
           }
 
-          const header = document.querySelector(".app-header-inner");
-          if (header) {
-            let note = header.querySelector(".policy-note");
-            if (!note) {
-              note = document.createElement("p");
-              note.className = "policy-note";
-              note.setAttribute("role", "note");
-              note.setAttribute("aria-label", "Grading policy reference");
-            }
-            const noteMarkup = '<em>DepEd Order No. 015, s. 2026</em>';
-            if (note.innerHTML !== noteMarkup) note.innerHTML = noteMarkup;
-            const context = header.querySelector(".page-context");
-            if (context && context.nextElementSibling !== note) context.after(note);
-          }
         }
 
         const queueEnhancement = () => {

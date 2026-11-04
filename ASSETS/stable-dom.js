@@ -7,6 +7,7 @@
     const d = node.dataset;
     if (node.matches('.table-wrap,.record-table,.app-main,.app-shell,.record-section')) return 'container:' + node.className;
     if (node.id) return 'id:' + node.id;
+    if (d.toggleTheme !== undefined) return 'theme-toggle';
     if (d.learnerRow !== undefined) return 'row:' + d.learnerRow;
     if (d.score) return `score:${d.score}:${d.row}:${d.index}`;
     if (d.hps) return `hps:${d.hps}:${d.index}`;
@@ -33,6 +34,8 @@
     for (const attribute of next.attributes) {
       if (old.getAttribute(attribute.name) !== attribute.value) old.setAttribute(attribute.name, attribute.value);
     }
+    // Some containers are updated directly from live state after the patch.
+    if (next.hasAttribute('data-preserve-children')) return;
     if (old.matches('input,textarea')) {
       // A bulk paste or row deletion can change even the focused field.
       // Leave unchanged values alone so typing retains its caret naturally.
