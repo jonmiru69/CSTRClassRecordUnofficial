@@ -68,6 +68,7 @@ async function run() {
       } });
     });
     const page = await context.newPage();
+    page.setDefaultTimeout(10000);
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin + '/test-preview/index.html?screen=record');
@@ -122,9 +123,37 @@ async function run() {
     await science.waitFor();
     const first = science.locator('[role="tabpanel"]:not([hidden]) .report-readable');
     assert.equal(await first.count(), 2);
+    const assess = row => row.getByRole('button', { name: 'Let Tommy assess Alvarez, Sample’s performance?', exact: true });
+    const findings = row => row.locator('[data-tommy-findings]');
+    assert.equal(await findings(first.nth(0)).isVisible(), false);
+    assert.match(await assess(first.nth(0)).textContent(), /Let Tommy assess Alvarez, Sample’s performance/);
+    await page.evaluate(() => { testModel.mode = 'ready'; });
+    await assess(first.nth(0)).click();
+    const tommyNote = first.nth(0).locator('[data-ai-note]');
+    await tommyNote.waitFor({ state: 'visible' });
+    await tommyNote.fill('Teacher-reviewed Tommy note <sample>.');
+    assert.equal(await findings(first.nth(1)).isVisible(), false);
+    await page.evaluate(() => {
+      const serialize = XMLSerializer.prototype.serializeToString;
+      XMLSerializer.prototype.serializeToString = function (node) {
+        const xml = serialize.call(this, node);
+        if (node.classList?.contains('student-report-svg')) window.exportedStudentSvg = xml;
+        return xml;
+      };
+    });
+    const tommyDownload = page.waitForEvent('download');
+    await first.nth(0).locator('[data-action="export-student-png"]').click();
+    const tommyPng = fs.readFileSync(await (await tommyDownload).path());
+    assert.equal(tommyPng.subarray(1, 4).toString(), 'PNG');
+    assert.match(await page.evaluate(() => exportedStudentSvg), /Tommy’s performance assessment.*Teacher-reviewed Tommy note &lt;sample&gt;.*Activity record/s);
+    await page.evaluate(() => { testModel.mode = 'unavailable'; });
+    await assess(first.nth(1)).click();
+    await first.nth(1).getByText('Assessment ready from the recorded scores.', { exact: false }).waitFor();
     assert.match(await first.nth(0).innerText(), /roster row 1.*6\/20/s);
     assert.match(await first.nth(1).innerText(), /roster row 2.*4\/20/s);
     await science.getByRole('tab', { name: 'Quarter 2' }).click();
+    await assess(first.nth(0)).click();
+    await assess(first.nth(1)).click();
     assert.match(await first.nth(0).innerText(), /roster row 1.*3\/20/s);
     assert.match(await first.nth(1).innerText(), /roster row 2.*2\/20/s);
 
@@ -132,7 +161,7 @@ async function run() {
     assert.equal(await science.locator('.student-analysis').filter({ visible: true }).count(), 2);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
     assert.deepEqual(errors, []);
-    console.log('PASS desktop and phone report hierarchy, PNG download, same-name isolation, score refresh, and AI draft/cancel/failure/fallback.');
+    console.log('PASS desktop and phone report hierarchy, Tommy assessment and PNG feedback, same-name isolation, score refresh, and AI draft/cancel/failure/fallback.');
   } finally {
     await browser.close();
   }

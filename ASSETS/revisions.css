@@ -144,6 +144,20 @@
 :root body .report-ai [data-ai-editor]:not([hidden]) {display:grid;gap:6px;margin-top:12px}
 :root body .report-ai textarea {box-sizing:border-box;width:100%;min-width:0;padding:10px;font:inherit;font-size:1rem;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;resize:vertical}
 :root body .report-ai [hidden] {display:none!important}
+:root body .report-ai [data-ai-editor] > label {display:grid;gap:6px}
+:root body .tommy-assessment {display:grid;grid-template-columns:66px minmax(0,1fr);align-items:start;gap:12px;margin:0 0 16px}
+:root body .tommy-avatar {display:grid;place-items:center;width:66px;aspect-ratio:1;background:var(--surface-subtle);border-radius:18px;perspective:180px}
+:root body .tommy-robot {width:60px;height:60px}
+:root body .tommy-scan {opacity:0}
+:root body .tommy-assessment [data-tommy-include] {width:auto;margin:0}
+:root body .tommy-assessment [data-ai-editor] > label:has([data-tommy-include]) {display:flex;align-items:center;gap:8px}
+:root body .student-analysis > [data-tommy-findings][hidden] {display:none!important}
+@media (prefers-reduced-motion:no-preference) {
+  :root body .tommy-robot {transform:rotateY(-10deg);transition:transform 200ms var(--ease-control)}
+  :root body .tommy-assessment:has([aria-expanded="true"]) .tommy-robot {transform:rotateY(9deg) rotateZ(-4deg)}
+  :root body .tommy-assessment[data-tommy-busy="true"] .tommy-scan {animation:tommy-scan 800ms linear 3}
+  @keyframes tommy-scan {0%{transform:translateY(0);opacity:0} 15%,85%{opacity:.8} 100%{transform:translateY(15px);opacity:0}}
+}
 :root body .editable-student-report [data-report-live="one-export"] {margin-block:16px}
 :root body .report-quarter-tabs {display:flex;flex-wrap:wrap;gap:4px 16px;margin-block:10px 16px}
 :root body .report-quarter-tabs button {font-size:15px;min-height:44px;padding:8px 2px}

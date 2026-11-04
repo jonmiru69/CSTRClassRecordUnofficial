@@ -2736,17 +2736,38 @@
       state.calendarMode === 'trimester' ? 'Term Assessment' : 'Quarterly Assessment');
   }
 
-  function renderStudentAnalysis(analysis, entry) {
+  function renderStudentAnalysis(analysis, entry, tommy = false) {
     const localModel = typeof window.LanguageModel?.availability === 'function' && typeof window.LanguageModel?.create === 'function';
     const owner = JSON.stringify([entry.section.id, entry.periodIndex, entry.rowIndex, entry.learner.name]);
-    const feedback = !analysis.draft ? '' : `<div class="report-ai" data-report-owner="${escapeHtml(owner)}" data-draft="${escapeHtml(JSON.stringify(analysis.draft))}">
-      ${localModel ? `<div class="report-ai-actions"><button type="button" class="button button-secondary" data-action="draft-student-feedback">Draft feedback with AI</button><button type="button" class="button button-secondary" data-action="cancel-student-feedback" hidden>Cancel</button></div>
-        <p data-ai-status role="status">Runs on this device. The first use may download the model.</p>
-        <label hidden data-ai-editor>Review and edit this draft before sharing<textarea rows="4" data-ai-note></textarea><small>The draft is separate from the PNG export.</small></label>`
-        : '<p>AI drafting requires a supported desktop browser. The performance analysis is available on this device.</p>'}</div>`;
-    return `<section class="student-analysis" aria-label="Performance analysis"><h3>Performance analysis</h3><div class="student-analysis-grid">
+    const label = tommy ? `Let Tommy assess ${entry.learner.name}’s performance?` : 'Draft feedback with AI';
+    const feedback = !tommy && !analysis.draft ? '' : `<div class="report-ai${tommy ? ' tommy-assessment' : ''}" data-report-owner="${escapeHtml(owner)}" data-draft="${escapeHtml(JSON.stringify(analysis.draft))}">
+      ${tommy ? tommyRobot() : ''}
+      <div class="report-ai-copy">
+      ${localModel || tommy ? `<div class="report-ai-actions"><button type="button" class="button button-secondary" data-action="draft-student-feedback"${tommy ? ' aria-expanded="false"' : ''}><span class="action-label">${escapeHtml(label)}</span></button><button type="button" class="button button-secondary" data-action="cancel-student-feedback" hidden>Cancel</button></div>
+        <p data-ai-status role="status">${tommy ? 'Tommy checks the recorded scores and assessment details for this grading period.' : 'Runs on this device. The first use may download the model.'}</p>
+        <div hidden data-ai-editor><label>Review and edit this draft before sharing<textarea rows="4" data-ai-note maxlength="900"></textarea></label>
+          ${tommy ? '<label><input type="checkbox" data-tommy-include checked> Include this feedback in the PNG</label>' : '<small>The draft is separate from the PNG export.</small>'}
+        </div>` : '<p>AI drafting requires a supported desktop browser. The performance analysis is available on this device.</p>'}
+      </div></div>`;
+    return `<section class="student-analysis" aria-label="${tommy ? 'Tommy’s assessment' : 'Performance analysis'}">${tommy ? feedback : ''}
+      <div ${tommy ? 'data-tommy-findings hidden' : ''}><h3>${tommy ? 'Tommy’s assessment' : 'Performance analysis'}</h3><div class="student-analysis-grid">
       ${analysis.sections.map(({ title, lines }) => `<section><h4>${title}</h4><ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul></section>`).join('')}
-      </div>${feedback}</section>`;
+      </div></div>${tommy ? '' : feedback}</section>`;
+  }
+
+  function tommyRobot() {
+    return `<span class="tommy-avatar" aria-hidden="true"><svg viewBox="0 0 80 80" class="tommy-robot">
+      <ellipse cx="41" cy="71" rx="22" ry="3" fill="#0d3751" opacity=".18"/>
+      <path d="M33 53h15l6 15H27z" fill="#376784"/><path d="M33 53h15l3 11H29z" fill="#a5ccdd"/>
+      <path d="M40 17V9" stroke="#376784" stroke-width="4" stroke-linecap="round"/><circle cx="40" cy="8" r="4" fill="#46d8bd"/>
+      <rect x="9" y="29" width="12" height="18" rx="6" fill="#5789a0"/><rect x="60" y="29" width="11" height="18" rx="5" fill="#376784"/>
+      <rect x="17" y="18" width="49" height="40" rx="16" fill="#4d7e96"/><rect x="15" y="15" width="48" height="40" rx="16" fill="#c8e4ee"/>
+      <path d="M24 24q5-6 15-6h9" stroke="#f5fdff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+      <rect x="21" y="26" width="36" height="20" rx="8" fill="#102d45"/>
+      <circle cx="31" cy="36" r="3.2" fill="#65f1d3"/><circle cx="47" cy="36" r="3.2" fill="#65f1d3"/>
+      <path d="M36 42q3 2 6 0" stroke="#65f1d3" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+      <rect class="tommy-scan" x="24" y="28" width="30" height="2" rx="1" fill="#65f1d3"/>
+    </svg></span>`;
   }
 
   const activeFeedback = new WeakMap();
@@ -2755,9 +2776,18 @@
     const panel = button.closest('.report-ai');
     if (!panel || activeFeedback.has(panel)) return;
     const { draft, reportOwner } = panel.dataset;
+    const findings = panel.parentElement.querySelector('[data-tommy-findings]');
+    const status = panel.querySelector('[data-ai-status]');
+    if (findings) {
+      findings.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+      if (draft === 'null' || typeof window.LanguageModel?.availability !== 'function' || typeof window.LanguageModel?.create !== 'function') {
+        status.textContent = 'Assessment ready from the recorded scores.';
+        return;
+      }
+    }
     const controller = new AbortController();
     activeFeedback.set(panel, controller);
-    const status = panel.querySelector('[data-ai-status]');
     const editor = panel.querySelector('[data-ai-editor]');
     const cancel = panel.querySelector('[data-action="cancel-student-feedback"]');
     const visible = () => panel.isConnected && !panel.closest('[hidden]') &&
@@ -2767,7 +2797,8 @@
     const timeout = setTimeout(() => controller.abort(new DOMException('The model timed out.', 'TimeoutError')), 300000);
     button.disabled = true;
     cancel.hidden = false;
-    status.textContent = 'Preparing the on-device model…';
+    if (findings) panel.dataset.tommyBusy = 'true';
+    status.textContent = findings ? 'Tommy is reviewing the evidence and preparing feedback…' : 'Preparing the on-device model…';
     try {
       const note = await window.CSTRPerformance.draftFeedback(window.LanguageModel, JSON.parse(draft), {
         signal: controller.signal,
@@ -2781,7 +2812,9 @@
         editor.querySelector('textarea').value = note;
         editor.hidden = false;
       }
-      status.textContent = note ? 'Draft ready for teacher review.' : 'The on-device model is unavailable here. Use the performance analysis above.';
+      status.textContent = note ? 'Draft ready for teacher review.' : findings
+        ? 'Assessment ready from the recorded scores. This device has no available AI model.'
+        : 'The on-device model is unavailable here. Use the performance analysis above.';
     } catch {
       if (visible()) status.textContent = controller.signal.reason?.name === 'TimeoutError'
         ? 'The on-device model timed out. You can retry or use the analysis above.'
@@ -2790,6 +2823,7 @@
       observer.disconnect();
       clearTimeout(timeout);
       activeFeedback.delete(panel);
+      delete panel.dataset.tommyBusy;
       button.disabled = false;
       cancel.hidden = true;
     }
@@ -2808,7 +2842,7 @@
       <h4>${escapeHtml(learner.name)}</h4>
       ${disambiguate ? `<p class="report-match-note" role="alert">Separate match · ${escapeHtml(period.name)} · period record ${periodIndex + 1} · roster row ${rowIndex + 1}. Verify the learner and period before sharing.</p>` : ''}
       ${renderReportResultHtml(entry)}
-      ${renderStudentAnalysis(analysis, entry)}
+      ${renderStudentAnalysis(analysis, entry, true)}
       ${renderDetailedChart([entry], section)}
       ${renderScoreLedgerHtml(period, learner)}
       <p class="report-footnote">A = Absent (zero), M = Missing (zero), L = Late (excluded), E = Excused (excluded). Pending entries keep grades provisional.</p>
@@ -2836,7 +2870,7 @@
     body+=text(44,y,first.complete?'Complete requirements':'Provisional · incomplete requirements',13,first.complete?'#1d6242':accent,700);
     body+=text(916,y,`Generated ${new Date().toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}`,12,muted,400,'text-anchor="end"');y+=28;
     body+=text(44,y,`Initial grade: ${format(first.result.initial.rounded,3)} · ${term?'Zero-based grading':'Transmutation applied using current class settings'}`,13,muted);y+=28;
-    body += text(44, y, 'Performance analysis', 22, ink, 700);
+    body += text(44, y, 'Performance analysis', 22, ink, 700, 'data-analysis-heading=""');
     y += 29;
     for (const { title, lines } of analysis.sections) {
       body += text(44, y, title, 16, ink, 700);
@@ -2846,6 +2880,7 @@
       }
       y += 10;
     }
+    body += `<g data-tommy-note-y="${y}"></g><g data-after-tommy-note="">`;
     const cats=[{key:'ww',label:'Written Works',color:orange},{key:'pt',label:'Performance Tasks',color:accent},{key:'qa',label:state.calendarMode==='trimester'?'Term Assessment':'Quarterly Assessment',color:ink}];
     cats.forEach((cat,i)=>{
       const x=44+i*294,c=result[cat.key];
@@ -2879,13 +2914,42 @@
     });y+=20;
     ['* Added points are separate from the original raw score. Cancelled additions remain in history.','A = Absent (zero); L = Late (excluded); M = Missing (zero); E = Excused (excluded).','HPS = highest possible score; WS = weighted score. Missing requirements keep a grade provisional.','CST-R · Individual grade report'].forEach(line=>{body+=text(44,y,line,12,muted);y+=21;});
     const height=y+24;
-    return `<svg xmlns="http://www.w3.org/2000/svg" class="student-report-svg" width="960" height="${height}" viewBox="0 0 960 ${height}" role="img" aria-label="Comprehensive grade report for ${escapeHtml(learner.name)}, ${escapeHtml(period.name)}"><rect width="960" height="${height}" fill="#fff"/>${body}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" class="student-report-svg" width="960" height="${height}" viewBox="0 0 960 ${height}" role="img" aria-label="Comprehensive grade report for ${escapeHtml(learner.name)}, ${escapeHtml(period.name)}"><rect width="960" height="${height}" fill="#fff"/>${body}</g></svg>`;
   }
 
+  function addTommyAssessmentToSvg(svg, article) {
+    if (!article?.querySelector('[data-tommy-findings]:not([hidden])')) return;
+    const heading = svg.querySelector('[data-analysis-heading]');
+    heading.textContent = 'Tommy’s performance assessment';
+    const editor = article.querySelector('.tommy-assessment [data-ai-editor]:not([hidden])');
+    const note = editor?.querySelector('[data-tommy-include]').checked ? editor.querySelector('[data-ai-note]').value.trim() : '';
+    if (!note) return;
+
+    const group = svg.querySelector('[data-tommy-note-y]');
+    const start = Number(group.dataset.tommyNoteY);
+    const lines = reportLines(note, 58);
+    ['Tommy’s feedback', ...lines].forEach((line, index) => {
+      const node = document.createElementNS(svg.namespaceURI, 'text');
+      node.setAttribute('x', index ? '55' : '44');
+      node.setAttribute('y', String(start + 16 + index * 19));
+      node.setAttribute('font-family', 'Arial, sans-serif');
+      node.setAttribute('font-size', index ? '14' : '16');
+      node.setAttribute('font-weight', index ? '400' : '700');
+      node.setAttribute('fill', '#042134');
+      node.textContent = line;
+      group.append(node);
+    });
+    const extra = 36 + lines.length * 19;
+    svg.querySelector('[data-after-tommy-note]').setAttribute('transform', `translate(0 ${extra})`);
+    const height = Number(svg.getAttribute('height')) + extra;
+    svg.setAttribute('height', String(height));
+    svg.firstElementChild.setAttribute('height', String(height));
+  }
 
   async function exportStudentReportPng(button) {
-    const svg = button.nextElementSibling?.querySelector('.student-report-svg');
+    const svg = button.nextElementSibling?.querySelector('.student-report-svg')?.cloneNode(true);
     if (!svg || button.disabled) return;
+    addTommyAssessmentToSvg(svg, button.closest('.report-readable'));
     button.disabled = true; button.setAttribute('aria-busy', 'true');
     const clean = value => String(value || '').normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '');
     const filename = [clean(button.dataset.reportName).slice(0,40), clean(button.dataset.reportSection).slice(0,30), clean(button.dataset.reportPeriod).slice(0,40), 'grades'].filter(Boolean).join('-');
