@@ -970,13 +970,13 @@
       : renderSignInPanel();
 
     return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/logo-compact.png" alt=""><span class="welcome-brand-copy"><strong>CST-R Class Record</strong><small>Colegio de Sto. Tomás–Recoletos · Unofficial</small></span></a><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen">
-      <div class="welcome-story"><div class="welcome-story-copy"><h2>Every class.<br>Clearly recorded.</h2><p>From the first assessment to the final grade. A considered workspace for the CST-R faculty.</p></div><figure><div class="campus-window"><img src="ASSETS/campus.webp" width="1400" height="788" fetchpriority="high" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"></div><figcaption><span>Colegio de Sto. Tomás – Recoletos</span><span>Faculty workspace</span></figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
+      <div class="welcome-story"><div class="welcome-story-copy"><h2>Your digital<br> class record</h2><p>Record scores, check how grades were calculated, and prepare individual learner reports in one workspace for CST-R teachers.</p></div><figure><div class="campus-window"><img src="ASSETS/campus.webp" width="1400" height="788" fetchpriority="high" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"></div><figcaption><span>Colegio de Sto. Tomás – Recoletos</span><span>Faculty workspace</span></figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
       <div class="login-card">
         <div class="login-header-logo">
           <img src="ASSETS/logo-compact.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
         </div>
 
-        <h1>${titles[loginPanel]}</h1><p class="signin-context">${loginPanel === "signin" ? "Your teaching desk is ready." : loginPanel === "signup" ? "A workspace for your teaching day." : "Return to your teaching workspace."}</p>
+        <h1>${titles[loginPanel]}</h1><p class="signin-context">${loginPanel === "signin" ? "Sign in with your approved teacher account." : loginPanel === "signup" ? "Request access to the CST-R faculty workspace." : "Request help finding your saved class records."}</p>
 
 
         ${panelBody}
@@ -985,12 +985,36 @@
         <p id="loginSuccess" class="login-success" role="status" style="display: none;"></p>
       </div>
       <article class="project-about" aria-labelledby="projectTitle">
-        <h2 id="projectTitle">Made for the faculty.</h2>
-        <p class="project-subtitle"><em>Unofficial Digital Grading Platform of Colegio de Sto. Tomás – Recoletos, Incorporated</em></p>
-        <section><h3>About the Project</h3><p>This platform is the unofficial class record system of Colegio de Sto. Tomás – Recoletos, Incorporated, built to bring accuracy, consistency, and convenience to everyday classroom grade management.</p></section>
-        <section><h3>About the Developer</h3><p>Designed and developed through vibe coding by Sir Ramelito &quot;Johnmil&quot; Jr. C. Sanchez, LPT, a Licensed Professional Teacher, Science and Research educator, and graduate of Science Education, as a personal initiative to give CSTR faculty a faster, more reliable way to handle their records.</p></section>
-        <section><h3>Features &amp; Advantages</h3><p>Configurable grade computation across Written Work, Performance Tasks, and Quarterly Assessments. Color-coded, easy-to-navigate class and section management. Teacher-assisted lookup of an individual learner’s results within the signed-in workspace.</p><p>Real-time sync across devices. Log in anywhere and pick up right where you left off. Developer-approved account access. Excel, PDF and Word exports for teacher review before submission.</p></section>
-        <section class="project-standout"><h3>The Standout Feature</h3><p>What sets this system apart is its live, cross-device synchronization: access to the latest successfully saved record from another approved sign-in. Your class record simply follows you, available across signed-in devices after a successful cloud save. Check the save status before switching devices.</p></section>
+        <h2 id="projectTitle">Inside the class record</h2>
+        <p class="project-subtitle">An unofficial digital class record for the faculty of Colegio de Sto. Tomás – Recoletos, Incorporated.</p>
+        <section>
+          <h3>Record assessments</h3>
+          <p>Organize Junior and Senior High School classes by subject, section, and grading period. Add assessment dates, learning competencies, and highest possible scores. Enter scores in the full class sheet, by assessment, or by learner.</p>
+        </section>
+        <section>
+          <h3>Check how grades add up</h3>
+          <p>The record calculates grades from scores and class weights for Written Work, Performance Tasks, and Examinations. Component totals and weighted scores let you trace each result back to the assessments. A pending score is shown separately from a recorded zero.</p>
+        </section>
+        <section>
+          <h3>Support each learner</h3>
+          <p>Find a learner inside the signed-in workspace. See current performance, strengths, areas to improve, and suggested next steps based on recorded scores. On supported desktop Chrome devices, optional AI can draft feedback on the device for teacher review, with no monthly AI fee.</p>
+        </section>
+        <section>
+          <h3>Prepare records for review</h3>
+          <p>Export class records to Excel and prepare grade sheets in PDF or Word. Save an individual learner’s grade report and performance analysis as a PNG. Check names, scores, and incomplete requirements before sharing or submitting a report.</p>
+        </section>
+        <section>
+          <h3>Save and resume anywhere</h3>
+          <p>Use your developer-approved teacher account on the website or Android app. Check that your cloud save succeeded before switching devices. Recovery checkpoints and encrypted backup files give you ways to restore earlier work.</p>
+          <p>On shared devices, sign out when finished. Use Privacy &amp; terms for details on access, recovery, and handling learner data.</p>
+        </section>
+        <section class="project-standout">
+          <h3>DepEd grading alignment</h3>
+          <p>The class record supports three-term recording, subject weight presets, and separate entries for summative tests and the term examination. It includes the adjusted transmutation table for SY 2026–2027 and a zero-based option for classes that use it.</p>
+          <p>DepEd Order No. 015, s. 2026 encourages private schools to adopt the guidelines. Changes to those guidelines require approval from the appropriate DepEd regional office. Use CST-R’s approved settings for your grade level, subject, and school year, and verify outputs before submitting.</p>
+          <p><a href="https://www.deped.gov.ph/wp-content/uploads/DO_s2026_015r.pdf" target="_blank" rel="noopener noreferrer">Read DepEd Order No. 015, s. 2026 (PDF)</a></p>
+        </section>
+        <p class="project-subtitle">Developed as a faculty initiative by Sir Ramelito &quot;Johnmil&quot; Jr. C. Sanchez, LPT, a Science and Research educator.</p>
       </article>
     </section>`;
   }
