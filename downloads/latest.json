@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
   "available": true,
-  "version": "1.0.25",
-  "versionCode": 10025,
+  "version": "1.0.26",
+  "versionCode": 10026,
   "minimumSupportedVersionCode": 0,
-  "sha256": "1b782a524019e933a17976a93bec8aab9a100eff16892359872940961e001f8a",
+  "sha256": "54e1f6193201d1a57e7039cf55429011bbe0d4f74f51ff2f4aaa14cf2f0f0a04",
   "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
-  "bytes": 6053470,
-  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.25.apk",
-  "publishedAt": "2026-11-04T12:54:14.197Z",
-  "notes": "Meet AI Tommy, your animated class-record helper. Check blank and invalid scores, jump to entries that need review, and export learner assessments with their grades."
+  "bytes": 6053794,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.26.apk",
+  "publishedAt": "2026-11-04T13:17:14.547Z",
+  "notes": "Tommy panels stay open during refreshes. Switch between light and dark mode directly from the grade-sheet header on phones and tablets."
 }
