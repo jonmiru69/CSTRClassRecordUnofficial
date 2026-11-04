@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
   "available": true,
-  "version": "1.0.24",
-  "versionCode": 10024,
+  "version": "1.0.25",
+  "versionCode": 10025,
   "minimumSupportedVersionCode": 0,
-  "sha256": "54eb0c7e6ce927d05bb1aa9219975651ff675c66140c11a10da8b3c5574207e9",
+  "sha256": "1b782a524019e933a17976a93bec8aab9a100eff16892359872940961e001f8a",
   "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
-  "bytes": 6050694,
-  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.24.apk",
-  "publishedAt": "2026-11-04T12:29:01.493Z",
-  "notes": "Updated class record workflows and reliability fixes."
+  "bytes": 6053470,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.25.apk",
+  "publishedAt": "2026-11-04T12:54:14.197Z",
+  "notes": "Meet AI Tommy, your animated class-record helper. Check blank and invalid scores, jump to entries that need review, and export learner assessments with their grades."
 }
