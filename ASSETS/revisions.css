@@ -131,7 +131,20 @@
 :root body .points-error {color:var(--danger);min-height:1.5em}
 :root body .search-result-modal {width:min(1120px,calc(100vw - 40px))!important;max-width:calc(100vw - 40px)!important}
 :root body .student-perf-block {border:0!important;border-radius:0!important;box-shadow:none!important}
-:root body .report-readable {display:none}
+:root body .report-readable + .report-readable {margin-top:28px;border-top:1px solid var(--border-light);padding-top:16px}
+:root body .student-analysis {margin-block:16px;padding:clamp(12px,2vw,20px);border:1px solid var(--border-light);border-radius:12px;background:var(--surface);color:var(--text);overflow-wrap:anywhere}
+:root body .student-analysis-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+:root body .student-analysis-grid > section {min-width:0;padding:12px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface-subtle)}
+:root body .student-analysis-grid h4 {margin:0 0 8px;font-size:1rem}
+:root body .student-analysis-grid ul {margin:0;padding-inline-start:1.25rem}
+:root body .student-analysis-grid li + li {margin-top:4px}
+:root body .report-ai {margin-top:16px}
+:root body .report-ai-actions {display:flex;flex-wrap:wrap;gap:8px}
+:root body .report-ai p {margin:8px 0 0;color:var(--muted)}
+:root body .report-ai [data-ai-editor]:not([hidden]) {display:grid;gap:6px;margin-top:12px}
+:root body .report-ai textarea {box-sizing:border-box;width:100%;min-width:0;padding:10px;font:inherit;font-size:1rem;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;resize:vertical}
+:root body .report-ai [hidden] {display:none!important}
+:root body .editable-student-report [data-report-live="one-export"] {margin-block:16px}
 :root body .report-quarter-tabs {display:flex;flex-wrap:wrap;gap:4px 16px;margin-block:10px 16px}
 :root body .report-quarter-tabs button {font-size:15px;min-height:44px;padding:8px 2px}
 :root body [role="tabpanel"][hidden] {display:none!important}
@@ -181,7 +194,7 @@
   :root body .report-quarter-tabs {gap:0 12px}
   :root body .search-result-modal {width:calc(100vw - 24px)!important;max-width:calc(100vw - 24px)!important}
   :root body .student-results .student-report-svg {display:none}
-  :root body .report-readable {display:block}
+  :root body .student-analysis-grid {grid-template-columns:minmax(0,1fr)}
   :root body .detailed-report-chart {display:none}
   :root body .mobile-component-chart {display:block}
   :root body .mobile-component-chart h4 {font-size:19px;margin:16px 0 8px}

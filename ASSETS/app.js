@@ -911,6 +911,7 @@
     ensureActiveSelectionValid();
     const scrollLeft = currentView === "record" ? rememberTableScroll() : null;
     const signedIn = isSignedIn();
+    if (!signedIn) document.querySelector('.modal-backdrop:has(.search-result-modal)')?.remove();
     const recordKey = signedIn && currentView === "record" ? activeSectionId + ":" + activePeriodIndex : "";
     const existing = app.querySelector(".app-layout");
     if (existing && signedIn && recordKey && recordKey === lastRenderedRecord) {
@@ -1545,7 +1546,7 @@
       </div>
       </details>${renderEntryViewControls(period)}
 
-      ${sheetEntryView === "one" ? renderEditableStudentReport(section, periods, period) : ""}
+      ${sheetEntryView === "one" ? renderEditableStudentReport(section, period) : ""}
       ${sheetEntryView === "activity" ? renderMobileEntry(section,period) : ''}
       ${renderRecordTable(section, period, sheetEntryView !== "sheet")}
       ${sheetEntryView === "activity" ? '' : renderActivityRegister(section, period)}
@@ -1687,63 +1688,51 @@
     panel.querySelector('.phone-no-matches').hidden=visible>0;
   }
 
-  function reportEntriesForLearner(periods, rowIndex) {
-    const active = periods[activePeriodIndex], learner = active.roster[rowIndex];
-    if (!learner) return [];
-    const name = String(learner.name || "").trim(), key = searchNameKey(name);
-    const occurrence = key ? active.roster.slice(0, rowIndex + 1).filter(item => !getRowCategory(item) && searchNameKey(item.name) === key).length - 1 : 0;
-    return periods.flatMap((period, periodIndex) => {
-      const found = periodIndex === activePeriodIndex ? learner : key ? period.roster.filter(item => !getRowCategory(item) && searchNameKey(item.name) === key)[occurrence] : null;
-      return found ? [{ period, periodIndex, learner: found, result: learnerResult(found, period, currentSection()), complete: isLearnerAssessmentComplete(found, period) }] : [];
-    });
+  function studentReportEntry(section, period, periodIndex, learner, rowIndex) {
+    return { section, period, periodIndex, learner, rowIndex, result: learnerResult(learner, period, section),
+      complete: Boolean(learner.name.trim()) && isLearnerAssessmentComplete(learner, period, section) };
   }
 
-  function renderEditableStudentReport(section, periods, period) {
+  function renderEditableStudentReport(section, period) {
     const rowIndex = selectedEntryRow(period);
     if (rowIndex === null) return `<section class="editable-student-report empty-state"><h3>No learner rows</h3></section>`;
-    const learner = period.roster[rowIndex], entries = reportEntriesForLearner(periods, rowIndex);
-    const exportEntry = entries.find(entry => entry.periodIndex === activePeriodIndex);
-    const reportExport = exportEntry ? `<div data-report-live="one-export"><button type="button" class="button button-primary" data-action="export-student-png" data-report-id="one-learner" data-report-name="${escapeHtml(learner.name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(window.CSTRRecordTools.periodLabel(period,section.group,activePeriodIndex,state.calendarMode))}">${icon('download')} Save this period PNG</button><div hidden aria-hidden="true">${renderStudentReportSvg(section,[exportEntry],'one-learner')}</div></div>` : '';
+    const learner = period.roster[rowIndex];
+    const entry = studentReportEntry(section, period, activePeriodIndex, learner, rowIndex);
+    const { result } = entry;
+    const analysis = studentAnalysis(entry);
     const categories = [
-      { key: "ww", label: "Written Works", weight: section.weights[0] },
-      { key: "pt", label: "Performance Tasks", weight: section.weights[1] },
-      { key: "qa", label: state.calendarMode === "trimester" ? "Term Assessment" : "Quarterly Assessment", weight: section.weights[2] }
+      { key: "ww", label: "Written Works" },
+      { key: "pt", label: "Performance Tasks" },
+      { key: "qa", label: state.calendarMode === "trimester" ? "Term Assessment" : "Quarterly Assessment" }
     ];
     const pct = value => Number.isFinite(value) ? `${format(value, 1)}%` : "—";
-    const chart = renderDetailedChart(entries, section);
-    const means = categories.map(cat => {
-      const values = entries.map(({ result }) => result[cat.key].percentage).filter(Number.isFinite);
-      return `<div class="report-mean report-${cat.key}"><span>${escapeHtml(cat.label)}</span><strong>${pct(values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null)}</strong><small>${values.length} period${values.length === 1 ? "" : "s"}</small></div>`;
-    }).join("");
-    const rankedMeans = categories.map(cat => {
-      const values = entries.map(({ result }) => result[cat.key].percentage).filter(Number.isFinite);
-      return { label: cat.label, average: values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null };
-    }).filter(item => Number.isFinite(item.average)).sort((a, b) => b.average - a.average);
-    const interpretation = rankedMeans.length > 1
-      ? `Highest recorded component mean: ${rankedMeans[0].label} (${pct(rankedMeans[0].average)}); lowest: ${rankedMeans[rankedMeans.length - 1].label} (${pct(rankedMeans[rankedMeans.length - 1].average)}).`
-      : rankedMeans.length ? `Only ${rankedMeans[0].label} has a recorded component percentage so far.` : "No component percentages are available yet.";
-    const cards = entries.map(({ period: entryPeriod, periodIndex, result, complete }) => {
-      const active = periodIndex === activePeriodIndex;
-      const gradeLabel = "Initial grade";
-      const components = categories.map(cat => `<div class="report-component report-${cat.key}"><strong>${escapeHtml(cat.label)}</strong><span>${pct(result[cat.key].percentage)} · ${Number.isFinite(result[cat.key].weighted) ? `${format(result[cat.key].weighted, 2)} weighted` : "— weighted"}</span><small>${scoreTotal(result[cat.key])} raw / HPS</small></div>`).join("");
-      const inputs = active ? `<div class="report-edit-scores"><h4>Edit ${escapeHtml(entryPeriod.name)} activities and scores</h4><div class="report-score-groups">${categories.map(cat => `<fieldset class="report-score-group report-${cat.key}"><legend>${escapeHtml(cat.label)}</legend><div class="report-score-grid">${learner[cat.key].map((value, index) => {
-        const hps = entryPeriod[cat.key + "Hps"][index];
-        const info = entryPeriod.activityMeta[cat.key][index];
-        const date = entryPeriod[cat.key + "Dates"][index];
+    const components = categories.map(cat => `<div class="report-component report-${cat.key}"><strong>${escapeHtml(cat.label)}</strong><span>${pct(result[cat.key].percentage)} · ${Number.isFinite(result[cat.key].weighted) ? `${format(result[cat.key].weighted, 2)} weighted` : "— weighted"}</span><small>${scoreTotal(result[cat.key])} raw / HPS</small></div>`).join("");
+    const inputs = `<div class="report-edit-scores"><h4>Edit ${escapeHtml(period.name)} activities and scores</h4><div class="report-score-groups">${categories.map(cat => `<fieldset class="report-score-group report-${cat.key}"><legend>${escapeHtml(cat.label)}</legend><div class="report-score-grid">${learner[cat.key].map((value, index) => {
+        const hps = period[cat.key + "Hps"][index];
+        const info = period.activityMeta[cat.key][index];
+        const date = period[cat.key + "Dates"][index];
         const slot = `${cat.key.toUpperCase()} ${index + 1}`;
         const invalid = hasRawAboveHps(value, hps) || (value !== "" && !isAttendanceCode(value) && (!Number.isFinite(window.CSTRGrading.numberOrNull(value)) || Number(value) < 0));
-        const locked = entryPeriod.locked ? "disabled" : "";
+        const locked = period.locked ? "disabled" : "";
         const hpsLabel = hps === "" || hps === null || hps === undefined ? "—" : String(hps);
         return `<div class="report-activity-row" data-report-kind="${cat.key}" data-report-index="${index}">
-          <div class="report-activity-name"><strong>${slot}</strong>${renderActivityRole(section,entryPeriod,cat.key,index)}<label>Activity title<textarea class="activity-register-input" rows="1" data-activity-kind="${cat.key}" data-activity-index="${index}" data-activity-field="title" aria-label="${slot} activity title" placeholder="Activity title" ${locked}>${safeValue(info.title)}</textarea></label></div>
+          <div class="report-activity-name"><strong>${slot}</strong>${renderActivityRole(section,period,cat.key,index)}<label>Activity title<textarea class="activity-register-input" rows="1" data-activity-kind="${cat.key}" data-activity-index="${index}" data-activity-field="title" aria-label="${slot} activity title" placeholder="Activity title" ${locked}>${safeValue(info.title)}</textarea></label></div>
           <label>Date<input type="date" data-calendar-date data-date="${cat.key}" data-index="${index}" value="${safeValue(calendarDate(date))}" aria-label="${slot} date" placeholder="Date" ${locked}></label>
           <label>HPS<input type="number" min="0" step="any" inputmode="decimal" data-hps="${cat.key}" data-index="${index}" value="${safeValue(hps)}" aria-label="${slot} highest possible score" ${locked}></label>
-          <label>Score <small class="score-hps">/ ${escapeHtml(hpsLabel)}</small><input type="text" inputmode="text" autocomplete="off" maxlength="6" data-score="${cat.key}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(value)}" aria-label="${slot} score for ${escapeHtml(learner.name.trim() || `Learner ${rowIndex + 1}`)}" aria-invalid="${invalid}" class="${invalid ? "invalid" : ""}" data-mark="${safeValue(String(value).toUpperCase())}" ${locked}>${scoreAdjustmentControl(learner, cat.key, rowIndex, index, entryPeriod.locked)}</label>
+          <label>Score <small class="score-hps">/ ${escapeHtml(hpsLabel)}</small><input type="text" inputmode="text" autocomplete="off" maxlength="6" data-score="${cat.key}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(value)}" aria-label="${slot} score for ${escapeHtml(learner.name.trim() || `Learner ${rowIndex + 1}`)}" aria-invalid="${invalid}" class="${invalid ? "invalid" : ""}" data-mark="${safeValue(String(value).toUpperCase())}" ${locked}>${scoreAdjustmentControl(learner, cat.key, rowIndex, index, period.locked)}</label>
         </div>`;
-      }).join("")}</div></fieldset>`).join("")}</div></div>` : `<button type="button" class="button button-secondary report-switch-period" data-action="select-period" data-period="${periodIndex}">Open this period to edit</button>${renderScoreLedgerHtml(entryPeriod, entries.find(e => e.period === entryPeriod).learner)}`;
-      return `<article class="report-period-card ${active ? "is-current" : ""}"><div data-report-live="period-${periodIndex}"><div class="report-period-heading"><h3>${escapeHtml(entryPeriod.name)}</h3><span class="report-status ${complete ? "is-complete" : ""}">${complete ? "Complete requirements" : "Provisional · incomplete requirements"}</span></div><div class="report-grades"><div class=""><small>${gradeLabel}</small><strong>${format(result.initial.rounded, 3)}</strong></div><div class="report-final-grade"><small>${usesTransmutation(section) ? "Final transmuted" : "Reported grade"}</small><strong>${format(result.initial.transmuted, 0)}</strong></div><div><small>Qualitative descriptor</small><strong>${renderDescriptorBadge(result.initial.descriptor)}</strong></div></div><div class="report-components">${components}</div></div>${inputs}${active ? `<div data-report-live="ledger-${periodIndex}">${renderScoreLedgerHtml(entryPeriod, learner)}</div>` : ""}</article>`;
-    }).join("");
-    return `<section class="editable-student-report" aria-label="Editable individual grade report"><div class="report-heading"><p>Individual grade report</p><label>Learner name<input data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}></label><span>${escapeHtml(section.level)} · ${escapeHtml(section.subject)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</span></div>${reportExport}<div data-report-live="overview">${chart}<h3>Component means across recorded periods</h3><div class="report-means">${means}</div><p class="report-interpretation">${escapeHtml(interpretation)}</p></div><div class="report-periods">${cards}</div><p class="report-footnote">Component means are unweighted averages of available period percentages; they are not final grades. A/M count as zero. E/L are excluded. Grades are provisional when requirements are incomplete.</p></section>`;
+      }).join("")}</div></fieldset>`).join("")}</div></div>`;
+    return `<section class="editable-student-report" aria-label="Editable individual grade report">
+      <div class="report-heading"><p>Individual grade report</p><label>Learner name<input data-name-row="${rowIndex}" value="${safeValue(learner.name)}" aria-label="Learner ${rowIndex + 1} name" ${period.locked ? "disabled" : ""}></label><span>${escapeHtml(section.level)} · ${escapeHtml(section.subject)}${section.section ? ` · ${escapeHtml(section.section)}` : ""}</span></div>
+      <article class="report-period-card is-current">
+        <div data-report-live="grade">${renderReportResultHtml(entry)}</div>
+        <div data-report-live="analysis">${renderStudentAnalysis(analysis, entry)}</div>
+        <div data-report-live="overview"><div class="report-components">${components}</div>${renderDetailedChart([entry], section)}</div>
+        <div data-report-live="ledger">${renderScoreLedgerHtml(period, learner)}</div>
+        <div data-report-live="one-export">${renderStudentExport(entry, analysis, 'Save this period PNG')}</div>
+        ${inputs}
+      </article>
+    </section>`;
   }
 
   let reportRefreshFrame = 0;
@@ -1755,10 +1744,10 @@
     const report = document.querySelector(".editable-student-report");
     if (!report || !currentPeriod()) return;
     const template = document.createElement("template");
-    template.innerHTML = renderEditableStudentReport(currentSection(), activeSections()[currentSection().id].periods, currentPeriod());
+    template.innerHTML = renderEditableStudentReport(currentSection(), currentPeriod());
     template.content.querySelectorAll("[data-report-live]").forEach(fresh => {
       const old = report.querySelector(`[data-report-live="${fresh.dataset.reportLive}"]`);
-      if (old) old.innerHTML = fresh.innerHTML;
+      if (old && old.innerHTML !== fresh.innerHTML) old.innerHTML = fresh.innerHTML;
     });
     template.content.querySelectorAll('.report-activity-row').forEach(fresh => {
       const input = fresh.querySelector('input[data-score]');
@@ -2605,7 +2594,7 @@
   }
 
   function assessmentRows(period, learner) {
-    return ['ww', 'pt', 'qa'].flatMap(kind => period[kind + 'Hps'].map((hps, index) => ({ kind, index, hps: hps ?? '', score: learner[kind][index] ?? '', date: period[kind + 'Dates'][index], meta: period.activityMeta?.[kind]?.[index] || {}, ledger: learner.scoreAdjustments?.[kind]?.[index] })));
+    return ['ww', 'pt', 'qa'].flatMap(kind => period[kind + 'Hps'].map((hps, index) => ({ kind, index, hps: hps ?? '', score: learner[kind][index] ?? '', date: period[kind + 'Dates'][index], meta: period.activityMeta?.[kind]?.[index] || {}, ledger: learner.scoreAdjustments?.[kind]?.[index], original: learner.hpsOriginals?.[kind]?.[index] })));
   }
   function reportAuditDate(value) {
     const date = new Date(value);
@@ -2613,6 +2602,7 @@
   }
   function ledgerNotes(row) {
     const notes = [];
+    if (row.original) notes.push(`HPS revised. Original recorded score: ${row.original.score} / ${row.original.hps}.`);
     (row.ledger?.entries || []).forEach(e => notes.push(`+${formatScore(e.points)} points: ${e.reason}${e.at ? ` · ${reportAuditDate(e.at)}` : ''}`));
     if (row.ledger?.entries.length && Number(row.score) < Number(row.ledger.raw) + row.ledger.entries.reduce((n, e) => n + e.points, 0)) notes.push('Current score is capped at the revised HPS.');
     (row.ledger?.history || []).forEach(h => {
@@ -2629,7 +2619,7 @@
     const categories = [{key:'ww', label:'Written Works', color:'#FFA322'}, {key:'pt', label:'Performance Tasks', color:'#BB1414'}, {key:'qa', label:state.calendarMode === 'trimester' ? 'Term Assessment' : 'Quarterly Assessment', color:'#042134'}];
     const text = (x,y,v,size=14,extra='') => `<text x="${x}" y="${y}" font-family="Arial, sans-serif" font-size="${size}" fill="#042134" ${extra}>${escapeHtml(v)}</text>`;
     const left = 90, right = 910, bottom = top + 254, plotHeight = 154;
-    let content = text(44, top + 25, 'Assessment performance', 22, 'font-weight="700"') + text(44, top + 49, 'Y: earned score / included HPS (%) · X: grading period · blank data is not zero', 13);
+    let content = text(44, top + 25, 'Assessment performance', 22, 'font-weight="700"') + text(44, top + 49, 'Component grade percentages use the configured weights and grading rules.', 13);
     content += categories.map((cat, i) => `<rect x="${44+i*292}" y="${top+66}" width="12" height="12" fill="${cat.color}"/>${text(62+i*292,top+77,`${cat.label} · ${section.weights[i]}% weight`,13)}`).join('');
     content += [0,25,50,75,100].map(value => {const y=bottom-value/100*plotHeight;return `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="#dce4e7"/>${text(left-12,y+5,`${value}%`,12,'text-anchor="end"')}`;}).join('');
     const group = (right-left)/Math.max(1,entries.length), bar=Math.min(62,group/4-8);
@@ -2646,7 +2636,7 @@
   }
   function renderDetailedChart(entries, section) {
     const labels = ['Written Works', 'Performance Tasks', state.calendarMode === 'trimester' ? 'Term Assessment' : 'Quarterly Assessment'];
-    const mobile = `<div class="mobile-component-chart"><h4>Assessment performance</h4><p>Earned score / included HPS (%)</p>${entries.map(({period, result}) => `<section><h5>${escapeHtml(period.name)}</h5><div class="mobile-chart-scale" aria-hidden="true"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>${['ww','pt','qa'].map((kind,i) => {
+    const mobile = `<div class="mobile-component-chart"><h4>Assessment performance</h4><p>Component grade percentages use the configured weights and grading rules.</p>${entries.map(({period, result}) => `<section><h5>${escapeHtml(period.name)}</h5><div class="mobile-chart-scale" aria-hidden="true"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>${['ww','pt','qa'].map((kind,i) => {
       const value = result[kind].percentage;
       return `<div class="mobile-chart-row chart-${kind}"><div><span>${labels[i]} · ${section.weights[i]}% weight</span><strong>${Number.isFinite(value) ? `${format(value,1)}%` : 'N/A'}</strong></div><div class="mobile-chart-plot"><span class="mobile-chart-grid" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>${Number.isFinite(value) ? `<span class="mobile-chart-bar" style="width:${Math.max(0,Math.min(100,value))}%" role="img" aria-label="${labels[i]}: ${format(value,1)} percent"></span>` : ''}</div><small>${scoreTotal(result[kind])} earned / included HPS</small></div>`;
     }).join('')}</section>`).join('')}</div>`;
@@ -2665,26 +2655,28 @@
     commitActiveFieldEdit();
     const input = document.querySelector('#studentSearch'), query = searchNameKey(input?.value);
     if (!query) { showSearchModal("Enter the student's complete name to check a grade."); return; }
-    const matches = [];
-    activeRegistry().forEach(section => {
-      const byOccurrence = new Map();
-      activeSections()[section.id].periods.forEach((period, periodIndex) => {
-        let occurrence = 0;
-        period.roster.forEach((learner, rowIndex) => {
-          if (searchNameKey(learner.name) !== query || getRowCategory(learner)) return;
-          const key = occurrence++;
-          if (!byOccurrence.has(key)) byOccurrence.set(key, {section, entries:[], occurrence:key});
-          byOccurrence.get(key).entries.push({section,period,periodIndex,rowIndex,learner,result:learnerResult(learner,period,section),complete:isLearnerAssessmentComplete(learner,period,section)});
-        });
-      });
-      matches.push(...[...byOccurrence.values()].map(match => ({ ...match, ambiguous: byOccurrence.size > 1 })));
+    const matches = activeRegistry().flatMap(section => {
+      const periods = activeSections()[section.id].periods;
+      const entries = periods.flatMap((period, periodIndex) => period.roster.flatMap((learner, rowIndex) =>
+        searchNameKey(learner.name) === query && !getRowCategory(learner)
+          ? [studentReportEntry(section, period, periodIndex, learner, rowIndex)] : []));
+      return entries.length ? [{ section, entries }] : [];
     });
     if (!matches.length) { showSearchModal(`No student matching '${String(input.value).trim()}' was found. Verify the complete name.`); return; }
-    const blocks = matches.map(({section,entries,occurrence,ambiguous},block)=>{
-      const count=Math.max(state.calendarMode==='trimester'?3:4,...entries.map(e=>reportSlot(section,e.period,e.periodIndex)+1));
-      const slots=Array.from({length:count},(_,slot)=>({slot,label:reportSlotLabel(section,slot),entries:entries.filter(e=>reportSlot(section,e.period,e.periodIndex)===slot)}));
-      const first=Math.max(0,slots.findIndex(s=>s.entries.length));
-      return `<section class="student-perf-block"><h3>${escapeHtml(entries[0].learner.name)} · ${escapeHtml(section.subject)} · ${escapeHtml(section.section || section.level)}</h3>${ambiguous ? `<p role="alert">Same-name match ${occurrence + 1}: confirm roster row ${entries[0].rowIndex + 1} and class before sharing.</p>` : ''}<div class="report-quarter-tabs" role="tablist" aria-label="Report periods">${slots.map(({slot,label})=>`<button type="button" class="tab" role="tab" id="report-tab-${block}-${slot}" aria-controls="report-panel-${block}-${slot}" aria-selected="${slot===first}" tabindex="${slot===first?0:-1}" data-action="report-period" data-report-block="${block}" data-slot="${slot}">${escapeHtml(label)}</button>`).join('')}</div>${slots.map(({slot,label,entries:chosen})=>`<div role="tabpanel" id="report-panel-${block}-${slot}" aria-labelledby="report-tab-${block}-${slot}" ${slot===first?'':'hidden'}>${chosen.length ? `<div class="student-report-actions"><p>${escapeHtml(label)} · ${chosen[0].complete?'Complete':'Provisional'}</p><button type="button" class="button button-primary" data-action="export-student-png" data-report-id="${block}-${slot}" data-report-name="${escapeHtml(entries[0].learner.name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(label)}">${icon('download')} Save ${escapeHtml(label)} PNG</button></div>${chosen.length>1?'<p role="alert">Multiple records use this period label. Review period settings before sharing.</p>':''}<div class="report-readable">${chosen.map(renderReportResultHtml).join("")}${renderDetailedChart(chosen,section)}${chosen.map(entry=>renderScoreLedgerHtml(entry.period,entry.learner)).join("")}<p class="report-footnote">A = Absent (zero), L = Late (excluded), M = Missing (zero), E = Excused (excluded). Missing entries remain provisional.</p></div>${renderStudentReportSvg(section,chosen,`${block}-${slot}`)}` : `<p class="empty-report">${escapeHtml(label)} · No recorded scores.</p>`}</div>`).join('')}</section>`;
+    const blocks = matches.map(({ section, entries }, block) => {
+      const count = Math.max(state.calendarMode === 'trimester' ? 3 : 4, ...entries.map(entry => reportSlot(section, entry.period, entry.periodIndex) + 1));
+      const slots = Array.from({ length: count }, (_, slot) => ({
+        slot, label: reportSlotLabel(section, slot),
+        entries: entries.filter(entry => reportSlot(section, entry.period, entry.periodIndex) === slot)
+      }));
+      const first = slots.findIndex(slot => slot.entries.length);
+      const tabs = slots.map(({ slot, label }) => `<button type="button" class="tab" role="tab" id="report-tab-${block}-${slot}" aria-controls="report-panel-${block}-${slot}" aria-selected="${slot === first}" tabindex="${slot === first ? 0 : -1}" data-action="report-period">${escapeHtml(label)}</button>`).join('');
+      const panels = slots.map(({ slot, label, entries: chosen }) => {
+        const reports = chosen.map(entry => renderLookupStudentReport(entry, chosen.length > 1)).join('');
+        return `<div role="tabpanel" id="report-panel-${block}-${slot}" aria-labelledby="report-tab-${block}-${slot}" ${slot === first ? '' : 'hidden'}>${chosen.length
+          ? reports : `<p class="empty-report">${escapeHtml(label)} · No matching roster row.</p>`}</div>`;
+      }).join('');
+      return `<section class="student-perf-block"><h3>${escapeHtml(section.subject)} · ${escapeHtml(section.section || section.level)}</h3><p>Each period shows its own matching roster rows.</p><div class="report-quarter-tabs" role="tablist" aria-label="Report periods">${tabs}</div>${panels}</section>`;
     }).join('');
     showSearchModal(blocks,true);
   }
@@ -2705,15 +2697,107 @@
     tabs[next].click();tabs[next].focus();
   });
 
-  function renderReportResultHtml(entry) {
-    const term = !usesTransmutation(entry.section);
-    return `<section class="student-result-priority"><p>${escapeHtml(entry.period.name)}</p><div><span>${term ? 'Reported grade' : 'Final transmuted grade'}</span><strong>${format(entry.result.initial.transmuted,0)}</strong></div><p>${renderDescriptorBadge(entry.result.initial.descriptor)} · ${entry.complete ? 'Complete requirements' : 'Provisional · incomplete requirements'}</p><small>Initial grade: ${format(entry.result.initial.rounded,3)}</small></section>`;
+  function reportGradeLabel(entry) {
+    if (!Number.isFinite(entry.result.initial.transmuted)) return 'Grade unavailable';
+    if (!entry.complete) return 'Provisional grade';
+    return usesTransmutation(entry.section) ? 'Final transmuted grade' : 'Reported grade';
   }
-  function renderStudentReportSvg(section, entries, reportId) {
+
+  function renderReportResultHtml(entry) {
+    return `<section class="student-result-priority"><p>${escapeHtml(entry.period.name)}</p><div><span>${reportGradeLabel(entry)}</span><strong>${format(entry.result.initial.transmuted, 0)}</strong></div><p>${renderDescriptorBadge(entry.result.initial.descriptor)} · ${entry.complete ? 'Complete requirements' : 'Provisional · incomplete requirements'}</p><small>Initial grade: ${format(entry.result.initial.rounded, 3)}</small></section>`;
+  }
+
+  function studentAnalysis(entry) {
+    return window.CSTRPerformance.analyze(assessmentRows(entry.period, entry.learner), entry.section.weights, entry.result,
+      state.calendarMode === 'trimester' ? 'Term Assessment' : 'Quarterly Assessment');
+  }
+
+  function renderStudentAnalysis(analysis, entry) {
+    const localModel = typeof window.LanguageModel?.availability === 'function' && typeof window.LanguageModel?.create === 'function';
+    const owner = JSON.stringify([entry.section.id, entry.periodIndex, entry.rowIndex, entry.learner.name]);
+    const feedback = !analysis.draft ? '' : `<div class="report-ai" data-report-owner="${escapeHtml(owner)}" data-draft="${escapeHtml(JSON.stringify(analysis.draft))}">
+      ${localModel ? `<div class="report-ai-actions"><button type="button" class="button button-secondary" data-action="draft-student-feedback">Draft feedback with AI</button><button type="button" class="button button-secondary" data-action="cancel-student-feedback" hidden>Cancel</button></div>
+        <p data-ai-status role="status">Runs on this device. The first use may download the model.</p>
+        <label hidden data-ai-editor>Review and edit this draft before sharing<textarea rows="4" data-ai-note></textarea><small>The draft is separate from the PNG export.</small></label>`
+        : '<p>AI drafting requires a supported desktop browser. The performance analysis is available on this device.</p>'}</div>`;
+    return `<section class="student-analysis" aria-label="Performance analysis"><h3>Performance analysis</h3><div class="student-analysis-grid">
+      ${analysis.sections.map(({ title, lines }) => `<section><h4>${title}</h4><ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul></section>`).join('')}
+      </div>${feedback}</section>`;
+  }
+
+  const activeFeedback = new WeakMap();
+
+  async function draftStudentFeedback(button) {
+    const panel = button.closest('.report-ai');
+    if (!panel || activeFeedback.has(panel)) return;
+    const { draft, reportOwner } = panel.dataset;
+    const controller = new AbortController();
+    activeFeedback.set(panel, controller);
+    const status = panel.querySelector('[data-ai-status]');
+    const editor = panel.querySelector('[data-ai-editor]');
+    const cancel = panel.querySelector('[data-action="cancel-student-feedback"]');
+    const visible = () => panel.isConnected && !panel.closest('[hidden]') &&
+      panel.dataset.draft === draft && panel.dataset.reportOwner === reportOwner;
+    const observer = new MutationObserver(() => { if (!visible()) controller.abort(); });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'data-draft', 'data-report-owner'] });
+    const timeout = setTimeout(() => controller.abort(new DOMException('The model timed out.', 'TimeoutError')), 300000);
+    button.disabled = true;
+    cancel.hidden = false;
+    status.textContent = 'Preparing the on-device model…';
+    try {
+      const note = await window.CSTRPerformance.draftFeedback(window.LanguageModel, JSON.parse(draft), {
+        signal: controller.signal,
+        onDownload: loaded => {
+          if (visible() && !controller.signal.aborted) status.textContent = loaded < 1
+            ? `Downloading the on-device model… ${Math.floor(loaded * 100)}%` : 'Drafting feedback…';
+        }
+      });
+      if (!visible() || controller.signal.aborted) return;
+      if (note) {
+        editor.querySelector('textarea').value = note;
+        editor.hidden = false;
+      }
+      status.textContent = note ? 'Draft ready for teacher review.' : 'The on-device model is unavailable here. Use the performance analysis above.';
+    } catch {
+      if (visible()) status.textContent = controller.signal.reason?.name === 'TimeoutError'
+        ? 'The on-device model timed out. You can retry or use the analysis above.'
+        : controller.signal.aborted ? 'Drafting cancelled.' : 'Could not draft feedback. You can retry or use the analysis above.';
+    } finally {
+      observer.disconnect();
+      clearTimeout(timeout);
+      activeFeedback.delete(panel);
+      button.disabled = false;
+      cancel.hidden = true;
+    }
+  }
+
+  function renderStudentExport(entry, analysis, label, disambiguate = false) {
+    const { learner, section, period, periodIndex, rowIndex } = entry;
+    const name = disambiguate ? `Record ${periodIndex + 1} Row ${rowIndex + 1} · ${learner.name}` : learner.name;
+    return `<button type="button" class="button button-primary" data-action="export-student-png" data-report-name="${escapeHtml(name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(period.name)}">${icon('download')} ${escapeHtml(label)}</button><div hidden aria-hidden="true">${renderStudentReportSvg(entry, analysis, disambiguate)}</div>`;
+  }
+
+  function renderLookupStudentReport(entry, disambiguate) {
+    const analysis = studentAnalysis(entry);
+    const { section, period, learner, rowIndex, periodIndex } = entry;
+    return `<article class="report-readable">
+      <h4>${escapeHtml(learner.name)}</h4>
+      ${disambiguate ? `<p class="report-match-note" role="alert">Separate match · ${escapeHtml(period.name)} · period record ${periodIndex + 1} · roster row ${rowIndex + 1}. Verify the learner and period before sharing.</p>` : ''}
+      ${renderReportResultHtml(entry)}
+      ${renderStudentAnalysis(analysis, entry)}
+      ${renderDetailedChart([entry], section)}
+      ${renderScoreLedgerHtml(period, learner)}
+      <p class="report-footnote">A = Absent (zero), M = Missing (zero), L = Late (excluded), E = Excused (excluded). Pending entries keep grades provisional.</p>
+      <div class="student-report-actions">${renderStudentExport(entry, analysis, `Save ${period.name} PNG`, disambiguate)}</div>
+    </article>`;
+  }
+
+  function renderStudentReportSvg(first, analysis, disambiguate) {
+    const { section, period, learner, result } = first;
     const width=960, ink='#042134', muted='#4d5960', accent='#BB1414', orange='#FFA322';
     const text=(x,y,value,size=14,color=ink,weight=400,extra='')=>`<text x="${x}" y="${y}" fill="${color}" font-family="Arial, sans-serif" font-size="${size}" font-weight="${weight}" ${extra}>${escapeHtml(value)}</text>`;
-    const term=!usesTransmutation(section), first=entries[0];
-    const nameLines=reportLines(first.learner.name,31), classLines=reportLines(`${section.level} · ${section.subject} · ${section.section || ''}`,64);
+    const term = !usesTransmutation(section);
+    const nameLines=reportLines(learner.name,31), classLines=reportLines(`${section.level} · ${section.subject} · ${section.section || ''}${disambiguate ? ` · Period record ${first.periodIndex + 1} · Roster row ${first.rowIndex + 1}` : ''}`,64);
     const titleLines=reportLines(`${first.period.name} · Individual grade report`,70), titleOffset=(titleLines.length-1)*18;
     const headerHeight=Math.max(226,102+nameLines.length*35+classLines.length*20+titleOffset);
     let body=`<rect width="960" height="${headerHeight}" fill="${ink}"/><rect x="44" y="28" width="36" height="4" fill="${orange}"/>`;
@@ -2721,59 +2805,62 @@
     nameLines.forEach((line,i)=>body+=text(44,99+titleOffset+i*35,line,30,'#fff',700));
     let metaY=112+titleOffset+nameLines.length*35;
     classLines.forEach(line=>{body+=text(44,metaY,line,14,'#e1e8ed');metaY+=20;});
-    body+=text(680,58,term?'Reported grade':'Final transmuted grade',14,'#fff',600);
+    body+=text(680,58,reportGradeLabel(first),14,'#fff',600);
     body+=text(680,145,format(first.result.initial.transmuted,0),72,orange,700,'data-grade-emphasis="true"');
     reportLines(first.result.initial.descriptor,25).forEach((line,i)=>body+=text(682,179+i*18,line,14,descriptorReportColor(first.result.initial.descriptor),600));
     let y=headerHeight+28;
     body+=text(44,y,first.complete?'Complete requirements':'Provisional · incomplete requirements',13,first.complete?'#1d6242':accent,700);
     body+=text(916,y,`Generated ${new Date().toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}`,12,muted,400,'text-anchor="end"');y+=28;
     body+=text(44,y,`Initial grade: ${format(first.result.initial.rounded,3)} · ${term?'Zero-based grading':'Transmutation applied using current class settings'}`,13,muted);y+=28;
-    entries.forEach((entry,entryIndex)=>{
-      const {period,learner,result,complete}=entry;
-      if(entryIndex){
-        body+=`<rect x="44" y="${y-20}" width="872" height="78" fill="${ink}"/>`;
-        body+=text(60,y,period.name,17,'#fff',700)+text(60,y+29,term?'Reported grade':'Final transmuted grade',13,'#fff')+text(890,y+28,format(result.initial.transmuted,0),34,orange,700,'text-anchor="end"');y+=87;
+    body += text(44, y, 'Performance analysis', 22, ink, 700);
+    y += 29;
+    for (const { title, lines } of analysis.sections) {
+      body += text(44, y, title, 16, ink, 700);
+      y += 22;
+      for (const line of lines) {
+        reportLines(line, 58).forEach(part => { body += text(55, y, part, 14, muted); y += 19; });
       }
-      const cats=[{key:'ww',label:'Written Works',color:orange},{key:'pt',label:'Performance Tasks',color:accent},{key:'qa',label:state.calendarMode==='trimester'?'Term Assessment':'Quarterly Assessment',color:ink}];
-      cats.forEach((cat,i)=>{
-        const x=44+i*294,c=result[cat.key];
-        body+=`<rect x="${x}" y="${y}" width="280" height="91" fill="#f2f3f4"/><rect x="${x}" y="${y}" width="280" height="4" fill="${cat.color}"/>`;
-        body+=text(x+12,y+25,`${cat.label} · ${section.weights[i]}%`,13,ink,700);
-        body+=text(x+12,y+51,`${format(c.percentage,2)}%`,21,ink,700);
-        body+=text(x+12,y+72,`${scoreTotal(c)} earned / included HPS`,12,muted);
-        body+=text(x+268,y+50,`${format(c.weighted,3)} WS`,12,muted,500,'text-anchor="end"');
-      });y+=113;
-      body+=renderChartContent([entry],section,y);y+=306;
-      body+=text(44,y,'Activity record',20,ink,700);y+=36;
-      body+=`<rect x="44" y="${y-18}" width="872" height="30" fill="${ink}"/>`;
-      [[54,'Activity / learning context'],[437,'Date'],[573,'Raw'],[655,'Added'],[748,'Score'],[848,'HPS']].forEach(([x,v])=>body+=text(x,y+2,v,12,'#fff',700));y+=38;
-      let lastKind='';
-      assessmentRows(period,learner).forEach(row=>{
-        if(row.kind!==lastKind){
-          const cat=cats.find(c=>c.key===row.kind),tint=row.kind==='ww'?'#fff0d9':row.kind==='pt'?'#fbe8e8':'#eaf0f4';
-          body+=`<rect x="44" y="${y-16}" width="872" height="27" fill="${tint}"/>`+text(54,y+2,`${cat.label} · ${section.weights[cats.indexOf(cat)]}% of initial grade`,13,ink,700);y+=34;lastKind=row.kind;
-        }
-        const start=y,code=String(row.score).toUpperCase(),markColor=({A:'#a64b00',L:'#806400',M:'#BB1414',E:'#175fa6'})[code]||ink;
-        const titleLines=reportLines(`${row.kind.toUpperCase()} ${row.index+1} · ${row.meta.title || 'Untitled activity'}`,43);
-        titleLines.forEach((line,i)=>body+=text(54,start+i*18,line,13,ink,700));
-        const raw=row.ledger?.entries.length?row.ledger.raw:row.score,bonus=(row.ledger?.entries||[]).reduce((n,e)=>n+e.points,0);
-        body+=text(437,start,row.date||'—',12,muted)+text(573,start,raw===''?'—':raw,13,markColor)+text(655,start,bonus?`+${formatScore(bonus)}*`:'—',13,accent,600)+text(748,start,row.score===''?'—':row.score,15,markColor,700)+text(848,start,row.hps===''?'—':row.hps,13);
-        y+=Math.max(24,titleLines.length*18);
-        if(row.meta.competency||row.meta.topic)reportLines([row.meta.competency&&`Competency: ${row.meta.competency}`,row.meta.topic&&`Topic: ${row.meta.topic}`].filter(Boolean).join(' · '),108).forEach(line=>{body+=text(60,y,line,12,muted);y+=17;});
-        ledgerNotes(row).forEach(note=>reportLines(note,104).forEach(line=>{body+=text(60,y,line,12,accent);y+=17;}));
-        if(['A','M','E','L'].includes(code)){body+=text(60,y,({A:'A · Absent · counted as 0 / HPS',M:'M · Missing · counted as 0 / HPS',L:'L · Late · excluded from calculation',E:'E · Excused · excluded from calculation'})[code],12,markColor);y+=17;}
-        if(row.score===''){body+=text(60,y,'Not recorded · incomplete requirement',12,muted);y+=17;}
-        y+=15;
-      });y+=20;
-    });
+      y += 10;
+    }
+    const cats=[{key:'ww',label:'Written Works',color:orange},{key:'pt',label:'Performance Tasks',color:accent},{key:'qa',label:state.calendarMode==='trimester'?'Term Assessment':'Quarterly Assessment',color:ink}];
+    cats.forEach((cat,i)=>{
+      const x=44+i*294,c=result[cat.key];
+      body+=`<rect x="${x}" y="${y}" width="280" height="91" fill="#f2f3f4"/><rect x="${x}" y="${y}" width="280" height="4" fill="${cat.color}"/>`;
+      body+=text(x+12,y+25,`${cat.label} · ${section.weights[i]}%`,13,ink,700);
+      body+=text(x+12,y+51,Number.isFinite(c.percentage) ? `${format(c.percentage,2)}%` : '—',21,ink,700);
+      body+=text(x+12,y+72,`${scoreTotal(c)} earned / included HPS`,12,muted);
+      body+=text(x+268,y+50,`${format(c.weighted,3)} WS`,12,muted,500,'text-anchor="end"');
+    });y+=113;
+    body+=renderChartContent([first],section,y);y+=306;
+    body+=text(44,y,'Activity record',20,ink,700);y+=36;
+    body+=`<rect x="44" y="${y-18}" width="872" height="30" fill="${ink}"/>`;
+    [[54,'Activity / learning context'],[437,'Date'],[573,'Raw'],[655,'Added'],[748,'Score'],[848,'HPS']].forEach(([x,v])=>body+=text(x,y+2,v,12,'#fff',700));y+=38;
+    let lastKind='';
+    assessmentRows(period,learner).forEach(row=>{
+      if(row.kind!==lastKind){
+        const cat=cats.find(c=>c.key===row.kind),tint=row.kind==='ww'?'#fff0d9':row.kind==='pt'?'#fbe8e8':'#eaf0f4';
+        body+=`<rect x="44" y="${y-16}" width="872" height="27" fill="${tint}"/>`+text(54,y+2,`${cat.label} · ${section.weights[cats.indexOf(cat)]}% of initial grade`,13,ink,700);y+=34;lastKind=row.kind;
+      }
+      const start=y,code=String(row.score).toUpperCase(),markColor=({A:'#a64b00',L:'#806400',M:'#BB1414',E:'#175fa6'})[code]||ink;
+      const titleLines=reportLines(`${row.kind.toUpperCase()} ${row.index+1} · ${row.meta.title || 'Untitled activity'}`,43);
+      titleLines.forEach((line,i)=>body+=text(54,start+i*18,line,13,ink,700));
+      const raw=row.ledger?.entries.length?row.ledger.raw:row.score,bonus=(row.ledger?.entries||[]).reduce((n,e)=>n+e.points,0);
+      body+=text(437,start,row.date||'—',12,muted)+text(573,start,raw===''?'—':raw,13,markColor)+text(655,start,bonus?`+${formatScore(bonus)}*`:'—',13,accent,600)+text(748,start,row.score===''?'—':row.score,15,markColor,700)+text(848,start,row.hps===''?'—':row.hps,13);
+      y+=Math.max(24,titleLines.length*18);
+      if(row.meta.competency||row.meta.topic)reportLines([row.meta.competency&&`Competency: ${row.meta.competency}`,row.meta.topic&&`Topic: ${row.meta.topic}`].filter(Boolean).join(' · '),108).forEach(line=>{body+=text(60,y,line,12,muted);y+=17;});
+      ledgerNotes(row).forEach(note=>reportLines(note,104).forEach(line=>{body+=text(60,y,line,12,accent);y+=17;}));
+      if(['A','M','E','L'].includes(code)){body+=text(60,y,({A:'A · Absent · counted as 0 / HPS',M:'M · Missing · counted as 0 / HPS',L:'L · Late · excluded from calculation',E:'E · Excused · excluded from calculation'})[code],12,markColor);y+=17;}
+      if(row.score==='' && row.hps!==''){body+=text(60,y,'Not recorded · incomplete requirement',12,muted);y+=17;}
+      y+=15;
+    });y+=20;
     ['* Added points are separate from the original raw score. Cancelled additions remain in history.','A = Absent (zero); L = Late (excluded); M = Missing (zero); E = Excused (excluded).','HPS = highest possible score; WS = weighted score. Missing requirements keep a grade provisional.','CST-R · Individual grade report'].forEach(line=>{body+=text(44,y,line,12,muted);y+=21;});
     const height=y+24;
-    return `<svg xmlns="http://www.w3.org/2000/svg" class="student-report-svg" data-report-id="${reportId}" width="960" height="${height}" viewBox="0 0 960 ${height}" role="img" aria-label="Comprehensive grade report for ${escapeHtml(first.learner.name)}, ${escapeHtml(entries.map(e=>e.period.name).join(', '))}"><rect width="960" height="${height}" fill="#fff"/>${body}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" class="student-report-svg" width="960" height="${height}" viewBox="0 0 960 ${height}" role="img" aria-label="Comprehensive grade report for ${escapeHtml(learner.name)}, ${escapeHtml(period.name)}"><rect width="960" height="${height}" fill="#fff"/>${body}</svg>`;
   }
 
 
   async function exportStudentReportPng(button) {
-    const svg = document.querySelector(`.student-report-svg[data-report-id="${button.dataset.reportId}"]`);
+    const svg = button.nextElementSibling?.querySelector('.student-report-svg');
     if (!svg || button.disabled) return;
     button.disabled = true; button.setAttribute('aria-busy', 'true');
     const clean = value => String(value || '').normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '');
@@ -2824,6 +2911,7 @@
   }
 
   function showSearchModal(message, isHtml = false) {
+    document.querySelector('.modal-backdrop:has(.search-result-modal)')?.remove();
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
     modal.innerHTML = `<section class="modal search-result-modal" role="dialog" aria-modal="true" aria-labelledby="studentSearchTitle"><div class="section-heading"><div><p class="eyebrow">Teacher-assisted grade check</p><h2 id="studentSearchTitle">Student result</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div><div class="student-results">${isHtml ? message : `<p class="muted">${escapeHtml(message)}</p>`}</div></section>`;
@@ -4325,6 +4413,8 @@
     if (action === "restore-version") restoreVersion(Number(target.dataset.versionIndex));
     if (action === "choose-photo") choosePhoto();
     if (action === "search-student") searchStudent();
+    if (action === "draft-student-feedback") void draftStudentFeedback(target);
+    if (action === "cancel-student-feedback") activeFeedback.get(target.closest(".report-ai"))?.abort();
     if (action === "export-student-png") exportStudentReportPng(target);
   });
 
@@ -4487,7 +4577,7 @@
         input.classList.toggle('invalid', bad);
         input.setAttribute('aria-invalid', String(bad));
       }
-      refreshEditableStudentReport(); stateChanged = true;
+      stateChanged = true;
     }
     if (input.dataset.hps) {
       if (!hpsEdits.has(input)) hpsEdits.set(input, currentPeriod()[input.dataset.hps + "Hps"][Number(input.dataset.index)]);
@@ -4495,9 +4585,10 @@
       document.querySelectorAll(`[data-hps="${input.dataset.hps}"][data-index="${input.dataset.index}"]`).forEach(peer => { if (peer !== input) peer.value = input.value; });
       input.classList.toggle("invalid", input.value !== "" && (!Number.isFinite(Number(input.value)) || Number(input.value) <= 0));
       input.setAttribute("aria-invalid", String(input.classList.contains("invalid")));
-      updateAllSummaries(); refreshEditableStudentReport(); stateChanged = true;
+      updateAllSummaries(); stateChanged = true;
     }
     if (stateChanged) {
+      if (sheetEntryView === 'one' && currentView === 'record') refreshEditableStudentReport();
       refreshMobileEntry();
       const fieldKey = getFieldKeyForInput(input);
       if (fieldKey) markFieldEditDirty(fieldKey); else markStateDirty();
