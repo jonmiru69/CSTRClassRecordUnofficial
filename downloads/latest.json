@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
   "available": true,
-  "version": "1.0.27",
-  "versionCode": 10027,
+  "version": "1.0.29",
+  "versionCode": 10029,
   "minimumSupportedVersionCode": 0,
-  "sha256": "edf7ffe4c51f18101437b49809e3528f7b2dad3dc685247424bee2d9d724c1ea",
+  "sha256": "61417a408fc7e07f3255c03a97a486ef0754864318738aea6fa3b13bd505dad2",
   "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
-  "bytes": 6055469,
-  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.27.apk",
-  "publishedAt": "2026-11-05T00:47:48.145Z",
-  "notes": "The theme button lifts and bounces as a circular reveal switches the grade sheet, folder tabs, and workspace together. Reduced-motion settings switch colors immediately."
+  "bytes": 6056392,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.29.apk",
+  "publishedAt": "2026-11-05T01:19:51.526Z",
+  "notes": "Smoother theme ripple with a 3D sun and moon switch, stable folder navigation, and lighter sign-in, dialog and save feedback motion."
 }
