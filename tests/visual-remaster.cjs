@@ -56,13 +56,33 @@ async function run(){
       const activate=control=>width<=1000?control.tap():control.click();
       await page.goto(origin+'/');await settle(page);await layout(page,label+' sign-in');
       check(label+' sign-in retains email/password and Google actions',await page.locator('#signinEmail').isVisible()&&await page.locator('#signinPassword').isVisible()&&await page.locator('[data-action="google-login"]').isVisible());
+      check(label+' sign-in card has exactly two buttons',await page.locator('.login-card button').count()===2);
+      check(label+' sign-in has one privacy control and one secondary Android entry',
+        await page.locator('#app [data-open-policies]').count()===1&&await page.locator('#app [data-open-install]').count()===1&&
+        await page.locator('.project-about [data-open-install]').isVisible());
+      check(label+' product information needs no extra controls',
+        await page.locator('.welcome-story :is(button,summary)').count()===0&&await page.locator('a.welcome-brand').count()===0);
       const greeting=page.locator('#tommy-welcome');
-      await activate(page.getByRole('button',{name:'About AI Tommy'}));
-      check(label+' login shortcut opens Tommy',await greeting.locator('.tommy-helper-body').isVisible());
-      await page.evaluate(()=>window.__visualRefresh());
-      check(label+' login greeting stays open after refresh',await greeting.locator('.tommy-helper-body').isVisible());
-      await greeting.locator('summary').press('Enter');
-      check(label+' login greeting closes with keyboard',!(await greeting.locator('.tommy-helper-body').isVisible()));
+      if((width===1440||width===390)&&theme==='light'&&!config.reduced){
+        await activate(page.locator('[data-action="show-signup"]'));
+        check(label+' signup keeps one submit and one return link',await page.locator('#signupForm button[type="submit"]').count()===1&&
+          await page.locator('[data-action="show-signin"]').count()===1);
+        await activate(page.locator('[data-action="show-signin"]'));
+        await activate(page.locator('[data-action="show-legacy-claim"]'));
+        check(label+' record recovery keeps one heading, one contact and one return link',
+          await page.getByRole('heading',{name:'Recover existing records'}).count()===1&&
+          await page.locator('.login-card a[href^="mailto:"]').count()===1&&await page.locator('[data-action="show-signin"]').count()===1);
+        await activate(page.locator('[data-action="show-signin"]'));
+        await page.locator('#signinEmail').fill('teacher@example.test');
+        await page.evaluate(()=>{window.CSTRSync={sendPasswordResetEmail:async email=>{window.__resetEmail=email;}};});
+        await activate(page.locator('[data-action="forgot-password"]'));
+        check(label+' password recovery still uses the entered address',await page.evaluate(()=>window.__resetEmail)==='teacher@example.test');
+        await page.reload();await settle(page);
+        await activate(page.locator('.project-about [data-open-install]'));
+        check(label+' secondary Android entry opens the download dialog',await page.locator('.install-dialog[open]').isVisible());
+        await page.keyboard.press('Escape');
+        await page.evaluate(()=>scrollTo(0,0));
+      }
       if(width===1440||width===390)await shot(page,'welcome-'+label);
       await page.locator('[data-open-policies]').first().click();
       check(label+' privacy dialog opens without backdrop blur',await page.locator('#policy-dialog').evaluate(e=>e.open&&getComputedStyle(e,'::backdrop').backdropFilter==='none'));

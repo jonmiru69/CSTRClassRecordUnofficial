@@ -5,5 +5,10 @@ context.window.CSTRGrading=require(path.join(base,'grading-engine.js'));context.
 const source=read('app.js').replace('  initApp();','  window.testHooks={renderLogin,renderHome,renderSignUpPanel,renderLegacyClaimPanel,normalizeState,createInitialState,renderSectionRecord,setState(value){state=normalizeState(value);activeSectionId=state.registry[0]?.id||"";}};');
 vm.runInNewContext(source,context);const h=context.window.testHooks;
 assert(h.renderLogin().includes('Unofficial'));assert(h.renderSignUpPanel().includes('minlength="12"'));assert(!h.renderLegacyClaimPanel().includes('type="password"'));assert(h.renderHome().includes('Active class records'));assert(h.renderHome().includes('Teacher details'));assert.equal(h.createInitialState().teacher.age,'');
+context.window.CSTRMobile={native:true};
+const nativeLogin=h.renderLogin();
+assert(!nativeLogin.includes('login-divider')&&!nativeLogin.includes('google-login'));
+assert.equal((nativeLogin.match(/data-action="open-web-workspace"/g)||[]).length,1);
+delete context.window.CSTRMobile;
 const state=h.createInitialState();state.registry=[{id:'test',subject:'Synthetic',section:'A',group:'JHS',level:'7',weights:[30,40,30],rosterSize:1}];h.setState(state);const sheet=h.renderSectionRecord();assert(sheet.includes('data-score="ww"'));assert(sheet.includes('aria-label="Scrollable grade sheet"'));console.log('PASS: Sign-in, registration, recovery, task-first dashboard, and synthetic grade-sheet templates render without exceptions.');
 

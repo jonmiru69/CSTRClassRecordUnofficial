@@ -30,7 +30,7 @@
   :root body :is(h1,h2,h3,h4) {font-family:var(--font-sans);font-weight:600;letter-spacing:-.035em;text-wrap:balance;}
   :root body :is(button,a,summary,input,select,textarea):focus-visible {outline:3px solid var(--focus)!important;outline-offset:3px;}
   :root body button {letter-spacing:normal;}
-  :root body :is(.button,.button-google,.install-entry,.install-download) {border-radius:4px!important;font-weight:600;}
+  :root body :is(.button,.button-google,.install-download) {border-radius:4px!important;font-weight:600;}
   :root body button:is(.button-primary,#saveChanges),
   :root body #app button:is(.button-primary,#saveChanges) {background:var(--brand)!important;color:var(--on-brand)!important;text-decoration:none!important;padding:12px 20px;min-height:46px;}
   :root body button:is(.button-primary,#saveChanges):hover:not(:disabled) {background:var(--brand-hover)!important;}
@@ -51,8 +51,7 @@
   :root body .welcome-brand-copy strong {font-size:19px;font-weight:700;letter-spacing:-.025em;}
   :root body .welcome-brand-copy small {font-size:13px;}
   :root body .welcome-tools {gap:20px;}
-  :root body .welcome-tools :is(.theme-toggle,.welcome-policy,.install-entry) {font-size:13px;min-height:44px;color:var(--text)!important;padding:8px;}
-  :root body .welcome-tools .install-entry {background:var(--surface-subtle);}
+  :root body .welcome-tools :is(.theme-toggle,.welcome-policy) {font-size:13px;min-height:44px;color:var(--text)!important;padding:8px;}
   :root body .login-screen {grid-template-columns:minmax(0,1.25fr) minmax(350px,.85fr);max-width:1320px;gap:0 64px;margin:20px auto 0;padding:0 32px 48px;align-items:start;}
   :root body .welcome-story {position:relative;display:flex;padding:0;margin:0;background:var(--remaster-cover);color:var(--remaster-cover-ink);overflow:hidden;animation:none;}
   :root body .welcome-story-copy {padding:42px 40px 28px;}
@@ -73,7 +72,9 @@
   :root body .login-card .legacy-toggle-link {color:var(--brand);}
   :root body .login-card .login-divider {margin:18px 0 14px;}
   :root body .login-card .button-google {width:100%;justify-content:center;border:1px solid var(--border)!important;} /* taste-skill-ignore: Boundary for a real sign-in form control. */
-  :root body .login-card .login-policy-note {margin-top:22px;}
+  :root body .login-support {display:flex;flex-wrap:wrap;justify-content:center;column-gap:20px;margin-top:12px;}
+  :root body .login-support a {display:inline-flex;align-items:center;min-height:44px;padding-inline:4px;}
+  :root body #app .project-about .login-install-link {padding:0;min-height:44px;font:inherit;color:var(--brand)!important;text-decoration:underline!important;text-underline-offset:3px;}
   :root body .project-about {position:relative;grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin:80px 0 0;padding:40px 0 0;gap:24px 64px;background:transparent;}
   :root body .project-about h2 {font:400 clamp(32px,3vw,42px)/1.1 var(--font-serif);color:var(--text);margin:0;}
   :root body .project-subtitle {font-size:15px;line-height:1.6;max-width:48ch;}
@@ -219,7 +220,6 @@
     :root body .welcome-brand-copy small {max-width:35ch;}
     :root body .welcome-tools {gap:8px;}
     :root body .welcome-tools .theme-toggle-label {display:none;}
-    :root body .welcome-tools .install-entry {font-size:12px;}
     :root body .login-screen {grid-template-columns:minmax(0,1fr) minmax(300px,.9fr);gap:0 32px;padding-inline:24px;margin-top:12px;}
     :root body .welcome-story-copy {padding:32px 28px 24px;}
     :root body .welcome-story h2 {font-size:44px;}

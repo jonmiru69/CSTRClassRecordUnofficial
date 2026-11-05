@@ -48,8 +48,6 @@
   function addEntry() {
     const nav=document.querySelector('.mobile-navigation');
     if(nav!==measuredNav){navObserver.disconnect();measuredNav=nav;if(nav)navObserver.observe(nav);}
-    const host=document.querySelector('.welcome-tools');
-    if(host&&!host.querySelector('[data-open-install]')){const button=document.createElement('button');button.type='button';button.className='install-entry';button.dataset.openInstall='';button.textContent=native?'App updates':'Get Android app';host.append(button);}
     const account=document.querySelector('.sidebar-account-tools');
     if(account&&!account.querySelector('[data-open-install]')){const button=document.createElement('button');button.type='button';button.className='sidebar-link';button.dataset.openInstall='';button.textContent=native?'App updates':'Get Android app';account.append(button);}
   }

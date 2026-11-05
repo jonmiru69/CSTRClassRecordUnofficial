@@ -1050,25 +1050,21 @@
   window.addEventListener('resize', sizeActivityTextareas, { passive: true });
 
   function renderLogin() {
-    const titles = { signin: "Welcome back", signup: "Create your account", legacy: "Find your records" };
+    const titles = { signin: "Welcome back", signup: "Create your account", legacy: "Recover existing records" };
     const panelBody = loginPanel === "signup" ? renderSignUpPanel()
       : loginPanel === "legacy" ? renderLegacyClaimPanel()
       : renderSignInPanel();
 
-    return `<header class="welcome-nav"><a class="welcome-brand" href="./"><img src="ASSETS/logo-compact.png" alt=""><span class="welcome-brand-copy"><strong>CST-R Class Record</strong><small>Colegio de Sto. Tomás–Recoletos · Unofficial</small></span></a><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen">
-      <div class="welcome-story"><div class="welcome-story-copy"><h2>Your digital<br> class record</h2><p>Record scores, check how grades were calculated, and prepare learner reports with AI Tommy.</p>${renderTommyWelcome('signin')}</div><figure><div class="campus-window"><img src="ASSETS/campus.webp" width="1400" height="788" fetchpriority="high" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"></div><figcaption><span>Colegio de Sto. Tomás – Recoletos</span><span>Faculty workspace</span></figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
+    return `<header class="welcome-nav"><div class="welcome-brand"><img src="ASSETS/logo-compact.png" alt=""><span class="welcome-brand-copy"><strong>CST-R Class Record</strong><small>Colegio de Sto. Tomás–Recoletos · Unofficial</small></span></div><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen">
+      <div class="welcome-story"><div class="welcome-story-copy"><h2>Your digital<br> class record</h2><p>Record scores, check how grades were calculated, and prepare learner reports with AI Tommy.</p></div><figure><div class="campus-window"><img src="ASSETS/campus.webp" width="1400" height="788" fetchpriority="high" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"></div><figcaption><span>Colegio de Sto. Tomás – Recoletos</span><span>Faculty workspace</span></figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
       <div class="login-card">
-        <div class="login-header-logo">
-          <img src="ASSETS/logo-compact.png" alt="Colegio de Sto. Tomás – Recoletos crest" class="login-logo-img">
-        </div>
-
-        <h1>${titles[loginPanel]}</h1><p class="signin-context">${loginPanel === "signin" ? "Sign in with your approved teacher account." : loginPanel === "signup" ? "Request access to the CST-R faculty workspace." : "Request help finding your saved class records."}</p>
-        ${loginPanel === 'signin' ? `<button type="button" class="tommy-login-link" data-action="tommy-intro">${tommyRobot()}<span class="action-label">About AI Tommy</span></button>` : ''}
-
+        <h1>${titles[loginPanel]}</h1>
+        ${loginPanel === "signin" ? '<p class="signin-context">Sign in with your approved teacher account.</p>' : loginPanel === "signup" ? '<p class="signin-context">Request access to the CST-R faculty workspace. Developer approval is required.</p>' : ''}
 
         ${panelBody}
+        ${loginPanel !== "signin" ? '<p class="login-alternative"><a href="#" class="legacy-toggle-link" data-action="show-signin">Back to sign in</a></p>' : ''}
 
-        <p class="login-policy-note"><button type="button" data-open-policies>Privacy, Terms &amp; Data Protection</button></p><p id="loginError" class="login-error" role="alert"></p>
+        <p id="loginError" class="login-error" role="alert"></p>
         <p id="loginSuccess" class="login-success" role="status" style="display: none;"></p>
       </div>
       <article class="project-about" aria-labelledby="projectTitle">
@@ -1094,6 +1090,7 @@
         <section>
           <h3>Save and resume anywhere</h3>
           <p>Use your developer-approved teacher account on the website or Android app. Check that your cloud save succeeded before switching devices. Recovery checkpoints and encrypted backup files give you ways to restore earlier work.</p>
+          <p><button type="button" class="login-install-link" data-open-install aria-haspopup="dialog">${window.CSTRMobile?.native ? 'App updates' : 'Get the Android app'}</button></p>
           <p>On shared devices, sign out when finished. Use Privacy &amp; terms for details on access, recovery, and handling learner data.</p>
         </section>
         <section class="project-standout">
@@ -1108,6 +1105,7 @@
   }
 
   function renderSignInPanel() {
+    const native = window.CSTRMobile?.native;
     return `<form id="signinForm" class="legacy-login-box">
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Email
           <input id="signinEmail" type="email" autocomplete="username" placeholder="you@example.com" required>
@@ -1119,8 +1117,8 @@
       </form>
       <p style="text-align: center; margin-top: 8px;"><a href="#" class="legacy-toggle-link" data-action="forgot-password">Forgot password?</a></p>
 
-      <div class="login-divider"><span>OR</span></div>
-      <div class="login-cta-group" ${window.CSTRMobile?.native ? 'hidden' : ''}>
+      ${native ? `<p class="native-signin-note">Use your approved email and password. If you use Google, add a password in website Settings first, then return here.</p><button type="button" class="button button-secondary" data-action="open-web-workspace">Open website sign-in</button>` : `<div class="login-divider"><span>OR</span></div>
+      <div class="login-cta-group">
         <button type="button" class="button-google" data-action="google-login">
           <svg class="google-icon" viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -1130,18 +1128,16 @@
           </svg>
           <span>Continue with Google</span>
         </button>
-      </div>
+      </div>`}
 
-      ${window.CSTRMobile?.native ? '<p class="native-signin-note">Use your approved email and password. If you use Google, add a password in website Settings first, then return here.</p><button type="button" class="button button-secondary" data-action="open-web-workspace">Open website sign-in</button>' : ''}
-      <p class="login-alternative"><a href="#" class="legacy-toggle-link" data-action="show-signup">Create a teacher account</a></p>
-      <p style="text-align: center; margin-top: 6px;">
-        <a href="#" class="legacy-toggle-link" data-action="show-legacy-claim"> Need your existing records? Request recovery</a>
-      </p>`;
+      <nav class="login-support" aria-label="Account help">
+        <a href="#" class="legacy-toggle-link" data-action="show-signup">Create a teacher account</a>
+        <a href="#" class="legacy-toggle-link" data-action="show-legacy-claim">Recover existing records</a>
+      </nav>`;
   }
 
   function renderSignUpPanel() {
-    return `<p class="legacy-helper-text" style="text-align: left;">Developer approval required.</p>
-      <form id="signupForm" class="legacy-login-box">
+    return `<form id="signupForm" class="legacy-login-box">
         <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Full Name
           <input id="signupName" type="text" autocomplete="name" placeholder="e.g. Maria Santos" required>
         </label>
@@ -1155,12 +1151,11 @@
           <input id="signupPasswordConfirm" type="password" autocomplete="new-password" placeholder="Re-enter password" minlength="12" required>
         </label>
         <button type="submit" class="button button-primary" data-action="email-signup" style="width: 100%; margin-top: 6px;"> Create account</button>
-      </form>
-      <p style="text-align: center; margin-top: 10px;"><a href="#" class="legacy-toggle-link" data-action="show-signin">← Back to Sign In</a></p>`;
+      </form>`;
   }
 
   function renderLegacyClaimPanel() {
-    return `<h2>Recover existing records</h2><p>Sign in with your existing approved account. If your records are missing, contact the developer to verify ownership and reconnect your workspace.</p><p><a href="mailto:SANCHEZRAMIL2202@GMAIL.COM?subject=Class%20record%20recovery">SANCHEZRAMIL2202@GMAIL.COM</a></p><p>Send your sign-in email and a brief description. Never email passwords, account codes, learner lists, or grade files.</p><button type="button" class="button button-secondary" data-action="show-signin">Back to sign in</button>`;
+    return `<p>Sign in with your existing approved account. If your records are missing, contact the developer to verify ownership and reconnect your workspace.</p><p><a href="mailto:SANCHEZRAMIL2202@GMAIL.COM?subject=Class%20record%20recovery">SANCHEZRAMIL2202@GMAIL.COM</a></p><p>Send your sign-in email and a brief description. Never email passwords, account codes, learner lists, or grade files.</p>`;
   }
 
   function showSignInPanel() { loginPanel = "signin"; render(); }
@@ -2875,13 +2870,12 @@
     if (tommyVisit?.view !== view) {
       tommyVisit = { view, greeting: greetings[Math.floor(Math.random() * greetings.length)], atEnd: Math.random() < .5 };
     }
-    const signin = view === 'signin';
     const previous = app.querySelector('#tommy-welcome');
     const open = previous?.dataset.tommyView === view && previous.open;
-    return `<details class="tommy-helper ${signin ? 'tommy-welcome' : 'tommy-workspace'}${tommyVisit.atEnd ? ' tommy-at-end' : ''}" id="tommy-welcome" data-tommy-view="${view}"${open ? ' open' : ''}>
-      <summary>${tommyRobot()}<span class="action-label">${signin ? 'Meet AI Tommy' : 'Say hi to AI Tommy'}</span></summary>
+    return `<details class="tommy-helper tommy-workspace${tommyVisit.atEnd ? ' tommy-at-end' : ''}" id="tommy-welcome" data-tommy-view="${view}"${open ? ' open' : ''}>
+      <summary>${tommyRobot()}<span class="action-label">Say hi to AI Tommy</span></summary>
       <div class="tommy-helper-body"><p><strong>${tommyVisit.greeting}</strong></p>
-        <p>${signin ? 'Sign in to check a grade sheet with me or ask for a learner’s performance assessment.' : 'Open a grade sheet and I’ll help spot entries to review. Find a learner to see an assessment based on their recorded scores.'}</p>
+        <p>Open a grade sheet and I’ll help spot entries to review. Find a learner to see an assessment based on their recorded scores.</p>
       </div>
     </details>`;
   }
@@ -4655,14 +4649,6 @@
     if (action === "choose-photo") choosePhoto();
     if (action === "search-student") searchStudent();
     if (action === "draft-student-feedback") void draftStudentFeedback(target);
-    if (action === 'tommy-intro') {
-      const welcome = app.querySelector('#tommy-welcome');
-      if (welcome) {
-        welcome.open = true;
-        welcome.querySelector('summary').focus({ preventScroll: true });
-        welcome.scrollIntoView({ block: 'nearest', behavior: 'instant' });
-      }
-    }
     if (action === 'tommy-find-field') {
       selectEntryView('sheet');
       const field = app.querySelector(`.record-table ${target.dataset.field}`);
