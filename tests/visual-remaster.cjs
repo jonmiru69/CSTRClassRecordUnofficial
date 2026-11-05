@@ -64,7 +64,9 @@ async function run(){
       await greeting.locator('summary').press('Enter');
       check(label+' login greeting closes with keyboard',!(await greeting.locator('.tommy-helper-body').isVisible()));
       if(width===1440||width===390)await shot(page,'welcome-'+label);
-      await page.locator('[data-open-policies]').first().click();check(label+' privacy dialog opens',await page.locator('#policy-dialog').evaluate(e=>e.open));await page.keyboard.press('Escape');check(label+' privacy dialog closes',!(await page.locator('#policy-dialog').evaluate(e=>e.open)));
+      await page.locator('[data-open-policies]').first().click();
+      check(label+' privacy dialog opens without backdrop blur',await page.locator('#policy-dialog').evaluate(e=>e.open&&getComputedStyle(e,'::backdrop').backdropFilter==='none'));
+      await page.keyboard.press('Escape');check(label+' privacy dialog closes',!(await page.locator('#policy-dialog').evaluate(e=>e.open)));
       if(config.reduced)check('Reduced motion suppresses welcome animations',(await page.evaluate(()=>document.getAnimations().filter(a=>a.playState==='running').length))===0);
       await page.goto(origin+'/test-preview/index.html');await page.locator('.recent-class-row').first().waitFor();await settle(page);const before=await snapshot(page);await layout(page,label+' overview');
       await activate(greeting.locator('summary'));

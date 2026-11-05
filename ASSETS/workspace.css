@@ -276,7 +276,7 @@
   :root body .report-chart {background-image:none}
 
   /* Dialogs and popovers share the same controls and clear reading hierarchy. */
-  :root body .modal-backdrop {background:rgb(16 22 29 / .55);backdrop-filter:none;padding:24px} /* taste-skill-ignore: Disable the legacy backdrop blur. */
+  :root body :is(.modal-backdrop,.regcode-modal-backdrop) {background:rgb(16 22 29 / .55);backdrop-filter:none;padding:24px} /* taste-skill-ignore: Disable the legacy backdrop blur. */
   :root body :is(.modal,.backup-dialog,.policy-dialog) {background:var(--surface);color:var(--text);border:0;border-radius:12px;padding:28px;box-shadow:0 20px 80px #0003;max-width:min(720px,calc(100vw - 32px));max-height:90dvh;overflow:auto} /* taste-skill-ignore: Depth belongs to these actual modal dialogs. */
   :root body .modal .section-heading h2 {font-size:26px;line-height:1.2}
   :root body .modal :is(p,label,.settings-note,.settings-account-meta) {font-size:14px;line-height:1.6;color:var(--text)}
