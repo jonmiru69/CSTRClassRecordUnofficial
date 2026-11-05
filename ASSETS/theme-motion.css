@@ -1,74 +1,136 @@
-/* This layer takes precedence over legacy !important hover and color transitions. */
-@layer theme-switch {
-  :root[data-theme-switching],
-  :root[data-theme-switching] *,
-  :root[data-theme-switching] *::before,
-  :root[data-theme-switching] *::after {
-    transition: none !important;
-  }
-}
-
-@media screen {
-  :root body #app button.theme-toggle[data-toggle-theme] {
-    background: var(--surface-subtle) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 6px !important;
-    color: var(--text) !important;
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    :root body #app button.theme-toggle[data-toggle-theme]:hover {
-      border-color: var(--focus) !important;
+/* Remove paint and layout transitions from interactive workspace surfaces. */
+@layer motion-guard {
+  @media screen {
+    :where(button, summary, input, select, textarea, a[data-action],
+      .app-layout, .app-sidebar, .app-header, .app-header-inner, .app-header-brand,
+      .app-title, .header-logo, .sidebar-search, .sidebar-owner, .sidebar-brand-copy,
+      .card, .metric-card, .photo-frame, .save-status, .table-wrap, .record-table th, .record-table td,
+      .record-table tr, .activity-register th, .activity-register td, .mobile-navigation) {
+      transition: none !important;
     }
   }
 }
 
+@media screen {
+  :root body button.theme-toggle[data-toggle-theme] {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 76px !important;
+    min-height: 44px;
+    padding: 0 2px !important;
+  }
+
+  .theme-track {
+    position: relative;
+    display: block;
+    flex: none;
+    width: 72px;
+    height: 32px;
+    border-radius: 100px;
+    background: radial-gradient(ellipse at 76% 95%, #c9efff 0, transparent 55%),
+      linear-gradient(155deg, #286f9d 5%, #549ec8 52%, #91d2f2 100%);
+    box-shadow: inset 0 2px 4px #173757a8, inset 0 -1px 0 #fffc, 0 2px 4px #10263138;
+  }
+
+  .theme-toggle[aria-checked="true"] .theme-track {
+    background: radial-gradient(circle at 21% 32%, #fff 0 1px, transparent 1.6px),
+      radial-gradient(circle at 36% 63%, #c7dfff 0 1px, transparent 1.5px),
+      radial-gradient(circle at 13% 72%, #88b9f7 0 .75px, transparent 1.2px),
+      linear-gradient(150deg, #101727, #293c5a);
+    box-shadow: inset 0 2px 4px #000b, inset 0 -1px 0 #aac6ef66, 0 2px 4px #0005;
+  }
+
+  .theme-orb {
+    position: absolute;
+    inset: 3px auto auto 3px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 24%, #fff2a0, #fcb835 44%, #d97b0c 78%, #ac4b0a);
+    box-shadow: inset 0 1px 1px #fff8, inset 0 -2px 3px #a8481d66, 0 2px 4px #142f51a6;
+  }
+
+  .theme-orb svg { width: 19px; height: 19px; }
+  .theme-orb .theme-night-glyph,
+  .theme-toggle[aria-checked="true"] .theme-day-glyph { display: none; }
+  .theme-toggle[aria-checked="true"] .theme-night-glyph { display: block; }
+  .theme-toggle[aria-checked="true"] .theme-orb {
+    left: 43px;
+    background: radial-gradient(circle at 34% 22%, #a1b9dc, #6786ae 43%, #405677 78%, #29374f);
+    box-shadow: inset 0 1px 1px #e7f2ff99, inset 0 -2px 3px #23354b, 0 2px 4px #000a;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .theme-toggle:hover .theme-track { outline: 1px solid var(--focus); outline-offset: 2px; }
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  :root[data-theme-ripple] [data-theme-lift] {
-    view-transition-name: theme-control;
+  [data-toggle-theme] .theme-track {
+    transition: transform 120ms var(--ledger-ease, cubic-bezier(.23, 1, .32, 1));
   }
 
-  :root[data-theme-ripple]::view-transition {
+  [data-toggle-theme]:active .theme-track { transform: scale(.96); }
+  [data-theme-lift] .theme-track { transition: none; }
+  [data-theme-lift] { view-transition-name: theme-control; }
+  [data-theme-lift] .theme-orb { view-transition-name: theme-orb; }
+
+  .theme-wave {
+    position: fixed;
+    width: 128px;
+    height: 128px;
     pointer-events: none;
+    view-transition-name: theme-wave;
+    background: radial-gradient(circle closest-side,
+      transparent 49%, #fff4d324 73%, #fff1b9a6 91%, transparent 100%);
   }
 
-  :root[data-theme-ripple]::view-transition-group(root),
-  :root[data-theme-ripple]::view-transition-group(theme-control),
-  :root[data-theme-ripple]::view-transition-old(root) {
-    animation: none;
+  :root[data-theme="dark"] .theme-wave {
+    background: radial-gradient(circle closest-side,
+      transparent 49%, #0d20364f 73%, #192f51d9 91%, transparent 100%);
   }
 
-  :root[data-theme-ripple]::view-transition-image-pair(root) {
-    isolation: isolate;
+  ::view-transition { pointer-events: none; }
+
+  ::view-transition-group(root),
+  ::view-transition-group(theme-control),
+  ::view-transition-group(theme-wave),
+  ::view-transition-new(root),
+  ::view-transition-new(theme-wave) { animation: none; }
+
+  ::view-transition-image-pair(root) { isolation: isolate; }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  ::view-transition-new(theme-control) { mix-blend-mode: normal; }
+
+  ::view-transition-old(root) { z-index: 1; animation: theme-palette 300ms ease 30ms both; }
+  ::view-transition-new(theme-wave) { opacity: 0; }
+  ::view-transition-group(theme-wave) { z-index: 1; }
+  ::view-transition-group(theme-control),
+  ::view-transition-group(theme-orb) { z-index: 2; }
+
+  ::view-transition-old(theme-control) { display: none; }
+
+  ::view-transition-new(theme-control),
+  ::view-transition-image-pair(theme-orb) {
+    animation: theme-lift 290ms var(--ledger-ease, cubic-bezier(.23, 1, .32, 1)) both;
   }
 
-  :root[data-theme-ripple]::view-transition-old(root),
-  :root[data-theme-ripple]::view-transition-new(root),
-  :root[data-theme-ripple]::view-transition-new(theme-control) {
-    mix-blend-mode: normal;
+  ::view-transition-group(theme-orb) {
+    animation-duration: 240ms;
+    animation-timing-function: var(--ledger-ease, cubic-bezier(.23, 1, .32, 1));
   }
 
-  :root[data-theme-ripple]::view-transition-new(root) {
-    animation: theme-ripple 260ms var(--ledger-ease, cubic-bezier(.23, 1, .32, 1)) 35ms both;
-  }
-
-  :root[data-theme-ripple]::view-transition-old(theme-control) {
-    display: none;
-  }
-
-  :root[data-theme-ripple]::view-transition-new(theme-control) {
-    animation: theme-lift 295ms var(--ledger-ease, cubic-bezier(.23, 1, .32, 1)) both;
-  }
-
-  @keyframes theme-ripple {
-    from { clip-path: circle(6px at var(--theme-ripple-origin)); }
-    to { clip-path: circle(var(--theme-ripple-radius) at var(--theme-ripple-origin)); }
-  }
+  @keyframes theme-palette { from { opacity: 1; } to { opacity: 0; } }
 
   @keyframes theme-lift {
-    0%, 100% { translate: 0 0; filter: drop-shadow(0 0 0 transparent); }
-    28% { translate: 0 -7px; filter: drop-shadow(0 6px 5px #0007); }
-    68% { translate: 0 1px; filter: drop-shadow(0 1px 1px #0003); }
-    84% { translate: 0 -2px; filter: drop-shadow(0 2px 2px #0004); }
+    0%, 100% { transform: translateY(0); }
+    27% { transform: translateY(-6px); }
+    68% { transform: translateY(1px); }
+    84% { transform: translateY(-1.5px); }
   }
 }

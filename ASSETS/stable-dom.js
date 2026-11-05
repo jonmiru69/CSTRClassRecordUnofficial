@@ -5,7 +5,8 @@
   function key(node) {
     if (node.nodeType !== 1) return null;
     const d = node.dataset;
-    if (node.matches('.table-wrap,.record-table,.app-main,.app-shell,.record-section')) return 'container:' + node.className;
+    if (d.recordPeriod !== undefined) return 'record-period:' + d.recordPeriod;
+    if (node.matches('.table-wrap,.record-table,.app-main,.app-shell')) return 'container:' + node.className;
     if (node.id) return 'id:' + node.id;
     if (d.toggleTheme !== undefined) return 'theme-toggle';
     if (d.learnerRow !== undefined) return 'row:' + d.learnerRow;
@@ -27,7 +28,8 @@
     if (old.nodeType === 3 || old.nodeType === 8) { if (old.nodeValue !== next.nodeValue) old.nodeValue = next.nodeValue; return; }
     const focused = old === document.activeElement;
     for (const attribute of Array.from(old.attributes)) {
-      if (old.matches('.table-wrap') && attribute.name === 'style') continue;
+      if (attribute.name === 'style' && !next.hasAttribute('style') &&
+        old.matches('.table-wrap,.record-table,.record-table input:is([data-score],[data-date],[data-hps])')) continue;
       if (old.tagName === 'DETAILS' && attribute.name === 'open') continue;
       if (old.hasAttribute('data-toggle-theme') && attribute.name === 'data-theme-lift') continue;
       if (!next.hasAttribute(attribute.name)) old.removeAttribute(attribute.name);
@@ -56,7 +58,15 @@
     const remaining = new Set(Array.from(old.childNodes));
     let cursor = old.firstChild;
     for (const child of Array.from(next.childNodes)) {
-      const match = Array.from(remaining).find(node => compatible(node, child));
+      let match = compatible(cursor, child) ? cursor : null;
+      if (!match) {
+        for (const candidate of remaining) {
+          if (compatible(candidate, child)) {
+            match = candidate;
+            break;
+          }
+        }
+      }
       if (match) {
         remaining.delete(match);
         if (match !== cursor) old.insertBefore(match, cursor);

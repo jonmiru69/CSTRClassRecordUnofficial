@@ -83,6 +83,9 @@ async function run(){
       await sheetTommy.getByRole('heading',{name:/Blank scores/}).waitFor();
       const issueList=await sheetTommy.locator('.tommy-issue-grid').elementHandle();
       const themeToggle=page.locator('.app-header [data-toggle-theme]');
+      check(label+' theme control exposes a named switch',await page.getByRole('switch',{name:'Dark mode'}).count()===1);
+      const orbLeft=()=>themeToggle.locator('.theme-orb').evaluate(orb=>orb.offsetLeft);
+      const initialOrbLeft=await orbLeft();
       const oppositeTheme=theme==='dark'?'light':'dark';
       const folderColors=()=>page.locator('.sheet-folder,.sheet-paper,.folder-tab').evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).backgroundColor));
       const initialColors=await folderColors();
@@ -91,9 +94,11 @@ async function run(){
         window.__themeTransitions=[];
         document.startViewTransition=update=>{
           const transition=start(update);
-          window.__themeTransitions.push(transition.ready.then(()=>{
+          window.__themeTransitions.push(transition.ready.then(async()=>{
+            await Promise.resolve();
             const root=document.documentElement;
-            return ['root','theme-control'].map(name=>getComputedStyle(root,`::view-transition-new(${name})`).animationName);
+            const reveal=document.getAnimations().find(animation=>animation.id==='theme-ripple');
+            return [reveal?.effect.pseudoElement,getComputedStyle(root,'::view-transition-new(theme-control)').animationName];
           },()=>[]));
           return transition;
         };
@@ -104,8 +109,11 @@ async function run(){
       check(label+' theme changes the paper, folder and every tab',initialColors.every((color,index)=>color!==switchedColors[index]));
       const transitions=await page.evaluate(()=>Promise.all(window.__themeTransitions));
       check(label+' pointer theme motion follows the reduced-motion preference',config.reduced?transitions.length===0:
-        JSON.stringify(transitions)===JSON.stringify([['theme-ripple','theme-lift']]));
+        JSON.stringify(transitions)===JSON.stringify([['::view-transition-new(theme-wave)','theme-lift']]));
       await page.waitForFunction(()=>!document.documentElement.hasAttribute('data-theme-ripple'));
+      check(label+' theme switch changes thumb position, icon and checked state',await orbLeft()!==initialOrbLeft&&
+        await themeToggle.getAttribute('aria-checked')===String(oppositeTheme==='dark')&&
+        await themeToggle.locator(oppositeTheme==='dark'?'.theme-night-glyph':'.theme-day-glyph').isVisible());
       await contrast(page,'.folder-tab[aria-selected="false"]',label+' inactive folder tab');
       if(width>1000){
         const entry=page.locator('.record-table tbody tr[data-learner-row]:not(.row-category) td.name-cell').first();

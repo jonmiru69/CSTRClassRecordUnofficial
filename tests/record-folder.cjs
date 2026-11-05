@@ -42,6 +42,12 @@ async function run(){
       await page.locator('link[href*="record-folder.css"]').evaluate(e=>{e.disabled=false;});
       check(label+' class color remains blue',await page.locator('.record-section').evaluate(e=>getComputedStyle(e).getPropertyValue('--class-color').trim()==='#0d47a1'));
       check(label+' loaded local display font',await page.evaluate(()=>document.fonts.check('24px "CSTR Serif"')));
+      if(config.width<=400)check(label+' all folder tabs fit together',await page.locator('.folder-tabs').evaluate(tabs=>tabs.scrollWidth===tabs.clientWidth));
+      await page.evaluate(()=>{
+        window.__stableFolderNodes=['.app-header','.app-sidebar','.mobile-navigation','.record-table'].map(selector=>document.querySelector(selector));
+        document.querySelector('.table-wrap').scrollLeft=100;
+        window.__folderScroll=document.querySelector('.table-wrap').scrollLeft;
+      });
       for(const view of ['sheet','activity','one']){
         const tab=page.locator('#view-tab-'+view);await tab.click();
         check(label+' '+view+' tab selected',await tab.getAttribute('aria-selected')==='true');
@@ -52,6 +58,8 @@ async function run(){
         check(label+' '+view+' preserves records',before===await snap(page));await layout(page,label+' '+view);
       }
       await page.locator('#view-tab-sheet').click();await page.locator('#view-tab-sheet').focus();
+      check(label+' folder tabs retain navigation, the grade grid and its scroll position',await page.evaluate(()=>
+        window.__stableFolderNodes.every(node=>node.isConnected)&&document.querySelector('.table-wrap').scrollLeft===window.__folderScroll));
       await page.keyboard.press('ArrowRight');check(label+' arrow moves focus',await page.locator('#view-tab-activity').evaluate(e=>e===document.activeElement));
       check(label+' arrow does not silently activate',await page.locator('#view-tab-sheet').getAttribute('aria-selected')==='true');
       await page.keyboard.press('Enter');check(label+' Enter activates view',await page.locator('#view-tab-activity').getAttribute('aria-selected')==='true');
@@ -66,7 +74,8 @@ async function run(){
         return {index:window.__folderQA.context().activePeriodIndex,locked:document.querySelector('.record-table input[data-score]').disabled,animations:document.querySelector('.sheet-paper').getAnimations().filter(a=>a.playState==='running').length};
       });
       check(label+' rapid changes end at requested period',rapid.index===1&&rapid.locked);
-      check(label+' motion respects preference',config.reduced?rapid.animations===0:rapid.animations===1);
+      check(label+' period switches keep the paper visually stable',rapid.animations===0);
+      check(label+' period switches retain the header and navigation',await page.evaluate(()=>window.__stableFolderNodes.slice(0,3).every(node=>node.isConnected)));
       check(label+' rapid period changes preserve data',before===await snap(page));
       await page.waitForTimeout(280);check(label+' final period stays synchronized',await page.evaluate(()=>window.__folderQA.context().activePeriodIndex===1&&document.querySelector('.record-table input[data-score]').disabled));
       await page.evaluate(()=>window.__folderQA.period(0));

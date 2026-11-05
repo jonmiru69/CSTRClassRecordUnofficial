@@ -2,10 +2,15 @@
 (() => {
   'use strict';
   let scheduled = false;
+  const pending = new Set();
+  const controls = 'button,summary,a[data-action],[role="button"]';
   const secondary = 'svg,script,style,small,[aria-hidden="true"],[data-action-secondary],.action-label,.action-copy,.theme-switch-track,.period-completion-dot,.card-level-badge,.card-archived-badge,.section-card-section,.section-card-weights,.section-card-link,.level-card-kicker,.recent-class-stat,.score-plus-note,.weight-preview';
   function enhance() {
     scheduled = false;
-    document.querySelectorAll('button,summary,a[data-action],[role="button"]').forEach(control => {
+    const batch = [...pending];
+    pending.clear();
+    batch.forEach(control => {
+      if (!control.isConnected) return;
       const root = control.querySelector('[data-action-emphasis]') || control;
       if (root.querySelector('.action-label')) return;
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
@@ -26,7 +31,22 @@
       label.append(range.extractContents()); range.insertNode(label);
     });
   }
-  const queue = () => { if (!scheduled) { scheduled = true; requestAnimationFrame(enhance); } };
-  new MutationObserver(queue).observe(document.body, {childList:true,subtree:true,characterData:true});
+  new MutationObserver(records => {
+    for (const record of records) {
+      const element = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+      const parent = element?.closest(controls);
+      if (parent && !parent.querySelector('.action-label')) pending.add(parent);
+      for (const node of record.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        if (node.matches(controls)) pending.add(node);
+        node.querySelectorAll(controls).forEach(control => pending.add(control));
+      }
+    }
+    if (pending.size && !scheduled) {
+      scheduled = true;
+      requestAnimationFrame(enhance);
+    }
+  }).observe(document.body, {childList:true,subtree:true,characterData:true});
+  document.querySelectorAll(controls).forEach(control => pending.add(control));
   enhance();
 })();

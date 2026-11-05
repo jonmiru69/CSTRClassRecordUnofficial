@@ -229,7 +229,7 @@
 :root body #app .record-section :is(.period-settings,.roster-options,.column-options,.subject-picker,.sheet-help)>summary {background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
 @media (prefers-reduced-motion:no-preference) {
   :root body :is(.modal,.policy-dialog[open]) {animation:dialog-settle 260ms var(--ease-control) both}
-  @keyframes dialog-settle {from{opacity:.5;transform:perspective(1000px) translate3d(0,12px,-14px) rotateX(1deg)}to{opacity:1;transform:none}}
+  @keyframes dialog-settle {from{opacity:.8;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 }
 @media(max-width:1000px) {
   :root body :is(.app-header-inner,.app-header.header-shrunk .app-header-inner) {padding-inline:16px;gap:8px 12px}

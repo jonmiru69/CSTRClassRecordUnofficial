@@ -46,11 +46,9 @@
   const hpsEdits = new WeakMap();
   let lastRenderedRecord = "";
   // Presentation state only; never stored with teacher records.
-  let sheetAnimation = null;
   let keyboardInteraction = false;
   document.addEventListener('keydown', () => { keyboardInteraction = true; }, true);
   document.addEventListener('pointerdown', () => { keyboardInteraction = false; }, true);
-  matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', () => sheetAnimation?.cancel());
   const completionSeen = new WeakMap();
   let archiveFilter = "active"; // "active" | "archived"
   let state = createInitialState();
@@ -108,16 +106,22 @@
   const VERSION_HISTORY_PREFIX = "cstr-class-record-history:";
   const MAX_HISTORY_VERSIONS = 8; // How many restorable previous versions to keep per user
 
+  const tableScroll = new WeakMap();
   function rememberTableScroll() {
     const wrap = document.querySelector(".table-wrap");
-    return wrap ? { left: wrap.scrollLeft, top: wrap.scrollTop, x: window.scrollX, y: window.scrollY } : null;
+    if (!wrap) return null;
+    const position = wrap.hidden ? tableScroll.get(wrap) : { left: wrap.scrollLeft, top: wrap.scrollTop };
+    return { left: 0, top: 0, ...position, x: window.scrollX, y: window.scrollY };
   }
 
   function restoreTableScroll(scrollLeft) {
     if (scrollLeft === null) return;
     const wrap = document.querySelector(".table-wrap");
-    if (wrap) { wrap.scrollLeft = scrollLeft.left; wrap.scrollTop = scrollLeft.top; }
-    window.scrollTo({ left: scrollLeft.x, top: scrollLeft.y, behavior: "instant" });
+    if (wrap?.hidden) tableScroll.set(wrap, { left: scrollLeft.left, top: scrollLeft.top });
+    else if (wrap) { wrap.scrollLeft = scrollLeft.left; wrap.scrollTop = scrollLeft.top; }
+    if (window.scrollX !== scrollLeft.x || window.scrollY !== scrollLeft.y) {
+      window.scrollTo({ left: scrollLeft.x, top: scrollLeft.y, behavior: "instant" });
+    }
   }
 
   function currentUserKey() {
@@ -249,19 +253,20 @@
   }
 
   function showSaveToast(message, type = "success") {
-    document.querySelector("#saveToast")?.remove();
     if (saveToastTimer) clearTimeout(saveToastTimer);
-    const toast = document.createElement("div");
-    toast.id = "saveToast";
-    toast.className = `save-toast ${type}`;
-    toast.setAttribute("role", "status");
-    toast.setAttribute("aria-live", "polite");
+    const existing = document.querySelector("#saveToast");
+    const toast = existing || document.createElement("div");
+    if (!existing) {
+      toast.id = "saveToast";
+      toast.setAttribute("role", "status");
+      toast.setAttribute("aria-live", "polite");
+    }
+    toast.className = `save-toast ${type} is-visible`;
     toast.innerHTML = `<span class="save-toast-icon" aria-hidden="true">${type === "error" ? "!" : "✓"}</span><span>${escapeHtml(message)}</span>`;
-    document.body.append(toast);
-    requestAnimationFrame(() => toast.classList.add("is-visible"));
+    if (!existing) document.body.append(toast);
     saveToastTimer = setTimeout(() => {
       toast.classList.remove("is-visible");
-      setTimeout(() => toast.remove(), 220);
+      saveToastTimer = setTimeout(() => { toast.remove(); saveToastTimer = null; }, 220);
     }, 3200);
   }
 
@@ -722,7 +727,20 @@
 
   function themeControl() {
     const dark = document.documentElement.dataset.theme === "dark";
-    return `<button type="button" class="theme-toggle" data-toggle-theme aria-pressed="${dark}" aria-label="Switch to ${dark ? "light" : "dark"} mode" title="Switch to ${dark ? "light" : "dark"} mode"><span class="theme-switch-track" aria-hidden="true"><svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg><span class="theme-switch-thumb"></span><svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.2 15.5A8.4 8.4 0 0 1 8.5 3.8 8.5 8.5 0 1 0 20.2 15.5Z"/></svg></span><span class="theme-toggle-label action-label">${dark ? "Light mode" : "Dark mode"}</span></button>`;
+    return `<button type="button" class="theme-toggle" role="switch" data-toggle-theme aria-checked="${dark}"
+      aria-label="Dark mode" title="Switch to ${dark ? "light" : "dark"} mode">
+      <span class="theme-track" aria-hidden="true"><span class="theme-orb">
+        <svg class="theme-day-glyph" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-width="1.6">
+          <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19m0-14-1.4 1.4M6.4 17.6 5 19" stroke="#fff6b0"/>
+          <circle cx="12" cy="12" r="4.5" fill="#fff5b0" stroke="#ffe064"/><circle cx="10.8" cy="10.7" r="1.35" fill="#fffbe4"/>
+        </svg>
+        <svg class="theme-night-glyph" viewBox="0 0 24 24">
+          <path d="M19.8 15.5A8.2 8.2 0 0 1 8.7 4.1a8.3 8.3 0 1 0 11.1 11.4Z" fill="#eef4ff" stroke="#b5c9ea"/>
+          <circle cx="8.3" cy="13.3" r="1.4" fill="#b6c8e1"/><circle cx="11.2" cy="17.3" r=".9" fill="#b6c8e1"/>
+          <path d="M16.7 4.5v5m-2.5-2.5h5" stroke="#d9e8ff" stroke-linecap="round"/>
+        </svg>
+      </span></span>
+    </button>`;
   }
 
   function computeLearnerNumbering(roster) {
@@ -762,23 +780,32 @@
 
   // Fit the working sheet to its contents without changing stored values.
   let sheetTextCanvas;
-  function sheetTextWidth(input) {
+  function sheetTextWidth(input, fonts) {
     const context = (sheetTextCanvas ||= document.createElement("canvas")).getContext("2d");
-    const style = getComputedStyle(input); context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const kind = input.dataset.nameRow !== undefined
+      ? input.closest('.row-category') ? "category-name" : "name"
+      : input.dataset.date ? "date" : input.dataset.hps ? "hps" : "score";
+    if (!fonts.has(kind)) {
+      const style = getComputedStyle(input);
+      fonts.set(kind, `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`);
+    }
+    context.font = fonts.get(kind);
     return Math.ceil(context.measureText(input.value || input.placeholder || "").width);
   }
   function adjustNameColumnWidth() {
-    const inputs = document.querySelectorAll(".record-table input[data-name-row]");
+    const table = document.querySelector(".table-wrap:not([hidden]) .record-table");
+    if (!table) return;
+    const fonts = new Map();
+    const inputs = table.querySelectorAll("input[data-name-row]");
     const mobile = matchMedia("(max-width: 760px)").matches;
     let width = mobile ? 144 : 164;
-    inputs.forEach(input => { width = Math.max(width, sheetTextWidth(input) + 42); });
+    inputs.forEach(input => { width = Math.max(width, sheetTextWidth(input, fonts) + 42); });
     width = Math.min(width, mobile ? 208 : 264);
-    document.documentElement.style.setProperty("--name-col-width", `${width}px`);
-    adjustEntryColumnWidths();
+    adjustEntryColumnWidths(table, fonts);
+    const nameWidth = `${width}px`;
+    if (table.style.getPropertyValue("--name-col-width") !== nameWidth) table.style.setProperty("--name-col-width", nameWidth);
   }
-  function adjustEntryColumnWidths() {
-    const table = document.querySelector(".record-table");
-    if (!table) return;
+  function adjustEntryColumnWidths(table, fonts) {
     const columns = new Map();
     table.querySelectorAll("input[data-date],input[data-hps],input[data-score]").forEach(input => {
       const kind = input.dataset.date || input.dataset.hps || input.dataset.score;
@@ -786,11 +813,12 @@
       if (!columns.has(key)) columns.set(key, {width:44, inputs:[]});
       const column = columns.get(key);
       // Extra room covers padding, caret, borders and native number controls.
-      column.width = Math.max(column.width, sheetTextWidth(input) + (input.type === "number" ? 24 : 14));
+      column.width = Math.max(column.width, sheetTextWidth(input, fonts) + (input.type === "number" ? 24 : 14));
       column.inputs.push(input);
     });
     columns.forEach(column => column.inputs.forEach(input => {
-      input.style.setProperty("--entry-width", `${column.width}px`);
+      const width = `${column.width}px`;
+      if (input.style.getPropertyValue("--entry-width") !== width) input.style.setProperty("--entry-width", width);
     }));
   }
   let sheetFitFrame = 0;
@@ -803,31 +831,6 @@
   });
   app.addEventListener("paste", scheduleSheetFit);
   window.addEventListener("resize", scheduleSheetFit);
-
-  // Smooth jitter-free header scrolling with hysteresis
-  let isHeaderShrunk = false;
-  let scrollTicking = false;
-
-  function updateHeaderScroll() {
-    if (scrollTicking) return;
-    scrollTicking = true;
-    requestAnimationFrame(() => {
-      const header = document.querySelector(".app-header");
-      if (header) {
-        const top = window.scrollY || document.documentElement.scrollTop;
-        if (!isHeaderShrunk && top > 60) {
-          isHeaderShrunk = true;
-          header.classList.add("header-shrunk");
-        } else if (isHeaderShrunk && top < 20) {
-          isHeaderShrunk = false;
-          header.classList.remove("header-shrunk");
-        }
-      }
-      scrollTicking = false;
-    });
-  }
-
-  window.addEventListener("scroll", updateHeaderScroll, { passive: true });
 
   function sanitizeScoreValue(raw) {
     if (raw === "" || raw === null || raw === undefined) return "";
@@ -986,7 +989,7 @@
     const scrollLeft = currentView === "record" ? rememberTableScroll() : null;
     const signedIn = isSignedIn();
     if (!signedIn) document.querySelector('.modal-backdrop:has(.search-result-modal)')?.remove();
-    const recordKey = signedIn && currentView === "record" ? activeSectionId + ":" + activePeriodIndex : "";
+    const recordKey = signedIn && currentView === "record" ? activeSectionId : "";
     const existing = app.querySelector(".app-layout");
     if (existing && signedIn && recordKey && recordKey === lastRenderedRecord) {
       const template = document.createElement("template");
@@ -1003,13 +1006,12 @@
     if (sessionStorage.getItem("cstr-class-record-login") === "true") {
       syncSaveControl();
       updateSaveIndicators();
-      adjustNameColumnWidth();
+      scheduleSheetFit();
       updateAllNumberingAndCounts();
-      updateHeaderScroll();
     }
     updateCompletionIndicators();
     refreshMobileEntry();
-    document.querySelectorAll('.record-section textarea[data-activity-field]').forEach(sizeActivityTextarea);
+    sizeActivityTextareas();
     sizeSheetWorkspace();
     requestAnimationFrame(fitSectionName);
     restoreTableScroll(scrollLeft);
@@ -1039,7 +1041,13 @@
     input.style.height = 'auto';
     input.style.height = `${Math.max(44, input.scrollHeight + 2)}px`;
   }
-  window.addEventListener('resize', () => document.querySelectorAll('.record-section textarea[data-activity-field]').forEach(sizeActivityTextarea), { passive: true });
+  function sizeActivityTextareas() {
+    const inputs = [...document.querySelectorAll('.record-section textarea[data-activity-field]')];
+    inputs.forEach(input => { input.style.height = 'auto'; });
+    const heights = inputs.map(input => Math.max(44, input.scrollHeight + 2));
+    inputs.forEach((input, index) => { input.style.height = `${heights[index]}px`; });
+  }
+  window.addEventListener('resize', sizeActivityTextareas, { passive: true });
 
   function renderLogin() {
     const titles = { signin: "Welcome back", signup: "Create your account", legacy: "Find your records" };
@@ -1593,7 +1601,7 @@
 
     const shade = sectionNameShade(section.accent || section.theme);
     const sectionColorInk = themeColorInk(section.accent || section.theme);
-    return `<div class="record-section" style="--class-color:${sectionColorHex};--class-on:${sectionColorInk};--class-surface:${shade.background};--class-ink:${shade.color}">
+    return `<div class="record-section" data-record-period="${activePeriodIndex}" style="--class-color:${sectionColorHex};--class-on:${sectionColorInk};--class-surface:${shade.background};--class-ink:${shade.color}">
       <section class="class-header-card" style="--class-color:${sectionColorHex};--class-on:${sectionColorInk};--class-surface:${shade.background};--class-ink:${shade.color}">
         ${section.archived ? `<div class="archive-banner"><span>Archived class</span>${button("Restore class", "unarchive-section", "button", `data-section="${safeValue(section.id)}"`)}</div>` : ""}
         <div class="class-identity">
@@ -1653,8 +1661,7 @@
       </div>
       </details>${renderEntryViewControls(period)}
 
-      ${sheetEntryView === "one" ? renderEditableStudentReport(section, period) : ""}
-      ${sheetEntryView === "activity" ? renderMobileEntry(section,period) : ''}
+      ${renderEntryPanel(section, period)}
       ${renderRecordTable(section, period, sheetEntryView !== "sheet")}
       ${sheetEntryView === "activity" ? '' : renderActivityRegister(section, period)}
         </div>
@@ -1662,27 +1669,11 @@
     </div>`;
   }
 
-  // Animate the already-rendered sheet, never defer a selection or data update.
-  function animateRecordSheet(direction = 0) {
-    sheetAnimation?.cancel();
-    sheetAnimation = null;
-    if (keyboardInteraction || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const paper = app.querySelector('.sheet-paper');
-    if (!paper?.animate) return;
-    // Mobile score tools are fixed: do not introduce a transformed ancestor there.
-    const turn = direction && window.innerWidth > 1000 && !window.CSTRMobile?.native;
-    sheetAnimation = paper.animate(turn ? [
-      {opacity: .72, transform: `perspective(1800px) rotateY(${direction * 1.8}deg) translateX(${direction * 5}px)`, transformOrigin: direction > 0 ? 'left center' : 'right center'},
-      {opacity: 1, transform: 'none', transformOrigin: direction > 0 ? 'left center' : 'right center'}
-    ] : [{opacity: .78}, {opacity: 1}], {duration: turn ? 220 : 140, easing: 'cubic-bezier(.23,1,.32,1)'});
-  }
-
   function selectRecordPeriod(index) {
     const periods = activeSections()[currentSection()?.id]?.periods;
     if (!Number.isInteger(index) || !periods?.[index] || index === activePeriodIndex) return;
     commitHpsField(document.activeElement);
     commitActiveFieldEdit();
-    const direction = Math.sign(index - activePeriodIndex);
     const focusPeriod = document.activeElement?.matches('[data-action="select-period"], [data-mobile-period]');
     activePeriodIndex = index;
     render();
@@ -1690,7 +1681,6 @@
       const selector = window.innerWidth <= 1000 ? '[data-mobile-period]' : `[data-action="select-period"][data-period="${index}"]`;
       app.querySelector(selector)?.focus({preventScroll: true});
     }
-    animateRecordSheet(direction);
   }
 
   function selectEntryView(view, focusTab = false) {
@@ -1705,9 +1695,41 @@
     commitHpsField(document.activeElement);
     commitActiveFieldEdit();
     sheetEntryView = view;
-    render();
+    const paper = app.querySelector('.sheet-paper');
+    const table = paper?.querySelector('.table-wrap');
+    const section = currentSection(), period = currentPeriod();
+    if (table && period) {
+      const position = rememberTableScroll();
+      const tabId = `view-tab-${view}`;
+      paper.setAttribute('aria-labelledby', tabId);
+      app.querySelectorAll('.folder-tab').forEach(tab => {
+        tab.setAttribute('aria-selected', String(tab.id === tabId));
+        tab.tabIndex = tab.id === tabId ? 0 : -1;
+      });
+      const template = document.createElement('template');
+      template.innerHTML = renderEntryViewControls(period);
+      window.CSTRStableDOM.patch(paper.querySelector('.entry-focus-controls'), template.content.firstElementChild);
+      paper.querySelector('.phone-entry,.editable-student-report')?.remove();
+      table.hidden = view !== 'sheet';
+      table.tabIndex = table.hidden ? -1 : 0;
+      table.insertAdjacentHTML('beforebegin', renderEntryPanel(section, period));
+      const register = paper.querySelector('.activity-register');
+      if (view === 'activity') register?.remove();
+      else if (!register) table.insertAdjacentHTML('afterend', renderActivityRegister(section, period));
+      refreshMobileEntry();
+      sizeActivityTextareas();
+      if (!table.hidden) scheduleSheetFit();
+      restoreTableScroll(position);
+    } else {
+      render();
+    }
     if (focusTab) app.querySelector(`#view-tab-${view}`)?.focus({preventScroll: true});
-    animateRecordSheet();
+  }
+
+  function renderEntryPanel(section, period) {
+    if (sheetEntryView === 'one') return renderEditableStudentReport(section, period);
+    if (sheetEntryView === 'activity') return renderMobileEntry(section, period);
+    return '';
   }
 
   app.addEventListener('keydown', event => {

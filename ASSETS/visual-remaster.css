@@ -60,7 +60,7 @@
   :root body .welcome-story-copy>p {max-width:39ch;color:#d7e4ec;font-size:17px;line-height:1.6;margin:0;}
   :root body .welcome-story figure {order:initial;width:100%;margin:0;background:var(--remaster-cover);}
   :root body .campus-window {height:268px;overflow:hidden;}
-  :root body .welcome-story figure img {width:100%;height:calc(100% + 44px);max-width:none;object-fit:cover;object-position:center 62%;transform:translateY(calc(-22px + var(--cover-travel,0px)));}
+  :root body .welcome-story figure img {width:100%;height:calc(100% + 44px);max-width:none;object-fit:cover;object-position:center 62%;transform:translateY(-22px);}
   :root body #app .welcome-story figcaption {display:flex;justify-content:space-between;gap:12px;background:var(--remaster-cover);padding:18px 28px 8px;margin:0;color:#edf4f8;font-size:13px;line-height:1.5;}
   :root body #app .welcome-story .welcome-unofficial {order:initial;margin:0;width:100%;padding:0 28px 22px;background:var(--remaster-cover);color:#bdcfd9;font-size:13px;line-height:1.5;}
   :root body .login-card {position:relative;margin:0;padding:36px 0 20px;align-self:start;animation:none;}
@@ -305,22 +305,8 @@
     :root body #app .class-context-line {font-size:13px;gap:8px 14px;}
   }
   @media (prefers-reduced-motion:no-preference) {
-    :root body .welcome-story-copy h2,
-    :root body .welcome-story-copy>p,
-    :root body .welcome-story figure,
-    :root body .welcome-story .welcome-unofficial,
-    :root body .login-card h1,
-    :root body .signin-context,
-    :root body .login-card .legacy-login-box,
-    :root body .login-card .login-cta-group {animation:remaster-arrive 650ms var(--remaster-ease) both;}
-    :root body .welcome-story-copy>p {animation-delay:60ms;}
-    :root body .welcome-story figure {animation-delay:90ms;}
-    :root body .welcome-story .welcome-unofficial {animation-delay:120ms;}
-    :root body .login-card h1 {animation-delay:80ms;}
-    :root body .signin-context {animation-delay:140ms;}
-    :root body .login-card .legacy-login-box {animation-delay:180ms;}
-    :root body .login-card .login-cta-group {animation-delay:220ms;}
-    @keyframes remaster-arrive {from {transform:translateY(12px);}to {transform:translateY(0);}}
+    :root body .welcome-story-copy {animation:remaster-arrive 240ms var(--remaster-ease) both;}
+    @keyframes remaster-arrive {from {opacity:.8;transform:translateY(5px);}to {opacity:1;transform:translateY(0);}}
   }
   @media (prefers-reduced-motion:reduce) {
     :root body *, :root body *::before, :root body *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important;}
