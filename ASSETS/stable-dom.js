@@ -29,6 +29,7 @@
     for (const attribute of Array.from(old.attributes)) {
       if (old.matches('.table-wrap') && attribute.name === 'style') continue;
       if (old.tagName === 'DETAILS' && attribute.name === 'open') continue;
+      if (old.hasAttribute('data-toggle-theme') && attribute.name === 'data-theme-lift') continue;
       if (!next.hasAttribute(attribute.name)) old.removeAttribute(attribute.name);
     }
     for (const attribute of next.attributes) {

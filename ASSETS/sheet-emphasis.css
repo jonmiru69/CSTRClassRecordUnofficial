@@ -22,6 +22,14 @@
   }
 
   :root[data-theme="dark"] {
+    --sheet-entry-surface: #192e3c;
+    --sheet-entry-ink: #edf4f8;
+    --sheet-ww-fill: #223d4d;
+    --sheet-ww-ink: #e4eff6;
+    --sheet-pt-fill: #254439;
+    --sheet-pt-ink: #c3ecd4;
+    --sheet-qa-fill: #462d3d;
+    --sheet-qa-ink: #ffcfdd;
     --sheet-result-ink: #e4eff6;
     --sheet-result-total: #1d303d;
     --sheet-result-percent: #203b4c;

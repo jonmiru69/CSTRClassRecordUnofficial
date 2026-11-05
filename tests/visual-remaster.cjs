@@ -83,17 +83,54 @@ async function run(){
       await sheetTommy.getByRole('heading',{name:/Blank scores/}).waitFor();
       const issueList=await sheetTommy.locator('.tommy-issue-grid').elementHandle();
       const themeToggle=page.locator('.app-header [data-toggle-theme]');
-      const paperColor=()=>page.locator('.sheet-paper').evaluate(node=>getComputedStyle(node).backgroundColor);
-      const initialPaper=await paperColor();
+      const oppositeTheme=theme==='dark'?'light':'dark';
+      const folderColors=()=>page.locator('.sheet-folder,.sheet-paper,.folder-tab').evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).backgroundColor));
+      const initialColors=await folderColors();
+      await page.evaluate(()=>{
+        const start=document.startViewTransition.bind(document);
+        window.__themeTransitions=[];
+        document.startViewTransition=update=>{
+          const transition=start(update);
+          window.__themeTransitions.push(transition.ready.then(()=>{
+            const root=document.documentElement;
+            return ['root','theme-control'].map(name=>getComputedStyle(root,`::view-transition-new(${name})`).animationName);
+          },()=>[]));
+          return transition;
+        };
+      });
       await activate(themeToggle);
-      check(label+' grade-sheet theme switch changes the paper color',(await paperColor())!==initialPaper);
+      await page.waitForFunction(next=>document.documentElement.dataset.theme===next,oppositeTheme);
+      const switchedColors=await folderColors();
+      check(label+' theme changes the paper, folder and every tab',initialColors.every((color,index)=>color!==switchedColors[index]));
+      const transitions=await page.evaluate(()=>Promise.all(window.__themeTransitions));
+      check(label+' pointer theme motion follows the reduced-motion preference',config.reduced?transitions.length===0:
+        JSON.stringify(transitions)===JSON.stringify([['theme-ripple','theme-lift']]));
+      await page.waitForFunction(()=>!document.documentElement.hasAttribute('data-theme-ripple'));
+      await contrast(page,'.folder-tab[aria-selected="false"]',label+' inactive folder tab');
+      if(width>1000){
+        const entry=page.locator('.record-table tbody tr[data-learner-row]:not(.row-category) td.name-cell').first();
+        check(label+' ordinary grade-sheet cells use the active palette',await entry.evaluate(cell=>getComputedStyle(cell).backgroundColor)===
+          (oppositeTheme==='dark'?'rgb(25, 46, 60)':'rgb(255, 255, 255)'));
+        await contrast(page,'.record-table tbody tr[data-learner-row]:not(.row-category) input[data-name-row]',label+' learner name');
+      }
       check(label+' grade-sheet theme switch preserves Tommy’s open review',await sheetTommy.getByRole('heading',{name:/Blank scores/}).isVisible());
       await page.evaluate(()=>window.__visualRefresh());
       check(label+' grade-sheet review stays open after refresh',await sheetTommy.getByRole('heading',{name:/Blank scores/}).isVisible());
       check(label+' refresh retains the open review’s content nodes',await issueList.evaluate(node=>node.isConnected));
       await issueList.dispose();
       await themeToggle.press('Space');
-      check(label+' theme switch restores the paper color with keyboard',(await paperColor())===initialPaper);
+      check(label+' keyboard restores the original palette',JSON.stringify(await folderColors())===JSON.stringify(initialColors));
+      check(label+' keyboard skips the ripple',(await page.evaluate(()=>window.__themeTransitions.length))===transitions.length);
+      if(width===1440&&theme==='light'){
+        await themeToggle.evaluate(button=>{
+          for(let i=0;i<3;i++)button.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1}));
+        });
+        await page.waitForFunction(()=>!document.documentElement.hasAttribute('data-theme-ripple'));
+        check('Rapid toggles persist and apply the final choice',await page.evaluate(()=>document.documentElement.dataset.theme==='dark'&&localStorage.getItem('cstr-theme')==='dark'));
+        await page.evaluate(()=>{document.startViewTransition=undefined;});
+        await activate(themeToggle);
+        check('Theme switches without View Transitions support',JSON.stringify(await folderColors())===JSON.stringify(initialColors));
+      }
       check(label+' theme changes leave student records intact',before===await snapshot(page));
       await activate(sheetTommy.locator('summary'));
       if(width===1440||width===390)await shot(page,'assessment-'+label);

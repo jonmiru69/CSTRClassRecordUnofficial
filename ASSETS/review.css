@@ -109,17 +109,20 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 }
 .record-section .record-table thead :is(.number-cell,.name-cell),
 .record-section .record-table thead .hps-input-row :is(th,td),
-.record-section .record-table thead .activity-row th:not(.component-summary) { background:#fff!important; color:#202833!important; }
+.record-section .record-table thead .activity-row th:not(.component-summary) {
+  background:var(--sheet-entry-surface,#fff)!important; color:var(--sheet-entry-ink,#202833)!important;
+}
 .record-section .record-table thead .hps-input-row input[data-hps],
-.record-section .record-table thead .activity-row input { background:#fff!important; color:#202833!important; }
+.record-section .record-table thead .activity-row input {
+  background:var(--sheet-entry-surface,#fff)!important; color:var(--sheet-entry-ink,#202833)!important;
+}
 .record-section .record-table tbody tr:not(.row-category) > :is(th,td),
-:root[data-theme="dark"] .record-section .record-table tbody tr:not(.row-category) > :is(th,td),
 .record-section .record-table tbody tr:not(.row-category):hover > :is(th,td),
-:root[data-theme="dark"] .record-section .record-table tbody tr:not(.row-category):hover > :is(th,td),
 .record-section .record-table tbody tr:not(.row-category):focus-within > :is(th,td),
-:root[data-theme="dark"] .record-section .record-table tbody tr:not(.row-category):focus-within > :is(th,td) { background:#fff!important; color:#202833!important; }
 .record-section .record-table tbody tr:not(.row-category) input[data-name-row],
-.record-section .record-table tbody tr:not(.row-category) input[data-score]:not(.invalid) { background:#fff!important; color:#202833!important; }
+.record-section .record-table tbody tr:not(.row-category) input[data-score]:not(.invalid) {
+  background:var(--sheet-entry-surface,#fff)!important; color:var(--sheet-entry-ink,#202833)!important;
+}
 .record-section .record-table tbody tr.row-category > :is(th,td),
 .record-section .record-table tbody tr.row-category:hover > :is(th,td),
 .record-section .record-table tbody tr.row-category:focus-within > :is(th,td),

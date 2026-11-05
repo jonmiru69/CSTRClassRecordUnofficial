@@ -251,9 +251,9 @@
   :root body .record-section .table-wrap[hidden] {display:none!important}
   :root body .record-section .record-table {font-family:var(--font-sans);font-variant-numeric:tabular-nums;background:#fff;color:#24292e}
   :root body .record-section .record-table thead :is(th,td) {font-size:13px}
-  :root body .record-section .record-table thead .component-header {background:#e7edf0!important;color:#253c4a!important;padding:12px 8px}
-  :root body .record-section .record-table thead .component-pt {background:#e4ede7!important;color:#244e39!important}
-  :root body .record-section .record-table thead .component-qa {background:#f0e5e9!important;color:#682a40!important}
+  :root body .record-section .record-table thead .component-header {background:var(--sheet-ww-fill,#e7edf0)!important;color:var(--sheet-ww-ink,#253c4a)!important;padding:12px 8px}
+  :root body .record-section .record-table thead .component-pt {background:var(--sheet-pt-fill,#e4ede7)!important;color:var(--sheet-pt-ink,#244e39)!important}
+  :root body .record-section .record-table thead .component-qa {background:var(--sheet-qa-fill,#f0e5e9)!important;color:var(--sheet-qa-ink,#682a40)!important}
   :root body .record-section .record-table thead :is(.initial-header,.transmuted-header,.descriptor-header) {background:#34434e!important;color:#fff!important}
   :root body .record-section .record-table input:is([data-score],[data-hps],[data-name-row]) {min-height:36px;font-size:14px!important;font-variant-numeric:tabular-nums;border-radius:2px}
   :root body .record-section .record-table input[data-score]:focus {background:#fff5d6!important;outline:2px solid #0b6b88!important;outline-offset:-2px}
@@ -316,9 +316,9 @@
   :root body .record-section :is(.class-level,.sheet-caption,.component-header,.number-cell,.name-cell) {text-transform:none;letter-spacing:0}
   :root body .record-section .period-tabs .tab::after {display:none}
   :root body .record-section .period-tabs button.tab[aria-pressed="true"] :is(span,svg) {color:inherit!important}
-  :root body .record-section .record-table .hps-row>th {background:#e7edf0!important;color:#253c4a!important}
-  :root body .record-section .record-table .hps-row>.component-pt {background:#e4ede7!important;color:#244e39!important}
-  :root body .record-section .record-table .hps-row>.component-qa {background:#f0e5e9!important;color:#682a40!important}
+  :root body .record-section .record-table .hps-row>th {background:var(--sheet-ww-fill,#e7edf0)!important;color:var(--sheet-ww-ink,#253c4a)!important}
+  :root body .record-section .record-table .hps-row>.component-pt {background:var(--sheet-pt-fill,#e4ede7)!important;color:var(--sheet-pt-ink,#244e39)!important}
+  :root body .record-section .record-table .hps-row>.component-qa {background:var(--sheet-qa-fill,#f0e5e9)!important;color:var(--sheet-qa-ink,#682a40)!important}
   :root body .archive-pills {background:none;border:0;padding:0}
   :root body .archive-pill[aria-pressed="true"] {text-decoration:none}
   :root body .section-card-wrap {border:0;box-shadow:none}
