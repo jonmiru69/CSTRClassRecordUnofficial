@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
   "available": true,
-  "version": "1.0.29",
-  "versionCode": 10029,
+  "version": "1.0.30",
+  "versionCode": 10030,
   "minimumSupportedVersionCode": 0,
-  "sha256": "61417a408fc7e07f3255c03a97a486ef0754864318738aea6fa3b13bd505dad2",
+  "sha256": "be17d32e1fe89f04689f775f7676c8869cbe3f27009ddbe8363cef4f7ba0dbbf",
   "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
-  "bytes": 6056392,
-  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.29.apk",
-  "publishedAt": "2026-11-05T01:19:51.526Z",
-  "notes": "Smoother theme ripple with a 3D sun and moon switch, stable folder navigation, and lighter sign-in, dialog and save feedback motion."
+  "bytes": 6055964,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.30.apk",
+  "publishedAt": "2026-11-05T01:36:44.438Z",
+  "notes": "The sign-in page has one privacy control and clearer account help. Android downloads are available in the page information."
 }
