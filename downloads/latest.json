@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
   "available": true,
-  "version": "1.0.26",
-  "versionCode": 10026,
+  "version": "1.0.27",
+  "versionCode": 10027,
   "minimumSupportedVersionCode": 0,
-  "sha256": "54e1f6193201d1a57e7039cf55429011bbe0d4f74f51ff2f4aaa14cf2f0f0a04",
+  "sha256": "edf7ffe4c51f18101437b49809e3528f7b2dad3dc685247424bee2d9d724c1ea",
   "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
-  "bytes": 6053794,
-  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.26.apk",
-  "publishedAt": "2026-11-04T13:17:14.547Z",
-  "notes": "Tommy panels stay open during refreshes. Switch between light and dark mode directly from the grade-sheet header on phones and tablets."
+  "bytes": 6055469,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.27.apk",
+  "publishedAt": "2026-11-05T00:47:48.145Z",
+  "notes": "The theme button lifts and bounces as a circular reveal switches the grade sheet, folder tabs, and workspace together. Reduced-motion settings switch colors immediately."
 }
