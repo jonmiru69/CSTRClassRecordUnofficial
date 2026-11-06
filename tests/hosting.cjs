@@ -12,6 +12,11 @@ console.log('PASS Hosting uses a packaged canonical workspace with framing heade
 const {execFileSync}=require('node:child_process');
 for(const script of ['tools/build-web.mjs','tools/build-pages.mjs'])execFileSync(process.execPath,[script],{cwd:root,stdio:'pipe'});
 const site=path.join(root,'site-dist'),pages=path.join(root,'pages-dist');
+const faculty=fs.readFileSync(path.join(site,'cst-r/index.html'),'utf8');
+const signup=fs.readFileSync(path.join(site,'register/index.html'),'utf8');
+assert(faculty.includes('<base href="/">'));
+assert(faculty.includes('name="cstr-legacy-approval" content="deployed-rules"'));
+assert(signup.includes('name="cstr-mode" content="closed"'));
 assert(!fs.readdirSync(path.join(site,'downloads')).some(file=>file.endsWith('.apk')),'Spark Hosting must never receive APKs');
 assert(fs.readdirSync(path.join(pages,'downloads')).some(file=>file.endsWith('.apk')),'Installed apps still need their Pages APK URLs');
 const entry=fs.readFileSync(path.join(pages,'index.html'),'utf8');

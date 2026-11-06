@@ -3883,25 +3883,18 @@
 
   function choosePhoto() { document.querySelector("#photoInput")?.click(); }
 
-  function handlePhoto(file) {
-    const allowedType = file && ["image/png", "image/jpeg"].includes(file.type);
-    const allowedExtension = file && /\.(png|jpe?g)$/i.test(file.name);
-    if (!allowedType || !allowedExtension) { showSaveToast("Only .png, .jpg, and .jpeg image files are accepted.", "error"); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const image = new Image();
-      image.onload = () => {
-        const scale = Math.min(1, 500 / Math.max(image.width, image.height));
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, Math.round(image.width * scale)); canvas.height = Math.max(1, Math.round(image.height * scale));
-        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-        state.photo = canvas.toDataURL(file.type === "image/png" ? "image/png" : "image/jpeg", 0.88);
-        markStateDirty();
-        render();
-      };
-      image.src = reader.result;
-    };
-    reader.readAsDataURL(file);
+  let pendingPhoto = 0;
+  async function handlePhoto(file) {
+    const uid = currentUserKey(), request = ++pendingPhoto;
+    try {
+      const photo = await window.CSTRSafeRaster.encode(file);
+      if (!isSignedIn() || uid !== currentUserKey() || request !== pendingPhoto) return;
+      state.photo = photo;
+      markStateDirty();
+      render();
+    } catch (error) {
+      if (isSignedIn() && uid === currentUserKey() && request === pendingPhoto) showSaveToast(error.message, "error");
+    }
   }
 
   function fieldStartColumn(target, period = currentPeriod()) {

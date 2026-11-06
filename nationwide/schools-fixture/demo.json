@@ -1,0 +1,4 @@
+[
+  {"key":"d900001","schoolId":"900001","name":"Example Central School","sector":"public","locality":"Example Municipality","directoryVersion":"synthetic-directory-v1","aliases":["ECS"]},
+  {"key":"d900002","schoolId":"900002","name":"Example Learning Academy","sector":"private","locality":"Example Municipality","directoryVersion":"synthetic-directory-v1","aliases":["ELA"]}
+]

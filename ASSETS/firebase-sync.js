@@ -10,7 +10,17 @@
   // Real access control lives in the Realtime Database Rules set in the Firebase
   // console (see firebase-database-rules.json and FIREBASE_SETUP.md).
   // ============================================================================
-  const firebaseConfig = {
+  const emulator = window.document?.querySelector('meta[name=cstr-legacy-emulator]')?.content === 'true';
+  const localEmulator = emulator && ['localhost','127.0.0.1','[::1]'].includes(window.location?.hostname);
+  const hostedBuild = window.document?.querySelector('meta[name=cstr-hosted-build]')?.content === 'true';
+  const canonicalHost = ['cstr-class-record-global.web.app','cstr-class-record-global.firebaseapp.com'].includes(window.location?.hostname);
+  const allowed = emulator ? localEmulator : !hostedBuild || canonicalHost;
+  const firebaseConfig = emulator ? {
+    apiKey: 'demo-cstr-local',
+    authDomain: 'localhost',
+    databaseURL: 'http://127.0.0.1:9000?ns=demo-cstr-review',
+    projectId: 'demo-cstr-review'
+  } : {
     apiKey: "AIzaSyBgwxuXawJI_jWrlJ02R9eiPcgNMAN9m_Y",
     authDomain: "cstr-class-record-global.firebaseapp.com",
     databaseURL: "https://cstr-class-record-global-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -34,11 +44,11 @@
     return String(rawKey || "").trim().replace(/[.#$[\]/]/g, "_");
   }
 
-  if (!window.firebase || !window.firebase.initializeApp) {
+  if (!window.firebase || !window.firebase.initializeApp || !allowed) {
     console.error("CSTRSync: the Firebase SDK scripts did not load. Check index.html and your network connection.");
     window.CSTRSync = {
       configured: false,
-      ready: Promise.reject(new Error("Firebase SDK not loaded")),
+      ready: Promise.resolve(null),
       subscribe() { return () => {}; },
       async save() { throw new Error("Firebase SDK not loaded"); },
       async signInWithGoogle() { throw new Error("Firebase SDK not loaded"); },
@@ -63,6 +73,10 @@
 
   const auth = firebase.auth();
   const db = firebase.database();
+  if (localEmulator) {
+    auth.useEmulator('http://127.0.0.1:9099',{disableWarnings:true});
+    db.useEmulator('127.0.0.1',9000);
+  }
   const authPersistence = auth.setPersistence(window.CSTRMobile?.native ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION);
 
   function ensureReady() {

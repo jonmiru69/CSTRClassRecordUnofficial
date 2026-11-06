@@ -1,0 +1,6 @@
+{
+  "version": "synthetic-directory-v1",
+  "snapshot": "2026-11-06",
+  "coverage": [{"region":"demo","public":1,"private":1}],
+  "regions": [{"id":"demo","label":"Example Region (synthetic)","file":"demo.json"}]
+}
