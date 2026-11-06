@@ -98,6 +98,10 @@
       {
         "source": "ASSETS/nationwide/**",
         "headers": [{"key": "Cache-Control", "value": "no-cache"}]
+      },
+      {
+        "source": "schools/manifest.json",
+        "headers": [{"key": "Cache-Control", "value": "no-cache"}]
       }
     ]
   },

@@ -1,6 +1,1626 @@
 {
-  "version": "unpublished",
-  "snapshot": null,
-  "coverage": [],
-  "regions": []
+  "version": "deped-bukas-2025-26-v1",
+  "format": 2,
+  "schoolYear": "2025–2026",
+  "snapshot": "2026-11-06",
+  "sourceUrl": "https://www.deped.gov.ph/machine-ready-files/",
+  "downloadUrl": "https://www.deped.gov.ph/wp-content/uploads/Enrollment-in-SY-2025-2026.zip",
+  "sourceSha256": "ab4d7e24b3a46a99db2c76dee5279a976e4c3a76062e79f7217e70dc6dd1b450",
+  "rightsEvidenceUrl": "https://www.deped.gov.ph/machine-ready-files/",
+  "rightsConfirmedOn": "2026-11-06",
+  "coverage": [
+    {
+      "region": "barmm",
+      "public": 2233,
+      "private": 250
+    },
+    {
+      "region": "car",
+      "public": 1847,
+      "private": 228
+    },
+    {
+      "region": "caraga",
+      "public": 2109,
+      "private": 253
+    },
+    {
+      "region": "mimaropa",
+      "public": 2423,
+      "private": 291
+    },
+    {
+      "region": "ncr",
+      "public": 835,
+      "private": 1672
+    },
+    {
+      "region": "nir",
+      "public": 2255,
+      "private": 491
+    },
+    {
+      "region": "region-1",
+      "public": 2876,
+      "private": 513
+    },
+    {
+      "region": "region-2",
+      "public": 2547,
+      "private": 362
+    },
+    {
+      "region": "region-3",
+      "public": 3779,
+      "private": 1434
+    },
+    {
+      "region": "region-4a",
+      "public": 3605,
+      "private": 2413
+    },
+    {
+      "region": "region-5",
+      "public": 3892,
+      "private": 597
+    },
+    {
+      "region": "region-6",
+      "public": 2850,
+      "private": 594
+    },
+    {
+      "region": "region-7",
+      "public": 2843,
+      "private": 758
+    },
+    {
+      "region": "region-8",
+      "public": 4207,
+      "private": 274
+    },
+    {
+      "region": "region-9",
+      "public": 3040,
+      "private": 325
+    },
+    {
+      "region": "region-10",
+      "public": 2551,
+      "private": 562
+    },
+    {
+      "region": "region-11",
+      "public": 2233,
+      "private": 473
+    },
+    {
+      "region": "region-12",
+      "public": 2175,
+      "private": 378
+    }
+  ],
+  "regions": [
+    {
+      "id": "barmm",
+      "label": "Bangsamoro Autonomous Region (BARMM)",
+      "file": "barmm.json"
+    },
+    {
+      "id": "car",
+      "label": "Cordillera Administrative Region (CAR)",
+      "file": "car.json"
+    },
+    {
+      "id": "caraga",
+      "label": "Region XIII · Caraga",
+      "file": "caraga.json"
+    },
+    {
+      "id": "mimaropa",
+      "label": "MIMAROPA",
+      "file": "mimaropa.json"
+    },
+    {
+      "id": "ncr",
+      "label": "National Capital Region (NCR)",
+      "file": "ncr.json"
+    },
+    {
+      "id": "nir",
+      "label": "Negros Island Region (NIR)",
+      "file": "nir.json"
+    },
+    {
+      "id": "region-1",
+      "label": "Region I · Ilocos Region",
+      "file": "region-1.json"
+    },
+    {
+      "id": "region-2",
+      "label": "Region II · Cagayan Valley",
+      "file": "region-2.json"
+    },
+    {
+      "id": "region-3",
+      "label": "Region III · Central Luzon",
+      "file": "region-3.json"
+    },
+    {
+      "id": "region-4a",
+      "label": "Region IV-A · CALABARZON",
+      "file": "region-4a.json"
+    },
+    {
+      "id": "region-5",
+      "label": "Region V · Bicol Region",
+      "file": "region-5.json"
+    },
+    {
+      "id": "region-6",
+      "label": "Region VI · Western Visayas",
+      "file": "region-6.json"
+    },
+    {
+      "id": "region-7",
+      "label": "Region VII · Central Visayas",
+      "file": "region-7.json"
+    },
+    {
+      "id": "region-8",
+      "label": "Region VIII · Eastern Visayas",
+      "file": "region-8.json"
+    },
+    {
+      "id": "region-9",
+      "label": "Region IX · Zamboanga Peninsula",
+      "file": "region-9.json"
+    },
+    {
+      "id": "region-10",
+      "label": "Region X · Northern Mindanao",
+      "file": "region-10.json"
+    },
+    {
+      "id": "region-11",
+      "label": "Region XI · Davao Region",
+      "file": "region-11.json"
+    },
+    {
+      "id": "region-12",
+      "label": "Region XII · SOCCSKSARGEN",
+      "file": "region-12.json"
+    }
+  ],
+  "idPrefixes": {
+    "100": [
+      "barmm",
+      "car",
+      "mimaropa",
+      "region-1",
+      "region-12",
+      "region-5"
+    ],
+    "101": [
+      "barmm",
+      "car",
+      "region-1",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-6"
+    ],
+    "102": [
+      "region-1",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-8"
+    ],
+    "103": [
+      "barmm",
+      "mimaropa",
+      "region-10",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-7"
+    ],
+    "104": [
+      "region-2",
+      "region-3"
+    ],
+    "105": [
+      "region-3"
+    ],
+    "106": [
+      "region-3"
+    ],
+    "107": [
+      "barmm",
+      "ncr",
+      "region-1",
+      "region-3",
+      "region-4a"
+    ],
+    "108": [
+      "region-11",
+      "region-4a",
+      "region-5"
+    ],
+    "109": [
+      "car",
+      "mimaropa",
+      "region-11",
+      "region-4a"
+    ],
+    "110": [
+      "mimaropa",
+      "region-4a"
+    ],
+    "111": [
+      "mimaropa",
+      "region-10",
+      "region-4a",
+      "region-5"
+    ],
+    "112": [
+      "nir",
+      "region-10",
+      "region-12",
+      "region-3",
+      "region-5",
+      "region-9"
+    ],
+    "113": [
+      "region-10",
+      "region-5"
+    ],
+    "114": [
+      "region-10",
+      "region-5",
+      "region-6"
+    ],
+    "115": [
+      "region-10",
+      "region-6"
+    ],
+    "116": [
+      "nir",
+      "region-6"
+    ],
+    "117": [
+      "nir",
+      "region-10",
+      "region-6",
+      "region-7"
+    ],
+    "118": [
+      "region-10",
+      "region-7"
+    ],
+    "119": [
+      "nir",
+      "region-7"
+    ],
+    "120": [
+      "nir",
+      "region-10",
+      "region-7",
+      "region-8"
+    ],
+    "121": [
+      "region-10",
+      "region-8"
+    ],
+    "122": [
+      "region-10",
+      "region-8"
+    ],
+    "123": [
+      "region-10",
+      "region-8"
+    ],
+    "124": [
+      "region-10",
+      "region-8",
+      "region-9"
+    ],
+    "125": [
+      "region-9"
+    ],
+    "126": [
+      "region-10",
+      "region-9"
+    ],
+    "127": [
+      "barmm",
+      "mimaropa",
+      "ncr",
+      "region-10",
+      "region-12",
+      "region-3"
+    ],
+    "128": [
+      "mimaropa",
+      "region-10",
+      "region-11",
+      "region-3"
+    ],
+    "129": [
+      "barmm",
+      "region-11",
+      "region-12"
+    ],
+    "130": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "region-10",
+      "region-12",
+      "region-3",
+      "region-5",
+      "region-7"
+    ],
+    "131": [
+      "barmm",
+      "caraga",
+      "region-1",
+      "region-11",
+      "region-12"
+    ],
+    "132": [
+      "barmm",
+      "caraga",
+      "region-11"
+    ],
+    "133": [
+      "barmm",
+      "region-11",
+      "region-5",
+      "region-8",
+      "region-9"
+    ],
+    "134": [
+      "barmm",
+      "car",
+      "region-11",
+      "region-9"
+    ],
+    "135": [
+      "barmm",
+      "car",
+      "mimaropa",
+      "region-1",
+      "region-11",
+      "region-6"
+    ],
+    "136": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-7",
+      "region-8"
+    ],
+    "137": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "150": [
+      "region-1"
+    ],
+    "151": [
+      "region-1"
+    ],
+    "152": [
+      "region-1"
+    ],
+    "153": [
+      "region-1"
+    ],
+    "154": [
+      "region-2"
+    ],
+    "155": [
+      "region-2"
+    ],
+    "156": [
+      "region-2"
+    ],
+    "157": [
+      "region-2",
+      "region-3"
+    ],
+    "158": [
+      "region-3"
+    ],
+    "159": [
+      "region-3"
+    ],
+    "160": [
+      "region-3"
+    ],
+    "161": [
+      "region-3"
+    ],
+    "162": [
+      "region-3"
+    ],
+    "163": [
+      "region-3",
+      "region-4a"
+    ],
+    "164": [
+      "region-4a"
+    ],
+    "165": [
+      "region-4a"
+    ],
+    "166": [
+      "region-4a"
+    ],
+    "167": [
+      "region-4a"
+    ],
+    "168": [
+      "region-4a"
+    ],
+    "169": [
+      "mimaropa"
+    ],
+    "170": [
+      "mimaropa"
+    ],
+    "171": [
+      "mimaropa"
+    ],
+    "172": [
+      "region-5"
+    ],
+    "173": [
+      "region-5"
+    ],
+    "174": [
+      "region-5"
+    ],
+    "175": [
+      "region-5"
+    ],
+    "176": [
+      "region-5"
+    ],
+    "177": [
+      "region-5"
+    ],
+    "178": [
+      "region-6"
+    ],
+    "179": [
+      "region-6"
+    ],
+    "180": [
+      "nir",
+      "region-6"
+    ],
+    "181": [
+      "nir"
+    ],
+    "182": [
+      "region-6"
+    ],
+    "183": [
+      "nir"
+    ],
+    "184": [
+      "nir"
+    ],
+    "185": [
+      "nir"
+    ],
+    "186": [
+      "region-6",
+      "region-7"
+    ],
+    "187": [
+      "region-7"
+    ],
+    "189": [
+      "nir",
+      "region-7"
+    ],
+    "190": [
+      "nir",
+      "region-7"
+    ],
+    "191": [
+      "region-8"
+    ],
+    "192": [
+      "region-8"
+    ],
+    "193": [
+      "region-8"
+    ],
+    "194": [
+      "region-8"
+    ],
+    "195": [
+      "region-8",
+      "region-9"
+    ],
+    "196": [
+      "barmm",
+      "region-9"
+    ],
+    "197": [
+      "region-9"
+    ],
+    "198": [
+      "region-9"
+    ],
+    "199": [
+      "region-10",
+      "region-9"
+    ],
+    "200": [
+      "region-10"
+    ],
+    "201": [
+      "region-10"
+    ],
+    "202": [
+      "region-10"
+    ],
+    "203": [
+      "region-10"
+    ],
+    "204": [
+      "region-11"
+    ],
+    "205": [
+      "region-11"
+    ],
+    "206": [
+      "region-11"
+    ],
+    "207": [
+      "barmm",
+      "region-11",
+      "region-12"
+    ],
+    "208": [
+      "region-12"
+    ],
+    "209": [
+      "barmm",
+      "region-12"
+    ],
+    "210": [
+      "region-12"
+    ],
+    "211": [
+      "barmm",
+      "caraga",
+      "region-12"
+    ],
+    "212": [
+      "caraga"
+    ],
+    "213": [
+      "caraga"
+    ],
+    "214": [
+      "caraga"
+    ],
+    "215": [
+      "barmm"
+    ],
+    "216": [
+      "barmm"
+    ],
+    "217": [
+      "barmm",
+      "region-9"
+    ],
+    "218": [
+      "barmm",
+      "car"
+    ],
+    "219": [
+      "car"
+    ],
+    "220": [
+      "car"
+    ],
+    "221": [
+      "car"
+    ],
+    "222": [
+      "ncr"
+    ],
+    "223": [
+      "ncr"
+    ],
+    "224": [
+      "ncr"
+    ],
+    "225": [
+      "ncr"
+    ],
+    "226": [
+      "ncr"
+    ],
+    "227": [
+      "ncr"
+    ],
+    "228": [
+      "ncr"
+    ],
+    "229": [
+      "region-3"
+    ],
+    "230": [
+      "region-4a"
+    ],
+    "231": [
+      "region-5"
+    ],
+    "232": [
+      "nir",
+      "region-7"
+    ],
+    "233": [
+      "region-7"
+    ],
+    "234": [
+      "nir"
+    ],
+    "235": [
+      "caraga",
+      "region-1"
+    ],
+    "236": [
+      "region-1",
+      "region-3"
+    ],
+    "237": [
+      "nir"
+    ],
+    "238": [
+      "region-10",
+      "region-8"
+    ],
+    "239": [
+      "region-10",
+      "region-11"
+    ],
+    "240": [
+      "region-3"
+    ],
+    "251": [
+      "region-2",
+      "region-4a"
+    ],
+    "252": [
+      "region-9"
+    ],
+    "253": [
+      "barmm"
+    ],
+    "254": [
+      "barmm"
+    ],
+    "255": [
+      "barmm"
+    ],
+    "257": [
+      "region-11"
+    ],
+    "260": [
+      "region-3"
+    ],
+    "261": [
+      "barmm",
+      "region-4a"
+    ],
+    "262": [
+      "barmm"
+    ],
+    "264": [
+      "region-3"
+    ],
+    "265": [
+      "region-3"
+    ],
+    "281": [
+      "caraga",
+      "mimaropa",
+      "region-1",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-5",
+      "region-7",
+      "region-8"
+    ],
+    "300": [
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "301": [
+      "mimaropa",
+      "region-11",
+      "region-3",
+      "region-4a",
+      "region-5"
+    ],
+    "302": [
+      "barmm",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-11",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "303": [
+      "barmm",
+      "car",
+      "ncr",
+      "nir",
+      "region-10",
+      "region-12",
+      "region-4a",
+      "region-5",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "304": [
+      "barmm",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-4a",
+      "region-8"
+    ],
+    "305": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "306": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "307": [
+      "region-3",
+      "region-4a"
+    ],
+    "308": [
+      "mimaropa",
+      "region-4a"
+    ],
+    "309": [
+      "mimaropa",
+      "region-5"
+    ],
+    "310": [
+      "region-5",
+      "region-6"
+    ],
+    "311": [
+      "nir",
+      "region-6"
+    ],
+    "312": [
+      "nir",
+      "region-6",
+      "region-7"
+    ],
+    "313": [
+      "region-8"
+    ],
+    "314": [
+      "region-10",
+      "region-8",
+      "region-9"
+    ],
+    "315": [
+      "region-10",
+      "region-11"
+    ],
+    "316": [
+      "barmm",
+      "region-11",
+      "region-12"
+    ],
+    "317": [
+      "caraga",
+      "region-12"
+    ],
+    "318": [
+      "barmm",
+      "car",
+      "region-9"
+    ],
+    "319": [
+      "car",
+      "ncr"
+    ],
+    "320": [
+      "ncr",
+      "region-1"
+    ],
+    "321": [
+      "nir",
+      "region-1",
+      "region-3",
+      "region-4a",
+      "region-5"
+    ],
+    "322": [
+      "caraga",
+      "nir",
+      "region-1",
+      "region-11",
+      "region-3",
+      "region-7"
+    ],
+    "323": [
+      "nir",
+      "region-10",
+      "region-11",
+      "region-2",
+      "region-3",
+      "region-8"
+    ],
+    "324": [
+      "barmm",
+      "caraga",
+      "nir",
+      "region-1",
+      "region-4a",
+      "region-7",
+      "region-9"
+    ],
+    "325": [
+      "nir",
+      "region-10",
+      "region-11",
+      "region-2",
+      "region-4a",
+      "region-7"
+    ],
+    "326": [
+      "barmm",
+      "region-12"
+    ],
+    "327": [
+      "region-3",
+      "region-8"
+    ],
+    "328": [
+      "ncr",
+      "region-4a"
+    ],
+    "330": [
+      "barmm",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-8"
+    ],
+    "340": [
+      "car",
+      "caraga",
+      "ncr",
+      "region-1"
+    ],
+    "341": [
+      "barmm",
+      "region-10",
+      "region-11"
+    ],
+    "342": [
+      "mimaropa",
+      "region-2",
+      "region-4a"
+    ],
+    "343": [
+      "nir",
+      "region-5",
+      "region-7"
+    ],
+    "344": [
+      "region-8"
+    ],
+    "345": [
+      "barmm",
+      "region-3",
+      "region-9"
+    ],
+    "356": [
+      "region-7"
+    ],
+    "360": [
+      "ncr",
+      "region-10",
+      "region-12"
+    ],
+    "361": [
+      "nir",
+      "region-3",
+      "region-4a"
+    ],
+    "400": [
+      "barmm",
+      "car",
+      "caraga",
+      "ncr",
+      "region-1",
+      "region-10",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-9"
+    ],
+    "401": [
+      "ncr",
+      "region-1",
+      "region-2",
+      "region-3",
+      "region-4a"
+    ],
+    "402": [
+      "mimaropa",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-9"
+    ],
+    "403": [
+      "barmm",
+      "mimaropa",
+      "nir",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8"
+    ],
+    "404": [
+      "caraga",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "405": [
+      "barmm",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "406": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "407": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "408": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "409": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "410": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "411": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "412": [
+      "region-1"
+    ],
+    "413": [
+      "region-1"
+    ],
+    "414": [
+      "caraga",
+      "region-1",
+      "region-2"
+    ],
+    "415": [
+      "region-2"
+    ],
+    "416": [
+      "region-2"
+    ],
+    "417": [
+      "region-2",
+      "region-3"
+    ],
+    "418": [
+      "region-3"
+    ],
+    "419": [
+      "region-3"
+    ],
+    "420": [
+      "region-3"
+    ],
+    "421": [
+      "region-3"
+    ],
+    "422": [
+      "region-3",
+      "region-4a"
+    ],
+    "423": [
+      "region-3",
+      "region-4a"
+    ],
+    "424": [
+      "region-4a"
+    ],
+    "425": [
+      "region-4a"
+    ],
+    "426": [
+      "region-4a"
+    ],
+    "427": [
+      "region-4a"
+    ],
+    "428": [
+      "region-4a"
+    ],
+    "429": [
+      "mimaropa"
+    ],
+    "430": [
+      "mimaropa"
+    ],
+    "431": [
+      "mimaropa"
+    ],
+    "432": [
+      "mimaropa",
+      "region-5"
+    ],
+    "433": [
+      "region-5"
+    ],
+    "434": [
+      "region-5"
+    ],
+    "435": [
+      "region-5"
+    ],
+    "436": [
+      "region-5"
+    ],
+    "437": [
+      "region-5"
+    ],
+    "438": [
+      "nir",
+      "region-6"
+    ],
+    "439": [
+      "region-6"
+    ],
+    "440": [
+      "nir",
+      "region-6"
+    ],
+    "441": [
+      "nir"
+    ],
+    "442": [
+      "nir",
+      "region-6"
+    ],
+    "443": [
+      "nir",
+      "region-6"
+    ],
+    "444": [
+      "nir"
+    ],
+    "445": [
+      "nir"
+    ],
+    "446": [
+      "region-6",
+      "region-7"
+    ],
+    "447": [
+      "region-7"
+    ],
+    "448": [
+      "nir",
+      "region-7"
+    ],
+    "449": [
+      "nir",
+      "region-7"
+    ],
+    "450": [
+      "region-7"
+    ],
+    "451": [
+      "region-8"
+    ],
+    "452": [
+      "region-8"
+    ],
+    "453": [
+      "region-8"
+    ],
+    "454": [
+      "region-8"
+    ],
+    "455": [
+      "region-8",
+      "region-9"
+    ],
+    "456": [
+      "region-9"
+    ],
+    "457": [
+      "region-9"
+    ],
+    "458": [
+      "region-9"
+    ],
+    "459": [
+      "region-10",
+      "region-9"
+    ],
+    "460": [
+      "region-10"
+    ],
+    "461": [
+      "region-10"
+    ],
+    "462": [
+      "region-10"
+    ],
+    "463": [
+      "region-10"
+    ],
+    "464": [
+      "region-11"
+    ],
+    "465": [
+      "region-11"
+    ],
+    "466": [
+      "region-11"
+    ],
+    "467": [
+      "region-11",
+      "region-12"
+    ],
+    "468": [
+      "region-12"
+    ],
+    "469": [
+      "barmm",
+      "region-12"
+    ],
+    "470": [
+      "region-12"
+    ],
+    "471": [
+      "caraga",
+      "region-12"
+    ],
+    "472": [
+      "caraga"
+    ],
+    "473": [
+      "caraga"
+    ],
+    "474": [
+      "caraga"
+    ],
+    "475": [
+      "barmm"
+    ],
+    "476": [
+      "barmm"
+    ],
+    "477": [
+      "barmm",
+      "region-9"
+    ],
+    "478": [
+      "barmm",
+      "car"
+    ],
+    "479": [
+      "car"
+    ],
+    "480": [
+      "car"
+    ],
+    "481": [
+      "car"
+    ],
+    "482": [
+      "ncr",
+      "region-10"
+    ],
+    "483": [
+      "ncr",
+      "region-10"
+    ],
+    "484": [
+      "ncr"
+    ],
+    "485": [
+      "ncr"
+    ],
+    "486": [
+      "ncr"
+    ],
+    "487": [
+      "ncr"
+    ],
+    "488": [
+      "ncr"
+    ],
+    "489": [
+      "region-3"
+    ],
+    "490": [
+      "region-5"
+    ],
+    "491": [
+      "nir",
+      "region-7"
+    ],
+    "492": [
+      "region-7"
+    ],
+    "493": [
+      "caraga",
+      "nir"
+    ],
+    "494": [
+      "region-4a"
+    ],
+    "495": [
+      "region-10",
+      "region-11"
+    ],
+    "496": [
+      "region-1"
+    ],
+    "497": [
+      "region-3"
+    ],
+    "499": [
+      "region-10",
+      "region-11"
+    ],
+    "500": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "501": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "502": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "503": [
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-10",
+      "region-11",
+      "region-12",
+      "region-2",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-8",
+      "region-9"
+    ],
+    "600": [
+      "barmm",
+      "car",
+      "caraga",
+      "mimaropa",
+      "ncr",
+      "nir",
+      "region-1",
+      "region-10",
+      "region-12",
+      "region-3",
+      "region-4a",
+      "region-5",
+      "region-6",
+      "region-7",
+      "region-8",
+      "region-9"
+    ],
+    "800": [
+      "region-9"
+    ]
+  },
+  "seals": {}
 }

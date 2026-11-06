@@ -115,9 +115,12 @@ async function run(){
       await page.getByRole('button',{name:'I verified my email'}).click();
       await page.getByRole('heading',{name:'Choose your school'}).waitFor();
       await page.getByLabel('Display name').fill('Synthetic teacher');
-      await page.getByLabel('Region',{exact:true}).selectOption('demo');
       await page.getByLabel('Search schools').fill('ELA');
-      await page.getByRole('button',{name:/Example Learning Academy/}).click();
+      await page.getByRole('button',{name:/Example Learning Academy.*900002/}).waitFor();
+      assert.equal(await page.getByRole('button',{name:'Retry school search'}).isVisible(),false);
+      assert.equal(await page.getByLabel('Region',{exact:true}).inputValue(),'');
+      await page.getByLabel('Region',{exact:true}).selectOption('demo');
+      await page.getByRole('button',{name:/Example Learning Academy.*900002/}).click();
       await page.getByRole('checkbox').check();
       await page.getByRole('button',{name:'Save profile'}).click();
       await page.getByRole('heading',{name:'Your class record'}).waitFor();

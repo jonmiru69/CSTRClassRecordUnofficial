@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {evaluate,transmute,newDemo,finalGrade,CUTOFFS,assertScope} from '../ASSETS/nationwide/policy.mjs';
-import {provisional,searchSchools,normalizeSchool} from '../ASSETS/nationwide/directory.mjs';
+import {makeDirectory,provisional,searchSchools,normalizeSchool} from '../ASSETS/nationwide/directory.mjs';
 import {xlsxBook} from '../ASSETS/nationwide/exports.mjs';
 import {saveRecovery,readRecovery} from '../ASSETS/nationwide/recovery.mjs';
 const context={console,Uint8Array,ArrayBuffer,TextEncoder,TextDecoder,atob,btoa};
@@ -38,6 +38,36 @@ const school=await provisional({name:'Escuéla Example',locality:'Metro City',sc
 assert.equal(school.key,(await provisional({name:'Escuela Example',locality:'metro city',schoolId:'123456',sector:'public'})).key);
 assert.equal(searchSchools([{...school,region:'demo'}],'esquela',{region:'demo'})[0].key,school.key);
 assert.throws(()=>normalizeSchool({...school,key:'d111111'}));
+const catalogRequests=[];
+const officialCatalog=makeDirectory(async url=>{
+  const path=new URL(url,'https://example.test').pathname.replace('/schools/','');
+  catalogRequests.push(path);
+  return new Response(readFileSync(new URL('../nationwide/schools/'+path,import.meta.url)));
+});
+const manifest=await officialCatalog.manifest();
+assert.equal(manifest.regions.length,18);
+assert.equal(manifest.schoolYear,'2025–2026');
+const katingal=await officialCatalog.school('117788');
+assert.deepEqual([katingal.name,katingal.region,katingal.province,katingal.locality,katingal.sector,katingal.logo],
+  ['Katingal-an Elementary School','nir','NEGROS OCCIDENTAL','SAN CARLOS CITY','public','']);
+assert.ok(catalogRequests.length<10,'Exact School ID should load only candidate regions');
+const nationwide=await officialCatalog.rows();
+assert.equal(nationwide.length,60168);
+assert.equal(new Set(nationwide.map(row=>row.schoolId)).size,nationwide.length);
+assert.equal(new Set(nationwide.map(row=>row.region)).size,18);
+for(const query of ['KATINGAL-AN ELEMENTARY SCHOOL','katingalan es','117788','katingal san carlos']){
+  assert.equal(searchSchools(nationwide,query)[0]?.schoolId,'117788',query);
+}
+assert.equal(searchSchools(nationwide,'117788',{region:'region-1'}).length,0);
+assert.ok(nationwide.some(row=>row.region==='ncr'&&row.sector==='private'));
+const demoManifest={version:'sealed-test',regions:[{id:'demo',label:'Example region',file:'demo.json'}],seals:{
+  '900001':{file:'900001.png',sourceUrl:'https://example.test/school-seal',permissionUrl:'https://example.test/permission'},
+  '900002':{file:'external.png',sourceUrl:'https://example.test/other',permissionUrl:'https://example.test/permission'}
+}};
+const sealedCatalog=makeDirectory(async url=>new Response(JSON.stringify(url.includes('manifest')
+  ?demoManifest:{places:[['Example Municipality','Example Province']],schools:[['900001','First School','p',0],['900002','Second School','r',0]]})));
+assert.equal((await sealedCatalog.school('900001')).logo,'/schools/logos/900001.png');
+assert.equal((await sealedCatalog.school('900002')).logo,'');
 const privateRecord={ownerUid:'a',classId:'c01',schoolKey:'d900002',schoolName:'Example',schoolYear:'2026-2027',curriculum:'Example',
   grade:6,subject:'Science',policy:'private-g6-science-v1',template:'private-supplementary-v1',sector:'private',title:'Example class',
   roster:{r01:'Example learner'},periods:{t1:{locked:false,hps:{w1:20},scores:{r01:{w1:0}}}}};

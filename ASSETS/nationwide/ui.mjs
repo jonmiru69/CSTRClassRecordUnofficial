@@ -16,8 +16,17 @@ const input=(name,props={})=>h('input',{name,...props});
 const textInput=(name,max,more={})=>input(name,{type:'text',maxlength:max,required:true,...more});
 const submit=label=>h('button',{type:'submit',class:'primary'},label);
 const actionRow=(...children)=>h('div',{class:'actions row-actions'},children);
-const logo=src=>h('img',{src:src||seal,width:56,height:56,alt:''});
+function logo(src){
+  const image=h('img',{src:src||seal,width:56,height:56,alt:''});
+  if(src)image.addEventListener('error',()=>{image.src=seal;},{once:true});
+  return image;
+}
 const sector=s=>s==='public'?'Public school':'Private school';
+const placeLabel=value=>typeof value==='string'&&value===value.toUpperCase()
+  ?value.toLowerCase().replace(/\b(ncr|barmm|car|nir)\b|(^|[\s-])\p{L}/gu,(part,abbr)=>abbr?abbr.toUpperCase():part.toUpperCase())
+  :value;
+const schoolLocation=row=>[placeLabel(row.locality),placeLabel(row.province),row.regionLabel].filter(Boolean).join(' · ');
+const schoolType=row=>row.classification==='SUC/LUC'?'Public school · SUC/LUC':sector(row.sector);
 const show=section=>main.replaceChildren(section);
 const heading=(title,description)=>{const page=app();page.append(h('h1',{},title));if(description)page.append(p(description,'intro'));return page;};
 const safeGet=(key)=>{try{return sessionStorage.getItem(key);}catch{return null;}};
@@ -116,51 +125,122 @@ function renderVerify(auth,user){
   s.append(actionRow(verify,resend,btn('Sign out',e=>work(e.currentTarget,note,()=>auth.signOut()),'quiet')),note);show(s);
 }
 async function setupProfile(auth,user,profile=null){
-  let picked=profile?.school??null,logoValue=picked?savedLogo(user.uid,picked.key):'',pickedLogo='',rows=[],searchGeneration=0;
+  let picked=profile?.school??null,identity=null,logoValue=picked?savedLogo(user.uid,picked.key):'';
+  let catalog,rows=[],searchGeneration=0,searchTimer;
   const s=heading(profile?'School settings':'Choose your school','Preview the name, location and sector. Your selection changes your profile and leaves past classes under their original school.');
-  const f=form(),note=status(),display=textInput('name',120,{value:profile?.displayName??'',autocomplete:'name',minlength:2});
+  const f=form(),note=status(),display=textInput('name',120,{value:profile?.displayName??'',autocomplete:'name',minlength:2,placeholder:'Your name'});
   const accept=profile?null:input('accept',{type:'checkbox',required:true});
-  const region=h('select',{name:'region'},option('','Choose a region'));
-  const query=input('query',{type:'search',maxlength:100,placeholder:'School name, ID or municipality'});
-  const results=h('ul',{class:'school-results','aria-label':'School search results'}),directoryNote=p('Checking the school directory…','quiet-copy');
-  const preview=h('div',{class:'well school-preview','aria-live':'polite'});
+  const region=h('select',{name:'region'},option('','All regions'));
+  const query=input('query',{type:'search',maxlength:100,autocomplete:'off',placeholder:'School name, six-digit ID, or city'});
+  const results=h('ul',{class:'school-results','aria-label':'School search results'});
+  const directoryNote=h('p',{class:'quiet-copy',role:'status'},'Checking the school directory…');
+  const directorySource=h('p',{class:'quiet-copy'});
+  const retry=btn('Retry school search',()=>scheduleSearch(0),'quiet',{hidden:true});
+  const preview=h('div',{class:'well school-preview','aria-live':'polite',tabindex:-1});
   const ownSchool=h('details',{},h('summary',{},'Add a school privately'));
   const schoolName=textInput('schoolName',160,{required:false,minlength:2}),locality=textInput('locality',120,{required:false,minlength:2});
   const schoolId=textInput('schoolId',6,{required:false,inputmode:'numeric',pattern:'[0-9]{6}'});
   const schoolSector=h('select',{name:'schoolSector'},option('','Choose public or private'),option('public','Public school'),option('private','Private school'));
   const upload=input('logo',{type:'file',accept:'image/png,image/jpeg'});
-  const noLogo=btn('Use default seal',()=>{logoValue='';upload.value='';previewSchool();},'quiet');
+  const noLogo=btn('Remove uploaded seal',()=>{logoValue='';upload.value='';previewSchool();},'quiet',{hidden:true});
   function previewSchool(){
-    preview.replaceChildren(logo(logoValue||pickedLogo),picked
-      ?h('div',{},h('strong',{},picked.name),p(`${sector(picked.sector)} · ${picked.locality}${picked.schoolId?' · '+picked.schoolId:''}`))
-      :p('No school selected.'));
+    noLogo.hidden=!logoValue;
+    if(!picked){preview.replaceChildren(p('Choose a suggestion to preview the school.'));return;}
+    const row=identity??picked;
+    const fallback='Class Record seal. You can add a school-authorized seal below.';
+    const sealText=p(logoValue?'Uploaded seal for this tab.':identity?.logo?'Official school seal':fallback,'quiet-copy');
+    const badge=logo(logoValue||identity?.logo);
+    const source=!logoValue&&identity?.sealSource?link('School seal source',identity.sealSource):null;
+    badge.addEventListener('error',()=>{sealText.textContent=fallback;source?.remove();},{once:true});
+    const location=h('dl',{class:'school-location'},[
+      ['City or municipality',placeLabel(row.locality)],['Province or district',placeLabel(row.province)],['Region',row.regionLabel]
+    ].flatMap(([label,value])=>value?[h('dt',{},label),h('dd',{},value)]:[]));
+    preview.replaceChildren(badge,h('div',{},h('strong',{},picked.name),
+      p([schoolType(row),picked.schoolId&&'School ID '+picked.schoolId].filter(Boolean).join(' · ')),
+      location,sealText,source));
   }
-  function renderMatches(){
-    results.replaceChildren();
-    for(const row of searchSchools(rows,query.value,{region:region.value})){
-      const item=btn('',()=>{
-        picked=normalizeSchool(row);pickedLogo=row.logo;logoValue=savedLogo(user.uid,picked.key);upload.value='';previewSchool();
-      },'');
-      item.append(h('strong',{},row.name),h('small',{},`${sector(row.sector)} · ${row.locality}`));
-      results.append(h('li',{},item));
+  function selectSchool(row,focus=false){
+    picked=normalizeSchool(row);
+    identity=row.region?row:null;
+    logoValue=savedLogo(user.uid,picked.key);upload.value='';
+    previewSchool();
+    if(focus)preview.focus();
+  }
+  async function loadCatalog(){
+    const current=await directory.manifest();
+    if(current!==catalog){
+      catalog=current;
+      region.replaceChildren(option('','All regions'),...catalog.regions.map(item=>option(item.id,item.label)));
+      if(catalog.sourceUrl)directorySource.replaceChildren(
+        'School data from ',link('DepEd Project Bukas',catalog.sourceUrl),
+        catalog.schoolYear?` · SY ${catalog.schoolYear}`:'','. Class Record is an independent tool.');
     }
-    if(!results.children.length&&region.value&&query.value)results.append(h('li',{},p('No match. Try a school ID or add the school privately.')));
+    return catalog;
   }
-  query.addEventListener('input',renderMatches);
-  region.addEventListener('change',async()=>{
-    const request=++searchGeneration;rows=[];renderMatches();
-    if(!region.value)return;
-    directoryNote.textContent='Loading schools…';
-    try{const next=await directory.rows(region.value);if(request!==searchGeneration)return;rows=next;directoryNote.textContent='Search this region or select a listed school.';renderMatches();}
-    catch(e){if(request===searchGeneration)directoryNote.textContent=e.message;}
+  async function findSchools(request){
+    try{
+      const current=await loadCatalog();
+      if(request!==searchGeneration)return;
+      retry.hidden=true;
+      const term=fold(query.value),scope=region.value;
+      if(!current.regions.length){
+        directoryNote.textContent='The shared directory has no school listings yet. Add your school manually.';
+        if(!picked)ownSchool.open=true;
+        return;
+      }
+      if(/^\d{1,5}$/.test(term)){directoryNote.textContent='Enter all six digits to find a School ID.';return;}
+      if(!scope&&term.length<2){directoryNote.textContent='Type a school name, School ID, or location to search nationwide.';return;}
+      directoryNote.textContent='Finding schools…';
+      const next=await directory.rows(scope,term);
+      if(request!==searchGeneration)return;
+      rows=next;
+      const matches=searchSchools(rows,term,{region:scope});
+      directoryNote.textContent=matches.length
+        ?'Choose a school below. Check the School ID and location before saving.'
+        :'No matching school in this snapshot. Try its six-digit ID, switch to All regions, or add it manually.';
+      results.replaceChildren(...matches.map(row=>{
+        const item=btn('',()=>selectSchool(row,true),'');
+        item.append(h('strong',{},row.name),
+          h('small',{},`School ID ${row.schoolId} · ${schoolType(row)}`),h('small',{},schoolLocation(row)));
+        return h('li',{},item);
+      }));
+    }catch(error){
+      if(request!==searchGeneration)return;
+      directoryNote.textContent=error.message;
+      retry.hidden=false;
+      if(!picked)ownSchool.open=true;
+    }
+  }
+  function scheduleSearch(delay){
+    clearTimeout(searchTimer);
+    const request=++searchGeneration;
+    rows=[];results.replaceChildren();
+    searchTimer=setTimeout(()=>void findSchools(request),delay);
+  }
+  query.addEventListener('input',()=>scheduleSearch(180));
+  region.addEventListener('change',()=>scheduleSearch(0));
+  query.addEventListener('keydown',e=>{
+    if(!['Enter','ArrowDown'].includes(e.key))return;
+    e.preventDefault();
+    const first=results.querySelector('button');
+    if(e.key==='Enter'&&results.childElementCount===1)first.click();
+    else first?.focus();
+  });
+  results.addEventListener('keydown',e=>{
+    if(!['ArrowDown','ArrowUp','Escape'].includes(e.key))return;
+    const item=e.target.closest('li');
+    if(!item)return;
+    e.preventDefault();
+    if(e.key==='Escape'){query.focus();return;}
+    const sibling=e.key==='ArrowDown'?item.nextElementSibling:item.previousElementSibling;
+    (sibling?.querySelector('button')??(e.key==='ArrowUp'?query:e.target)).focus();
   });
   const add=btn('Preview this school',e=>work(e.currentTarget,note,async()=>{
     let result;try{result=await provisional({name:schoolName.value,locality:locality.value,schoolId:schoolId.value,sector:schoolSector.value});}
     catch(err){fail(err.message);}
-    const duplicate=rows.find(row=>result.schoolId
-      ?row.schoolId===result.schoolId
-      :row.sector===result.sector&&fold(row.name)===fold(result.name)&&fold(row.locality)===fold(result.locality));
-    picked=normalizeSchool(duplicate??result);pickedLogo=duplicate?.logo??'';logoValue=savedLogo(user.uid,picked.key);upload.value='';previewSchool();
+    const duplicate=result.schoolId?await directory.school(result.schoolId).catch(()=>undefined)
+      :rows.find(row=>row.sector===result.sector&&fold(row.name)===fold(result.name)&&fold(row.locality)===fold(result.locality));
+    selectSchool(duplicate??result);
     say(note,duplicate?'Selected the matching school from the directory.':'School preview ready. Save to finish.');
   }));
   ownSchool.append(h('div',{class:'fields'},field('School name',schoolName),field('Municipality or city',locality),
@@ -175,8 +255,8 @@ async function setupProfile(auth,user,profile=null){
   const cached=safeGet(profileDraftKey(user.uid));
   if(cached&&!profile){try{const draft=JSON.parse(cached);display.value=draft.displayName; picked=normalizeSchool(draft.school);}catch{}}
   previewSchool();
-  f.append(field('Display name',display),h('div',{class:'directory'},directoryNote,field('Region',region),field('Search schools',query),results),ownSchool,
-    preview,field('School logo · optional PNG or JPEG',upload),noLogo);
+  f.append(field('Display name',display),h('div',{class:'directory'},field('Region',region),field('Search schools',query),
+    directoryNote,retry,results,directorySource),preview,ownSchool,field('School seal · optional PNG or JPEG',upload),noLogo);
   if(accept)f.append(h('label',{class:'check'},accept,h('span',{},'I have read ',link('Privacy and use','/privacy/'),' and understand how my profile is used.')));
   f.append(actionRow(submit(profile?'Save school settings':'Save profile'),profile&&btn('Back to workspace',()=>workspace(auth,user,profile),'quiet')),note);
   onSubmit(f,note,async()=>{
@@ -190,13 +270,12 @@ async function setupProfile(auth,user,profile=null){
     await workspace(auth,user,saved);
   });
   s.append(f,btn('Sign out',e=>work(e.currentTarget,note,()=>auth.signOut()),'quiet'));show(s);
-  try{
-    const manifest=await directory.manifest();
-    manifest.regions.forEach(item=>region.append(option(item.id,item.label)));
-    directoryNote.textContent=manifest.regions.length?'Select a region to search the available schools.':'Add your school below. Your entry stays in your teacher profile.';
-    region.disabled=!manifest.regions.length;query.disabled=!manifest.regions.length;
-    if(!manifest.regions.length&&!picked)ownSchool.open=true;
-  }catch(e){directoryNote.textContent=e.message;region.disabled=true;query.disabled=true;if(!picked)ownSchool.open=true;}
+  scheduleSearch(0);
+  const saved=picked;
+  if(saved?.key.startsWith('d'))void directory.school(saved.schoolId).then(row=>{
+    if(picked!==saved||!row)return;
+    identity=row;previewSchool();
+  }).catch(()=>{});
 }
 function permitted(grant,key){
   return KEY.test(key)&&grant?.active===true&&grant.sector==='private'&&grant.expiresAt>Date.now()&&grant.policy===PRIVATE_POLICY.id&&grant.grade===6&&grant.subject==='Science'&&
@@ -220,7 +299,7 @@ async function workspace(auth,user,profile){
   releaseWatches();
   loadedAccount={uid:user.uid,profile};
   const s=heading('Your class record',`Welcome, ${profile.displayName}.`),note=status(),area=h('div',{class:'stack'});
-  let context=profile.school.key,grants={},privateOpen=false,listRequest=0,canLeave=()=>true;
+  let context=profile.school.key,grants={},privateOpen=false,listRequest=0,canLeave=()=>true,identity=null;
   const bar=h('div',{class:'school-bar'});
   const settings=btn('School settings',()=>{if(!canLeave())return;releaseWatches();void setupProfile(auth,user,profile);},'quiet');
   const openPractice=link('Open practice class','/practice/','secondary');
@@ -228,6 +307,16 @@ async function workspace(auth,user,profile){
   s.append(bar,actionRow(openPractice,btn('Link Google account',e=>work(e.currentTarget,note,async()=>{await auth.linkGoogle();say(note,'Google linked.');})),
     btn('Sign out',e=>{if(canLeave(true))void work(e.currentTarget,note,async()=>{await auth.signOut();clearSession(user.uid);});}, 'quiet')),note,area);
   show(s);
+  function showSchool(){
+    const grant=grants[context],listed=context===profile.school.key?identity:null;
+    const active=privateOpen&&permitted(grant,context)?{name:grant.schoolName,sector:'private'}:profile.school;
+    bar.replaceChildren(logo(savedLogo(user.uid,context)||listed?.logo),h('div',{},h('strong',{},active.name),
+      p(listed?.sector===active.sector?schoolType(listed):sector(active.sector)),listed&&p(schoolLocation(listed))),settings);
+  }
+  if(profile.school.key.startsWith('d'))void directory.school(profile.school.schoolId).then(row=>{
+    if(!row||!bar.isConnected)return;
+    identity=row;showSchool();
+  }).catch(()=>{});
   async function showClasses(){
     canLeave=()=>true;
     const request=++listRequest;
@@ -242,8 +331,7 @@ async function workspace(auth,user,profile){
     }
     area.replaceChildren(holder);
     const grant=grants[context],schoolContext=context;
-    const active=privateOpen&&permitted(grant,context)?{name:grant.schoolName,sector:'private'}:profile.school;
-    bar.replaceChildren(logo(savedLogo(user.uid,context)),h('div',{},h('strong',{},active.name),p(sector(active.sector))),settings);
+    showSchool();
     if(!privateOpen||!permitted(grant,context)){
       holder.append(h('h2',{},profile.school.sector==='public'?'Public-school practice':'Class access'),
         p(profile.school.sector==='public'?'Real learner records are unavailable here. Try the Grade 6 Science practice class.':'You can use a class workspace after your school’s policy and record access are approved.'));return;
