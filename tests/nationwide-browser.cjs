@@ -92,7 +92,7 @@ async function run(){
     await page.screenshot({path:path.join(out,'landing-phone.png'),fullPage:true});
     if(!emulate){
       await page.goto(origin+'/register/');
-      await page.getByText('New teacher accounts are paused while the pilot is reviewed.').waitFor();
+      await page.getByText('New teacher registration is temporarily unavailable. You can still open the practice class.').waitFor();
       assert.equal(await page.locator('input').count(),0);
       assert.deepEqual(unexpected,[]);
     }else{
@@ -118,6 +118,7 @@ async function run(){
       await page.getByLabel('Region',{exact:true}).selectOption('demo');
       await page.getByLabel('Search schools').fill('ELA');
       await page.getByRole('button',{name:/Example Learning Academy/}).click();
+      await page.getByRole('checkbox').check();
       await page.getByRole('button',{name:'Save profile'}).click();
       await page.getByRole('heading',{name:'Your class record'}).waitFor();
       await page.getByText('Example Learning Academy',{exact:true}).waitFor();
@@ -148,6 +149,7 @@ async function run(){
       await page.getByText('Add a school privately',{exact:true}).click();
       await page.getByLabel('School name',{exact:true}).fill('Invented public school');
       await page.getByLabel('Municipality or city').fill('Invented city');
+      await page.getByLabel('Sector',{exact:true}).selectOption('public');
       await page.getByRole('button',{name:'Preview this school'}).click();
       await page.getByRole('button',{name:'Save school settings'}).click();
       await page.getByText('Invented public school',{exact:true}).waitFor();

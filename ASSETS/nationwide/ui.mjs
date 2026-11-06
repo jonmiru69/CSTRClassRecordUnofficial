@@ -50,8 +50,11 @@ function information(){
   return s;
 }
 function closedPage(){
-  const s=heading(route==='register'?'Teacher registration':'Sign in','New teacher accounts are paused while the pilot is reviewed.');
-  s.append(actionRow(link('Open the practice class','/practice/','primary'),link('CST-R faculty sign-in','/cst-r/','secondary')),link('Privacy and use','/privacy/'));
+  const preview=mode==='production'&&!activeAuth;
+  const s=heading(route==='register'?'Teacher registration':'Sign in',preview
+    ?'Create your teacher account on the live Class Record site.'
+    :'New teacher registration is temporarily unavailable. You can still open the practice class.');
+  s.append(actionRow(preview?link('Open live registration','https://cstr-class-record-global.web.app/register/','primary'):link('Open the practice class','/practice/','primary'),link('CST-R faculty sign-in','/cst-r/','secondary')),link('Privacy and use','/privacy/'));
   return s;
 }
 function renderSignIn(auth,{reset=false}={}){
@@ -66,13 +69,12 @@ function renderSignIn(auth,{reset=false}={}){
   });
   if(!reset){
     const google=btn('Continue with Google',e=>work(e.currentTarget,note,()=>auth.google()),'secondary');
-    google.hidden=true;f.append(google);
-    auth.canRegister().then(open=>{google.hidden=!open;}).catch(()=>{});
+    f.append(google);
   }
   s.append(f,actionRow(link('Create a teacher account','/register/'),link('CST-R faculty sign-in','/cst-r/')));show(s);
 }
 async function renderRegister(auth){
-  const s=heading('Create a teacher account','Verify your email, then review your school and finish setting up your profile.');
+  const s=heading('Create a free teacher account','Verify your email, then review your school and finish setting up your profile.');
   const f=form(),note=status();
   const email=input('email',{type:'email',autocomplete:'username',required:true,maxlength:254});
   const password=input('password',{type:'password',autocomplete:'new-password',minlength:12,maxlength:256,required:true});
@@ -80,7 +82,7 @@ async function renderRegister(auth){
   const accept=input('accept',{type:'checkbox',required:true});
   const create=submit('Create account'),google=btn('Continue with Google',e=>{
     if(!accept.checked){accept.focus();say(note,'Read and accept the privacy notice to continue.',true);return;}
-    void work(e.currentTarget,note,()=>auth.google(true));
+    void work(e.currentTarget,note,()=>auth.google());
   });
   create.disabled=true;google.disabled=true;
   f.append(field('Email address',email),field('Password · at least 12 characters',password),field('Confirm password',confirm),
@@ -96,7 +98,7 @@ async function renderRegister(auth){
   try{
     const enabled=await auth.canRegister();
     create.disabled=!enabled;google.disabled=!enabled;
-    if(!enabled)say(note,'New registrations are paused. You can still open the practice class.');
+    if(!enabled)say(note,'Registration is temporarily unavailable. You can still open the practice class.');
   }catch{say(note,'The service could not confirm whether registration is open. Reconnect and reload.',true);}
 }
 function renderVerify(auth,user){
@@ -117,6 +119,7 @@ async function setupProfile(auth,user,profile=null){
   let picked=profile?.school??null,logoValue=picked?savedLogo(user.uid,picked.key):'',pickedLogo='',rows=[],searchGeneration=0;
   const s=heading(profile?'School settings':'Choose your school','Preview the name, location and sector. Your selection changes your profile and leaves past classes under their original school.');
   const f=form(),note=status(),display=textInput('name',120,{value:profile?.displayName??'',autocomplete:'name',minlength:2});
+  const accept=profile?null:input('accept',{type:'checkbox',required:true});
   const region=h('select',{name:'region'},option('','Choose a region'));
   const query=input('query',{type:'search',maxlength:100,placeholder:'School name, ID or municipality'});
   const results=h('ul',{class:'school-results','aria-label':'School search results'}),directoryNote=p('Checking the school directory…','quiet-copy');
@@ -124,7 +127,7 @@ async function setupProfile(auth,user,profile=null){
   const ownSchool=h('details',{},h('summary',{},'Add a school privately'));
   const schoolName=textInput('schoolName',160,{required:false,minlength:2}),locality=textInput('locality',120,{required:false,minlength:2});
   const schoolId=textInput('schoolId',6,{required:false,inputmode:'numeric',pattern:'[0-9]{6}'});
-  const schoolSector=h('select',{name:'schoolSector'},option('public','Public school'),option('private','Private school'));
+  const schoolSector=h('select',{name:'schoolSector'},option('','Choose public or private'),option('public','Public school'),option('private','Private school'));
   const upload=input('logo',{type:'file',accept:'image/png,image/jpeg'});
   const noLogo=btn('Use default seal',()=>{logoValue='';upload.value='';previewSchool();},'quiet');
   function previewSchool(){
@@ -173,8 +176,9 @@ async function setupProfile(auth,user,profile=null){
   if(cached&&!profile){try{const draft=JSON.parse(cached);display.value=draft.displayName; picked=normalizeSchool(draft.school);}catch{}}
   previewSchool();
   f.append(field('Display name',display),h('div',{class:'directory'},directoryNote,field('Region',region),field('Search schools',query),results),ownSchool,
-    preview,field('School logo · optional PNG or JPEG',upload),noLogo,actionRow(submit(profile?'Save school settings':'Save profile'),
-      profile&&btn('Back to workspace',()=>workspace(auth,user,profile),'quiet')),note);
+    preview,field('School logo · optional PNG or JPEG',upload),noLogo);
+  if(accept)f.append(h('label',{class:'check'},accept,h('span',{},'I have read ',link('Privacy and use','/privacy/'),' and understand how my profile is used.')));
+  f.append(actionRow(submit(profile?'Save school settings':'Save profile'),profile&&btn('Back to workspace',()=>workspace(auth,user,profile),'quiet')),note);
   onSubmit(f,note,async()=>{
     if(!picked)fail('Choose a school or preview a privately added school first.');
     let name;try{name=short(display.value,2,120);}catch{fail('Enter a display name from 2 to 120 characters.');}
@@ -189,9 +193,10 @@ async function setupProfile(auth,user,profile=null){
   try{
     const manifest=await directory.manifest();
     manifest.regions.forEach(item=>region.append(option(item.id,item.label)));
-    directoryNote.textContent=manifest.regions.length?'Select a region to search the available schools.':'The shared directory is awaiting verified source data. You can add your school privately.';
+    directoryNote.textContent=manifest.regions.length?'Select a region to search the available schools.':'Add your school below. Your entry stays in your teacher profile.';
     region.disabled=!manifest.regions.length;query.disabled=!manifest.regions.length;
-  }catch(e){directoryNote.textContent=e.message;region.disabled=true;query.disabled=true;}
+    if(!manifest.regions.length&&!picked)ownSchool.open=true;
+  }catch(e){directoryNote.textContent=e.message;region.disabled=true;query.disabled=true;if(!picked)ownSchool.open=true;}
 }
 function permitted(grant,key){
   return KEY.test(key)&&grant?.active===true&&grant.sector==='private'&&grant.expiresAt>Date.now()&&grant.policy===PRIVATE_POLICY.id&&grant.grade===6&&grant.subject==='Science'&&

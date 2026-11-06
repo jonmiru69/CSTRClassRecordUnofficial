@@ -8,6 +8,7 @@ const PROJECT={
   projectId:'cstr-class-record-global'
 };
 const DEMO={apiKey:'demo-cstr-local',authDomain:'localhost',databaseURL:'http://127.0.0.1:9000?ns=demo-cstr-review',projectId:'demo-cstr-review'};
+const productionHosts=['cstr-class-record-global.web.app','cstr-class-record-global.firebaseapp.com'];
 const safeUid=/^[^.#$\[\]/\u0000-\u001f\u007f]{1,128}$/;
 const isActive=v=>v===true||Boolean(v&&typeof v.approvedAt==='number'&&v.approvedAt>0&&typeof v.approvedBy==='string'&&v.approvedBy&&v.active!==false&&v.revoked!==true);
 let instance;
@@ -43,8 +44,8 @@ const error=code=>Object.assign(new Error(code),{code});
 export function connect(mode){
   if(mode==='closed')return Promise.resolve(null);
   if(mode==='emulator'&&!['127.0.0.1','localhost','[::1]'].includes(location.hostname))return Promise.resolve(null);
-  if(mode==='pilot'&&location.origin!=='https://cstr-class-record-global.web.app')return Promise.resolve(null);
-  if(mode!=='emulator'&&mode!=='pilot')return Promise.resolve(null);
+  if(mode==='production'&&(location.protocol!=='https:'||!productionHosts.includes(location.host)))return Promise.resolve(null);
+  if(mode!=='emulator'&&mode!=='production')return Promise.resolve(null);
   return instance??=init(mode).catch(e=>{instance=null;throw e;});
 }
 async function init(mode){
@@ -56,7 +57,13 @@ async function init(mode){
   const get=async path=>(await withDeadline(db.ref(path).once('value'))).val();
   const uid=()=>{const u=auth.currentUser?.uid;if(!u||!safeUid.test(u))throw new Error('Sign in again.');return u;};
   const prefix=(path)=>NS+'/'+path;
-  const canRegister=async()=>await get(prefix('control/registration'))===true;
+  const canRegister=async()=>{
+    const url=new URL(emu?DEMO.databaseURL:PROJECT.databaseURL);
+    url.pathname='/'+prefix('control/registration')+'.json';
+    const response=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(10000)});
+    if(!response.ok)throw new Error('Could not read registration status.');
+    return await response.json()===true;
+  };
   const verifyUrl=()=>({url:location.origin+'/register/',handleCodeInApp:false});
   async function saveAt(ref,expected,write){
     if(!Number.isInteger(expected)||expected<0)throw new Error('Invalid revision.');
@@ -81,7 +88,6 @@ async function init(mode){
     },
     async signIn(email,password){return withDeadline(auth.signInWithEmailAndPassword(email.trim(),password));},
     async google(){
-      if(!await canRegister())throw error('class-record/closed');
       return withDeadline(auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()),90000);
     },
     async linkGoogle(){return withDeadline(auth.currentUser.linkWithPopup(new firebase.auth.GoogleAuthProvider()),90000);},

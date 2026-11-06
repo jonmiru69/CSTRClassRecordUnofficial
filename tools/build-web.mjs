@@ -2,8 +2,8 @@ import {cp,mkdir,rm,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {stampAssets} from './asset-versions.mjs';
 const root=path.resolve(import.meta.dirname,'..'),out=path.join(root,'site-dist');
-const mode=process.env.CSTR_NATIONWIDE_MODE||'closed';
-if(!['closed','emulator','pilot'].includes(mode))throw new Error('Unknown nationwide build mode.');
+const mode=process.env.CSTR_NATIONWIDE_MODE||'production';
+if(!['closed','emulator','production'].includes(mode))throw new Error('Unknown nationwide build mode.');
 const routes={signin:'Sign in',register:'Teacher registration',teacher:'Teacher workspace',practice:'Grade 6 Science practice',privacy:'Privacy and use'};
 if(path.dirname(out)!==root||path.basename(out)!=='site-dist')throw new Error('Unexpected Hosting output directory.');
 await rm(out,{recursive:true,force:true});await mkdir(out,{recursive:true});
@@ -13,7 +13,7 @@ const legacy=await stampAssets(await readFile(path.join(root,'index.html'),'utf8
 await mkdir(path.join(out,'cst-r'),{recursive:true});
 const legacyHead='<head>\n    <base href="/">\n    <meta name="cstr-hosted-build" content="true">'+
   (mode==='emulator'?'\n    <meta name="cstr-legacy-emulator" content="true">':'')+
-  (mode==='closed'?'\n    <meta name="cstr-legacy-approval" content="deployed-rules">':'');
+  (mode!=='emulator'?'\n    <meta name="cstr-legacy-approval" content="deployed-rules">':'');
 await writeFile(path.join(out,'cst-r','index.html'),legacy.replace('<head>',legacyHead));
 await writeFile(path.join(out,'policies.html'),await stampAssets(await readFile(path.join(out,'policies.html'),'utf8'),out));
 await cp(path.join(root,'nationwide','index.html'),path.join(out,'index.html'));

@@ -90,7 +90,7 @@
         "headers": [
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'none'; script-src 'self' https://apis.google.com; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://cstr-class-record-global-default-rtdb.asia-southeast1.firebasedatabase.app wss://cstr-class-record-global-default-rtdb.asia-southeast1.firebasedatabase.app; frame-src 'self' https://cstr-class-record-global.firebaseapp.com https://accounts.google.com https://apis.google.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+            "value": "default-src 'none'; script-src 'self' https://apis.google.com; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://*.asia-southeast1.firebasedatabase.app wss://*.asia-southeast1.firebasedatabase.app; frame-src 'self' https://cstr-class-record-global.firebaseapp.com https://accounts.google.com https://apis.google.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
           },
           {"key": "Cache-Control", "value": "no-store"}
         ]

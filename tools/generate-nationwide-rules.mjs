@@ -1,17 +1,10 @@
-import {readFile,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 
 const target=fileURLToPath(new URL('../firebase-database-rules.json',import.meta.url));
+const reviewLegacy=process.argv.includes('--review-legacy');
 const source=JSON.parse(await readFile(target,'utf8'));
 const rules=source.rules;
-const oldApproval="root.child('cstr-registration-approved').child(auth.uid)";
-const legacyActive=`(${oldApproval}.val() === true || (${oldApproval}.child('approvedAt').isNumber() && ${oldApproval}.child('approvedAt').val() > 0 && ${oldApproval}.child('approvedBy').isString() && ${oldApproval}.child('approvedBy').val().length > 0 && ${oldApproval}.child('active').val() !== false && ${oldApproval}.child('revoked').val() !== true))`;
-for(const branch of ['cstr-class-record-bindings','cstr-class-record-users','cstr-class-record-data']){
-  for(const node of Object.values(rules[branch])) for(const op of ['.read','.write']){
-    if(typeof node[op]==='string') node[op]=node[op].replace(`${oldApproval}.exists()`,legacyActive);
-  }
-}
-const child=(key)=>`newData.child('${key}')`;
 const strict=(fields,required=Object.keys(fields))=>({
   '.validate':required.length?`newData.hasChildren(${JSON.stringify(required)})`:"newData.hasChildren()",
   ...fields,'$other':{'.validate':false}
@@ -21,8 +14,16 @@ const shape=(re)=>({'.validate':`newData.isString() && newData.val().matches(/${
 const number=(min,max)=>({'.validate':`newData.isNumber() && newData.val() >= ${min} && newData.val() <= ${max}`});
 const bool={'.validate':'newData.isBoolean()'};
 const exact=(x)=>({'.validate':`newData.val() === ${JSON.stringify(x)}`});
-const map=(name,re,rule)=>({[name]:{...rule,'.validate':`$${name.slice(1)}.matches(/${re}/) && (${rule['.validate']??'true'})`}});
+const map=(name,re,rule)=>({[name]:{...rule,'.validate':`${name}.matches(/${re}/) && (${rule['.validate']??'true'})`}});
 
+function prepareLegacyReview() {
+const oldApproval="root.child('cstr-registration-approved').child(auth.uid)";
+const legacyActive=`(${oldApproval}.val() === true || (${oldApproval}.child('approvedAt').isNumber() && ${oldApproval}.child('approvedAt').val() > 0 && ${oldApproval}.child('approvedBy').isString() && ${oldApproval}.child('approvedBy').val().length > 0 && ${oldApproval}.child('active').val() !== false && ${oldApproval}.child('revoked').val() !== true))`;
+for(const branch of ['cstr-class-record-bindings','cstr-class-record-users','cstr-class-record-data']){
+  for(const node of Object.values(rules[branch])) for(const op of ['.read','.write']){
+    if(typeof node[op]==='string') node[op]=node[op].replace(`${oldApproval}.exists()`,legacyActive);
+  }
+}
 const legacy=rules['cstr-class-record-data'].$key;
 legacy['.validate']=legacy['.validate'].split(" && newData.child('teacher').hasChildren()")[0]+" && newData.child('teacher').hasChildren()";
 legacy.teacher=strict({name:text(240),age:{'.validate':"(newData.isString() && newData.val().length <= 40) || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 150)"},level:text(120),specialization:text(300),bio:text(4000)},[]);
@@ -61,6 +62,8 @@ legacy.trimesterModeSeen=bool;
 legacy.photo={'.validate':"newData.isString() && newData.val().length <= 2000000 && (newData.val() === '' || newData.val().matches(/^data:image\\/(png|jpeg);base64,[A-Za-z0-9+\\/=]+$/))"};
 for(const key of ['version','_syncRevision','_syncProtocol','_syncSavedAt','_syncClientId'])legacy[key]={'.validate':true};
 legacy.$other={'.validate':false};
+}
+if(reviewLegacy)prepareLegacyReview();
 
 const base="root.child('nationwide-v1')";
 const own="auth != null && auth.uid === $uid && auth.token.email_verified === true";
@@ -72,7 +75,8 @@ const grant=`${base}.child('privateGrants').child($uid).child($schoolKey)`;
 const schoolKey=shape('^(d[0-9]{6}|p[0-9a-f]{24})$');
 const schoolYear=shape('^20[0-9]{2}-20[0-9]{2}$');
 const school=strict({key:schoolKey,name:text(160,2),sector:shape('^(public|private)$'),locality:text(120,2),schoolId:shape('^([0-9]{6})?$'),directoryVersion:text(64,1)});
-const createdAt={'.validate':"newData.isNumber() && newData.val() <= now && (!data.exists() || newData.val() === data.val())"};
+school['.validate']+=" && (newData.child('key').val().matches(/^p/) || newData.child('key').val() === 'd' + newData.child('schoolId').val())";
+const createdAt={'.validate':"newData.isNumber() && newData.val() <= now && (data.exists() ? newData.val() === data.val() : newData.val() >= now - 60000)"};
 const revision={'.validate':"newData.isNumber() && ((!data.exists() && newData.val() === 1) || (data.isNumber() && newData.val() === data.val() + 1))"};
 const updatedAt={'.validate':"newData.isNumber() && newData.val() <= now && newData.val() >= now - 60000"};
 const profile=strict({displayName:text(120,2),school,revision,createdAt,updatedAt});
@@ -107,4 +111,6 @@ rules['nationwide-v1']={
   privateGrants:{$uid:{'.read':account,'.write':false}},
   privateRecords:{$uid:{$schoolKey:{'.read':privateAccess,$classId:records}}}
 };
-await writeFile(target,JSON.stringify(source,null,2)+'\n');
+const output=reviewLegacy?new URL('../.build-artifacts/firebase-legacy-review-rules.json',import.meta.url):target;
+if(reviewLegacy)await mkdir(new URL('../.build-artifacts/',import.meta.url),{recursive:true});
+await writeFile(output,JSON.stringify(source,null,2)+'\n');

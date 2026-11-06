@@ -4,7 +4,9 @@ const fs=require('node:fs'),path=require('node:path');
 const {initializeTestEnvironment,assertFails,assertSucceeds}=require('@firebase/rules-unit-testing');
 const {ref,set,get,serverTimestamp}=require('firebase/database');
 (async()=>{
- const env=await initializeTestEnvironment({projectId:'demo-cstr-review',database:{host:'127.0.0.1',port:9000,rules:fs.readFileSync(path.join(__dirname,'../firebase-database-rules.json'),'utf8')}});
+ const legacyReview=process.argv.includes('--review-legacy');
+ const rulesFile=legacyReview?'../.build-artifacts/firebase-legacy-review-rules.json':'../firebase-database-rules.json';
+ const env=await initializeTestEnvironment({projectId:'demo-cstr-review',database:{host:'127.0.0.1',port:9000,rules:fs.readFileSync(path.join(__dirname,rulesFile),'utf8')}});
  try {
   await env.withSecurityRulesDisabled(async ctx=>set(ref(ctx.database()),{'cstr-registration-approved':{alice:true,bob:true},'cstr-class-record-bindings':{legacy:{boundUid:'alice'}},'cstr-class-record-data':{alice:{version:4,teacher:{name:'Test'},_syncRevision:1},legacy:{version:4,teacher:{name:'Old'}}}}));
   const alice=env.authenticatedContext('alice').database(),bob=env.authenticatedContext('bob').database(),pending=env.authenticatedContext('pending').database(),anonymous=env.unauthenticatedContext().database();
@@ -30,16 +32,20 @@ const {ref,set,get,serverTimestamp}=require('firebase/database');
   });
   const old=env.authenticatedContext('old-owner').database(),revoked=env.authenticatedContext('revoked').database();
   await assertSucceeds(get(ref(old,'cstr-class-record-data/old-owner')));
-  await assertFails(get(ref(revoked,'cstr-class-record-data/revoked')));
-  await assertFails(set(ref(revoked,'cstr-class-record-data/revoked'),{...next,_syncRevision:1}));
-  await assertFails(set(ref(alice,data),{...next,teacher:true,_syncRevision:3,_syncSavedAt:serverTimestamp()}));
-  await assertFails(set(ref(alice,data),{...next,_syncRevision:3,_syncSavedAt:serverTimestamp(),unexpected:'x'.repeat(524288)}));
-  await assertFails(set(ref(alice,data),{...next,_syncRevision:3,_syncSavedAt:serverTimestamp(),sections:{synthetic:{periods:[{roster:[{name:'x'.repeat(524288)}]}]}}}));
+  if(legacyReview){
+    await assertFails(get(ref(revoked,'cstr-class-record-data/revoked')));
+    await assertFails(set(ref(revoked,'cstr-class-record-data/revoked'),{...next,_syncRevision:1}));
+    await assertFails(set(ref(alice,data),{...next,teacher:true,_syncRevision:3,_syncSavedAt:serverTimestamp()}));
+    await assertFails(set(ref(alice,data),{...next,_syncRevision:3,_syncSavedAt:serverTimestamp(),unexpected:'x'.repeat(524288)}));
+    await assertFails(set(ref(alice,data),{...next,_syncRevision:3,_syncSavedAt:serverTimestamp(),sections:{synthetic:{periods:[{roster:[{name:'x'.repeat(524288)}]}]}}}));
+  }
   await assertSucceeds(set(ref(alice,data),{...next,_syncRevision:3,_syncSavedAt:serverTimestamp(),
     calendarMode:'legacy',registry:[{id:'synthetic',group:'JHS',section:'Fixture',subject:'Science',weights:[20,50,30],archived:false}],
     sections:{synthetic:{periods:[{name:'First',locked:false,wwDates:[''],wwHps:['10'],roster:[{name:'Synthetic learner',ww:['8'],scoreAdjustments:{ww:{0:{raw:'7',entries:[{points:1,reason:'Synthetic evidence',at:'2026-11-06T01:00:00Z',actor:'Fixture'}]}}}}]}]}}}));
   const pilot=env.authenticatedContext('pilot',{email_verified:true}).database(),peer=env.authenticatedContext('peer',{email_verified:true}).database();
   const unverified=env.authenticatedContext('unverified',{email_verified:false}).database(),held=env.authenticatedContext('held',{email_verified:true}).database();
+  const former=env.authenticatedContext('revoked',{email_verified:true}).database();
+  const faculty=env.authenticatedContext('old-owner',{email_verified:true}).database();
   const school={key:schoolKey,schoolId:'900002',name:'Example Academy',sector:'private',locality:'Example city',directoryVersion:'fixture-v1'};
   const profile={displayName:'Synthetic teacher',school,revision:1,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
   const profilePath=id=>ns+'/profiles/'+id;
@@ -50,14 +56,24 @@ const {ref,set,get,serverTimestamp}=require('firebase/database');
     revision:1,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
   await assertFails(set(ref(pilot,profilePath('pilot')),profile));
   await env.withSecurityRulesDisabled(async ctx=>set(ref(ctx.database(),ns+'/control/registration'),true));
+  await assertSucceeds(get(ref(anonymous,ns+'/control/registration')));
+  await assertFails(get(ref(anonymous,ns+'/control')));
+  await assertFails(set(ref(pilot,ns+'/control/registration'),false));
+  await assertFails(set(ref(held,ns+'/holds/held'),null));
   await assertFails(set(ref(unverified,profilePath('unverified')),profile));
   await assertFails(set(ref(held,profilePath('held')),profile));
-  await assertFails(set(ref(old,profilePath('old-owner')),profile));
+  await assertFails(set(ref(faculty,profilePath('old-owner')),profile));
+  await assertFails(set(ref(former,profilePath('revoked')),profile));
+  await assertFails(get(ref(pilot,'cstr-class-record-data/old-owner')));
+  await assertFails(set(ref(pilot,'cstr-class-record-users/pilot'),{dataKey:'pilot',name:'Synthetic teacher',isLegacy:false}));
   await assertFails(set(ref(pilot,profilePath('peer')),profile));
   await assertFails(set(ref(pilot,profilePath('pilot')),{...profile,role:'admin'}));
+  await assertFails(set(ref(pilot,profilePath('pilot')),{...profile,school:{...school,schoolId:'900001'}}));
   await assertSucceeds(set(ref(pilot,profilePath('pilot')),profile));
   await assertSucceeds(set(ref(peer,profilePath('peer')),profile));
   await assertFails(get(ref(peer,profilePath('pilot'))));
+  await assertFails(get(ref(pilot,ns+'/profiles')));
+  await assertFails(set(ref(pilot,profilePath('pilot')),null));
   await assertFails(set(ref(peer,ns+'/privateGrants/peer/'+schoolKey),grant));
   await assertFails(set(ref(pilot,classPath('pilot')),record));
   await env.withSecurityRulesDisabled(async ctx=>set(ref(ctx.database(),ns+'/control/privateRecords'),true));
