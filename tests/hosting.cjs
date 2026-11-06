@@ -19,6 +19,10 @@ assert(faculty.includes('name="cstr-legacy-approval" content="deployed-rules"'))
 const mobile=fs.readFileSync(path.join(root,'www/index.html'),'utf8');
 assert(mobile.includes('name="cstr-legacy-approval" content="deployed-rules"'),'Android updates must preserve current faculty approvals');
 assert(signup.includes('name="cstr-mode" content="production"'));
+const workflowHtml=fs.readFileSync(path.join(site,'workflow/index.html'),'utf8');
+const sharedApp=workflowHtml.match(/name="cstr-shared-app" content="([^"]+)"/)[1];
+assert(faculty.includes(`src="${sharedApp}"`));
+assert(!/firebase-sync\.js|school-excel\.js|official-egradesheet\.js|campus\.webp/.test(workflowHtml));
 assert(!fs.readdirSync(path.join(site,'downloads')).some(file=>file.endsWith('.apk')),'Spark Hosting must never receive APKs');
 assert(fs.readdirSync(path.join(pages,'downloads')).some(file=>file.endsWith('.apk')),'Installed apps still need their Pages APK URLs');
 const entry=fs.readFileSync(path.join(pages,'index.html'),'utf8');

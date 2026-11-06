@@ -304,7 +304,7 @@ async function workspace(auth,user,profile){
   const settings=btn('School settings',()=>{if(!canLeave())return;releaseWatches();void setupProfile(auth,user,profile);},'quiet');
   const openPractice=link('Open practice class','/practice/','secondary');
   openPractice.addEventListener('click',e=>{if(!canLeave())e.preventDefault();});
-  s.append(bar,actionRow(openPractice,btn('Link Google account',e=>work(e.currentTarget,note,async()=>{await auth.linkGoogle();say(note,'Google linked.');})),
+  s.append(bar,actionRow(link('Open the three-term practice workflow','/workflow/','primary'),openPractice,btn('Link Google account',e=>work(e.currentTarget,note,async()=>{await auth.linkGoogle();say(note,'Google linked.');})),
     btn('Sign out',e=>{if(canLeave(true))void work(e.currentTarget,note,async()=>{await auth.signOut();clearSession(user.uid);});}, 'quiet')),note,area);
   show(s);
   function showSchool(){

@@ -1,5 +1,8 @@
 (() => {
   "use strict";
+  const schoolWorkflow = window.CSTRSchoolWorkflow;
+  const sessionStorage = schoolWorkflow?.session ?? globalThis.sessionStorage;
+  const localStorage = schoolWorkflow?.session ?? globalThis.localStorage;
 
   const {
     calculateComponent,
@@ -396,6 +399,10 @@
     const meta = document.querySelector("#saveMeta");
     if (!meta) return;
     const pending = pendingAutoSaveChanges > 0 || stateRevision > lastSavedRevision && isSaving;
+    if (schoolWorkflow) {
+      meta.textContent = isSaving ? "Saving practice changes…" : pending ? "Practice changes pending" : "Practice saves stay in this tab";
+      return;
+    }
     if (!isSyncConfigured()) meta.textContent = "Cloud unavailable · recovery copy on this device only";
     else if (isStale) meta.textContent = "Cloud conflict · review in Settings before saving";
     else if (!isDataLoaded) meta.textContent = "Cloud save unverified · check your connection";
@@ -411,22 +418,24 @@
   }
 
   function initialPeriod(section, calendarMode = "legacy") {
+    const {ww,pt,qa} = schoolWorkflow?.limits ?? {ww:10,pt:8,qa:3};
     return {
       name: calendarMode === "trimester" ? trimesterTermNames(section)[0] : section.group === "JHS" ? "1st Grading" : "1st Quarter, 1st Semester",
       ...(calendarMode === "trimester" ? { term: 1, quarter: 0, semester: 0 } : {}),
-      wwDates: Array(10).fill(""),
-      ptDates: Array(8).fill(""),
-      qaDates: Array(3).fill(""),
-      wwHps: Array(10).fill(""),
-      ptHps: Array(8).fill(""),
-      qaHps: Array(3).fill(""),
-      activityMeta: { ww: Array.from({ length: 10 }, () => ({ title: "", competency: "", topic: "" })), pt: Array.from({ length: 8 }, () => ({ title: "", competency: "", topic: "" })), qa: Array.from({ length: 3 }, () => ({ title: "", competency: "", topic: "" })) },
-      roster: emptyRoster(section.rosterSize || 50, 10, 8, 3),
+      wwDates: Array(ww).fill(""),
+      ptDates: Array(pt).fill(""),
+      qaDates: Array(qa).fill(""),
+      wwHps: Array(ww).fill(""),
+      ptHps: Array(pt).fill(""),
+      qaHps: Array(qa).fill(""),
+      activityMeta: { ww: Array.from({ length: ww }, () => ({ title: "", competency: "", topic: "" })), pt: Array.from({ length: pt }, () => ({ title: "", competency: "", topic: "" })), qa: Array.from({ length: qa }, () => ({ title: "", competency: "", topic: "" })) },
+      roster: emptyRoster(section.rosterSize || 50, ww, pt, qa),
       locked: false
     };
   }
 
   function createInitialState() {
+    if (schoolWorkflow) return schoolWorkflow.initialState();
     return {
       version: 4,
       photo: "",
@@ -519,6 +528,7 @@
   function normalizeState(saved) {
     const base = createInitialState();
     if (!saved || typeof saved !== "object") return base;
+    schoolWorkflow?.validateState(saved);
     base.photo = typeof saved.photo === "string" && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(saved.photo) && saved.photo.length <= 2000000 ? saved.photo : "";
     base.teacher = saved.teacher && typeof saved.teacher === "object" ? saved.teacher : base.teacher;
     base.calendarMode = saved.calendarMode === "trimester" ? "trimester" : "legacy";
@@ -996,7 +1006,7 @@
       template.innerHTML = renderApp();
       window.CSTRStableDOM.patch(existing, template.content.querySelector(".app-layout"));
     } else {
-      app.innerHTML = signedIn ? renderApp() : renderLogin();
+      app.innerHTML = signedIn ? renderApp() : schoolWorkflow ? '<p><a href="/signin/">Sign in to Class Record</a></p>' : renderLogin();
       const greeting = app.querySelector('#tommy-welcome');
       if (focusedGreeting && greeting?.dataset.tommyView === focusedGreeting) {
         greeting.querySelector('summary').focus({ preventScroll: true });
@@ -1395,16 +1405,16 @@
     const viewTitle = currentView === "home" ? "Overview" : currentView === "chooser" ? "Class records" : "Grade sheet";
     return `<div class="aura-bg"><div class="aura-content app-layout ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${currentView === "record" ? "sheet-layout" : ""}" data-calendar-mode="${state.calendarMode}">
       <aside class="app-sidebar" aria-label="Application navigation" id="workspaceSidebar">
-        <div class="sidebar-brand"><span class="sidebar-logo"><img src="ASSETS/logo-compact.png" alt="CST-R crest"></span><span class="sidebar-brand-copy"><strong>CST-R</strong><small>Digital Class Record</small></span></div>
+        <div class="sidebar-brand"><span class="sidebar-logo"><img src="${schoolWorkflow ? 'ASSETS/nationwide/seal.svg' : 'ASSETS/logo-compact.png'}" alt="${schoolWorkflow ? '' : 'CST-R crest'}"></span><span class="sidebar-brand-copy"><strong>${schoolWorkflow ? 'Class Record' : 'CST-R'}</strong><small>${schoolWorkflow ? escapeHtml(schoolWorkflow.school) : 'Digital Class Record'}</small></span></div>
         <button type="button" class="sidebar-toggle sidebar-link" data-action="toggle-sidebar" aria-controls="workspaceSidebar" aria-expanded="${!sidebarCollapsed}" aria-label="${sidebarCollapsed ? "Expand navigation" : "Retract navigation"}" title="Expand or retract navigation">${icon("panel")}<span>Retract navigation</span></button>
         <nav class="sidebar-nav" aria-label="Workspace"><p class="sidebar-label">Workspace</p>
           <button class="sidebar-link" type="button" data-action="go-home" aria-current="${currentView === "home" ? "page" : "false"}" title="Overview">${icon("home")}<span>Overview</span></button>
           <button class="sidebar-link" type="button" data-action="go-records" aria-current="${currentView !== "home" ? "page" : "false"}" title="Class records">${icon("records")}<span>Class records</span></button>
-          <div class="sidebar-mode-switch" role="group" aria-label="Grading system">
+          ${schoolWorkflow ? `<p class="workflow-policy">${escapeHtml(schoolWorkflow.modeLabel)}</p>` : `<div class="sidebar-mode-switch" role="group" aria-label="Grading system">
             <p class="sidebar-label">Grading system</p>
             <button class="sidebar-link sidebar-mode-option" type="button" data-action="select-calendar-mode" data-mode="legacy" aria-label="Quarterly / Semestral mode" aria-pressed="${state.calendarMode === "legacy"}" title="Quarterly / Semestral mode">${icon("calendar")}<span>Quarterly / Semestral</span></button>
             <button class="sidebar-link sidebar-mode-option" type="button" data-action="select-calendar-mode" data-mode="trimester" aria-label="Trimester mode" aria-pressed="${state.calendarMode === "trimester"}" title="Trimester mode">${icon("terms")}<span>Trimester</span></button>
-          </div>
+          </div>`}
         </nav>
         <section class="sidebar-search-block" aria-label="Find a learner"><p class="sidebar-label">Learner lookup</p>
           <button type="button" class="sidebar-link search-expand" data-action="expand-search" aria-label="Expand learner search" title="Find a learner">${icon("search")}<span>Find a learner</span></button>
@@ -1412,14 +1422,14 @@
         </section>
         <nav class="sidebar-account-tools" aria-label="Account"><p class="sidebar-label">Account</p>
           <button class="sidebar-link" type="button" data-action="open-settings" title="Settings">${icon("settings")}<span>Settings</span></button>
-          <button class="sidebar-link policy-sidebar-link" type="button" data-open-policies title="Privacy, terms and data protection" aria-label="Privacy, terms and data protection">${icon("lock")}<span>Privacy &amp; terms</span></button>
+          ${schoolWorkflow ? `<a class="sidebar-link" href="/teacher/">School and account</a><a class="sidebar-link" href="/privacy/">Privacy &amp; use</a>` : `<button class="sidebar-link policy-sidebar-link" type="button" data-open-policies title="Privacy, terms and data protection" aria-label="Privacy, terms and data protection">${icon("lock")}<span>Privacy &amp; terms</span></button>`}
           <button class="sidebar-link" type="button" data-action="logout" title="Log out">${icon("logout")}<span>Log out</span></button>
           <p class="sidebar-owner">${escapeHtml(currentUserName() || state.teacher.name || "Teacher")}</p>
         </nav>
       </aside>
       <div class="app-main"><header class="app-header"><div class="app-header-inner">
         <div class="page-context"><h1 class="app-title">${viewTitle}</h1></div>
-        <p class="policy-note" role="note" aria-label="Grading policy reference"><em>DepEd Order No. 015, s. 2026</em></p>
+        <p class="policy-note" role="note" aria-label="Grading policy reference"><em>${schoolWorkflow ? 'Three-term practice · Invented learners only' : 'DepEd Order No. 015, s. 2026'}</em></p>
         <div class="header-actions-wrap"><div class="save-feedback"><p id="statusMessage" class="save-status" role="status" aria-live="polite"></p><p id="saveMeta" class="save-meta" aria-live="polite"></p></div>
           ${themeControl()}
           ${button(`${icon("save")}<span>Save changes</span>`, "save-changes", "button button-primary", 'id="saveChanges"')}
@@ -1439,7 +1449,9 @@
     const modal = document.createElement('div'); modal.className='modal-backdrop mobile-menu-backdrop';
     modal.innerHTML=`<section class="modal mobile-menu" role="dialog" aria-modal="true" aria-labelledby="mobileMenuTitle"><div class="section-heading"><h2 id="mobileMenuTitle">${find?'Find a learner':'Your workspace'}</h2>${button(icon('close'),'close-modal','icon-button','aria-label="Close"')}</div>${find?
       '<form data-mobile-search><label for="mobileStudentSearch">Complete learner name<input id="mobileStudentSearch" type="search" autocomplete="off" required></label><p>Check class and roster position when names match.</p><button type="submit" class="button button-primary">Find results</button></form>':
-      `<p>${escapeHtml(currentUserName() || 'Teacher')}</p>${themeControl()}<div class="mobile-menu-actions">${button('Settings and recovery','open-settings','button button-secondary')}${button('Quarterly / Semestral','select-calendar-mode','button button-secondary',`data-mode="legacy" aria-pressed="${state.calendarMode==='legacy'}"`)}${button('Trimester','select-calendar-mode','button button-secondary',`data-mode="trimester" aria-pressed="${state.calendarMode==='trimester'}"`)}<button type="button" class="button button-secondary" data-open-policies>Privacy and terms</button><button type="button" class="button button-secondary" data-open-install>Android app and updates</button>${button('Log out','logout','button button-secondary')}</div>`}</section>`;
+      `<p>${escapeHtml(currentUserName() || 'Teacher')}</p>${themeControl()}<div class="mobile-menu-actions">${button('Settings and recovery','open-settings','button button-secondary')}${schoolWorkflow
+        ? '<a class="button button-secondary" href="/teacher/">School and account</a><a class="button button-secondary" href="/privacy/">Privacy and use</a>'
+        : `${button('Quarterly / Semestral','select-calendar-mode','button button-secondary',`data-mode="legacy" aria-pressed="${state.calendarMode==='legacy'}"`)}${button('Trimester','select-calendar-mode','button button-secondary',`data-mode="trimester" aria-pressed="${state.calendarMode==='trimester'}"`)}<button type="button" class="button button-secondary" data-open-policies>Privacy and terms</button><button type="button" class="button button-secondary" data-open-install>Android app and updates</button>`}${button('Log out','logout','button button-secondary')}</div>`}</section>`;
     document.body.append(modal);
   }
 
@@ -1564,7 +1576,7 @@
         </div>
         ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-primary")}
       </div>
-      <div class="level-grid" aria-label="School levels">${groupCards}</div>
+      ${schoolWorkflow ? `<p class="workflow-policy">${escapeHtml(schoolWorkflow.modeLabel)}</p>` : `<div class="level-grid" aria-label="School levels">${groupCards}</div>`}
 
       <div class="archive-toggle-bar">
         <div class="archive-pills">
@@ -1600,13 +1612,13 @@
       <section class="class-header-card" style="--class-color:${sectionColorHex};--class-on:${sectionColorInk};--class-surface:${shade.background};--class-ink:${shade.color}">
         ${section.archived ? `<div class="archive-banner"><span>Archived class</span>${button("Restore class", "unarchive-section", "button", `data-section="${safeValue(section.id)}"`)}</div>` : ""}
         <div class="class-identity">
-          <div class="class-subject-line"><details class="subject-picker"><summary aria-label="Change subject"><span>${escapeHtml(section.subject)}</span>${icon("chevron")}</summary>
+          <div class="class-subject-line">${schoolWorkflow ? `<strong>${escapeHtml(section.subject)}</strong>` : `<details class="subject-picker"><summary aria-label="Change subject"><span>${escapeHtml(section.subject)}</span>${icon("chevron")}</summary>
             <div class="subject-menu" aria-label="Subject choices">
               ${SUBJECT_PRESETS.map(p => `<button type="button" data-action="choose-sheet-subject" data-subject="${escapeHtml(p.name)}" ${sectionLocked ? "disabled" : ""}><span>${escapeHtml(p.name)}</span><span class="weight-preview" role="tooltip">WW ${p.weights[0]}% · PT ${p.weights[1]}% · QA ${p.weights[2]}%</span></button>`).join("")}
               <button type="button" data-action="choose-sheet-subject" data-subject="custom" ${sectionLocked ? "disabled" : ""}>Other / Custom<span class="weight-preview">Review subject settings</span></button>
               ${sectionLocked ? '<p>Unlock all periods to change grading weights.</p>' : ""}
             </div>
-          </details><div class="class-weights" tabindex="0" aria-label="${escapeHtml(section.subject)} grading weights: Written Works ${section.weights[0]}%, Performance Tasks ${section.weights[1]}%, ${state.calendarMode === "trimester" ? "Term" : "Quarterly"} Assessment ${section.weights[2]}%"><span aria-hidden="true">${icon("info")}</span><div class="class-weights-popover" role="tooltip"><strong>${escapeHtml(section.subject)} grading weights</strong><span>Written Works ${section.weights[0]}%</span><span>Performance Tasks ${section.weights[1]}%</span><span>${state.calendarMode === "trimester" ? "Term" : "Quarterly"} Assessment ${section.weights[2]}%</span></div></div></div>
+          </details>`}<div class="class-weights" tabindex="0" aria-label="${escapeHtml(section.subject)} grading weights: Written Works ${section.weights[0]}%, Performance Tasks ${section.weights[1]}%, ${state.calendarMode === "trimester" ? "Term" : "Quarterly"} Assessment ${section.weights[2]}%"><span aria-hidden="true">${icon("info")}</span><div class="class-weights-popover" role="tooltip"><strong>${escapeHtml(section.subject)} grading weights</strong><span>Written Works ${section.weights[0]}%</span><span>Performance Tasks ${section.weights[1]}%</span><span>${state.calendarMode === "trimester" ? "Term" : "Quarterly"} Assessment ${section.weights[2]}%</span></div></div></div>
           <p class="class-level">${escapeHtml(section.level)}</p>
           <h2 class="class-name" title="${escapeHtml(section.section || section.level)}">${escapeHtml(section.section || section.level)}</h2>
           <div class="class-context-line"><span id="liveLearnerCount">${totalLearners} learner${totalLearners === 1 ? "" : "s"}</span><span>${escapeHtml(section.subject)}</span><span>${usesTransmutation(section) ? "School transmutation" : "Zero-based grading"}</span></div>
@@ -1630,7 +1642,7 @@
               ${button(`${icon(period.locked ? "unlock" : "lock")} ${period.locked ? "Unlock" : "Lock"} period`, "toggle-lock-period", "button button-secondary")}
               ${button(`${icon("trash")} Delete period`, "delete-period", "button button-danger", period.locked ? "disabled" : "")}
               ${button(`${icon("download")} Excel`, "export-excel", "button button-secondary", 'aria-label="Download print-ready Excel sheet" title="Download print-ready Excel sheet"')}
-              ${button(`${icon("download")} Export to Official E-Gradesheet`, "export-official", "button button-primary", 'aria-label="Export this class as the official e-gradesheet in PDF or Word" title="Export this class as the official e-gradesheet in PDF or Word"')}
+              ${button(`${icon("download")} ${schoolWorkflow ? 'Supplementary gradesheet' : 'Export to Official E-Gradesheet'}`, "export-official", "button button-primary", schoolWorkflow ? 'aria-label="Open supplementary gradesheet for PDF or Word"' : 'aria-label="Export this class as the official e-gradesheet in PDF or Word" title="Export this class as the official e-gradesheet in PDF or Word"')}
             </div>
           </div></details>
         </div>
@@ -1649,7 +1661,7 @@
           <h3>Keyboard &amp; selection</h3>
           <p>Drag to select · Ctrl+C copy · Ctrl+X cut · Ctrl+V paste · Delete clear.</p>
           <p>Enter / Tab fills the selection from its first cell.</p>
-          <h3>Score legend</h3><dl><dt>Red outline</dt><dd>Score above HPS or invalid value. Correct before finalizing.</dd><dt>A — Absent · M — Missing</dt><dd>Counted as zero against HPS.</dd><dt>E — Excused · L — Late</dt><dd>Excluded from the grade calculation.</dd><dt>${state.calendarMode === "trimester" ? "Term assessment" : "Quarterly assessment"}</dt><dd>Assign ST1, ST2 or TE in the activity register. Each group pools its own raw scores and HPS, then contributes 30%, 30% or 40%. E/L remove an activity only for that learner. TE-only SHS subjects use 100% TE. Blank marks count as zero against configured HPS; unused columns with no HPS do not count.</dd></dl>
+          <h3>Score legend</h3>${schoolWorkflow ? '<p>Use numeric scores for all configured assessments. Blank scores and attendance codes stay pending. ST1, ST2 and the term exam contribute 30%, 30% and 40% of the exam component.</p>' : `<dl><dt>Red outline</dt><dd>Score above HPS or invalid value. Correct before finalizing.</dd><dt>A — Absent · M — Missing</dt><dd>Counted as zero against HPS.</dd><dt>E — Excused · L — Late</dt><dd>Excluded from the grade calculation.</dd><dt>${state.calendarMode === "trimester" ? "Term assessment" : "Quarterly assessment"}</dt><dd>Assign ST1, ST2 or TE in the activity register. Each group pools its own raw scores and HPS, then contributes 30%, 30% or 40%. E/L remove an activity only for that learner. TE-only SHS subjects use 100% TE. Blank marks count as zero against configured HPS; unused columns with no HPS do not count.</dd></dl>`}
           <p>Complete: all named learners have entries for every activity, with valid HPS.</p>
           <p>Lowering HPS caps scores above it when you leave the field. Restoring the original HPS restores those original scores unless you explicitly edited them afterward.</p>
         </div></details>
@@ -1787,7 +1799,7 @@
       <details class="phone-assessment-details"><summary>Activity details · HPS <span data-mobile-hps-label>${escapeHtml(period[kind+"Hps"][index]||"—")}</span></summary><label>Activity title<textarea rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" aria-label="${slot} title" ${disabled}>${safeValue(info.title)}</textarea></label>
       <div class="phone-assessment-meta"><label>Date<input type="date" data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(dates[index]))}" aria-label="${slot} date" ${disabled}></label><label>HPS<input type="number" inputmode="decimal" min="0" step="any" data-hps="${kind}" data-index="${index}" value="${safeValue(period[kind+'Hps'][index])}" aria-label="${slot} highest possible score" ${disabled}></label></div>
       ${renderActivityRole(section,period,kind,index)}<details class="phone-activity-details"><summary>Competency and topic</summary>${[['competency','Learning competency'],['topic','Topic']].map(([field,label])=>`<label>${label}<textarea rows="2" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="${field}" ${disabled}>${safeValue(info[field])}</textarea></label>`).join('')}</details>
-      </details><p class="phone-entry-legend" id="phoneScoreLegend">A absent · M missing = zero. E excused · L late = excluded.</p></div>
+      </details><p class="phone-entry-legend" id="phoneScoreLegend">${schoolWorkflow ? 'A blank or attendance code leaves the grade pending.' : 'A absent · M missing = zero. E excused · L late = excluded.'}</p></div>
       <div class="phone-roster-heading"><h3>Enter scores</h3><p data-mobile-entry-count role="status"></p></div><label class="phone-learner-filter">Find in this roster<input type="search" data-mobile-filter value="${safeValue(mobileFilter)}" autocomplete="off" placeholder="Learner name"></label>
       <ol class="phone-score-list">${rows.map(({learner,index:row})=>`<li class="phone-score-row" data-mobile-row="${row}" data-filter-name="${safeValue(learner.name.toLocaleLowerCase())}"><div class="phone-learner-name"><span>${number[row] || row+1}</span>${learner.name.trim()?`<strong class="phone-learner-title">${escapeHtml(learner.name)}</strong>`:`<label><span class="sr-only">Unnamed learner</span><input class="phone-roster-name" data-name-row="${row}" value="" aria-label="Learner row ${row+1} name" placeholder="Enter learner name" ${disabled}></label>`}<small data-mobile-grade="${row}"></small></div><div class="phone-score-control"><label class="sr-only" for="phone-score-${row}">${slot} score for ${escapeHtml(learner.name.trim()||`learner row ${row+1}`)}</label><input id="phone-score-${row}" type="text" inputmode="decimal" enterkeyhint="next" autocomplete="off" maxlength="6" data-score="${kind}" data-row="${row}" data-index="${index}" value="${safeValue(learner[kind][index])}" aria-describedby="phoneScoreLegend phone-error-${row}" ${disabled}><small id="phone-error-${row}" class="phone-score-error"></small>${scoreAdjustmentControl(learner,kind,row,index,period.locked)}</div></li>`).join('')}</ol><p class="phone-no-matches" hidden>No learners match. Clear the roster search to see every row.</p>
       ${period.locked?'<p>Unlock this period in Period options to edit.</p>':'<div class="phone-code-tools" role="group" aria-label="Attendance code for selected score"><span>Selected score</span>'+['A','M','E','L',''].map(code=>`<button type="button" data-mobile-code="${code}" aria-label="${code?'Set '+code+' attendance code':'Clear selected score'}">${code||'Clear'}</button>`).join('')+'</div>'}
@@ -2056,6 +2068,7 @@
   }
 
   function renderActivityRole(section, period, kind, index) {
+    if (schoolWorkflow && kind === "qa") return `<small>${["ST1 · 30%", "ST2 · 30%", "Term exam · 40%"][index]}</small>`;
     const options = window.CSTRGrading.componentOptions(section, period, kind);
     if (section.weights[["ww","pt","qa"].indexOf(kind)] === 0) return "<small>No exam component</small>";
     if (!options.groups) return "";
@@ -2111,6 +2124,7 @@
 
   function learnerResult(learner, period, section) {
     const result = window.CSTRGrading.calculateLearner(learner, period, section);
+    if (schoolWorkflow) schoolWorkflow.calculateLearner(learner, period, result);
     if (!String(learner.name || "").trim() || getRowCategory(learner)) {
       result.initial = { precise: null, rounded: null, transmuted: null, descriptor: "—" };
     }
@@ -2261,6 +2275,10 @@
     const section = currentSection();
     const period = currentPeriod();
     if (!period) return;
+    if (schoolWorkflow && period.roster.length + amount > 60) {
+      showSaveToast("This practice policy supports up to 60 roster rows.", "info");
+      return;
+    }
     if (period.locked) {
       setStatus("This grading period is locked. Unlock it to add learner rows.", "error");
       return;
@@ -2322,6 +2340,10 @@
     }
     const dates = period[`${kind}Dates`];
     const hps = period[`${kind}Hps`];
+    if (schoolWorkflow && (kind === "qa" || dates.length + amount > schoolWorkflow.limits[kind])) {
+      showSaveToast(kind === "qa" ? "This policy uses ST1, ST2 and the term exam." : `This policy supports up to ${schoolWorkflow.limits[kind]} ${kind.toUpperCase()} columns.`, "info");
+      return;
+    }
     if (amount > 0) {
       for (let index = 0; index < amount; index += 1) {
         dates.push("");
@@ -2377,6 +2399,17 @@
     const section = currentSection();
     if (!section) return;
     document.querySelector(".modal-backdrop")?.remove();
+    if (schoolWorkflow) {
+      const modal = document.createElement("div");
+      modal.className = "modal-backdrop";
+      modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="excelExportTitle">
+        <div class="section-heading"><h2 id="excelExportTitle">Export practice Excel record</h2>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
+        <p>${escapeHtml(schoolWorkflow.modeLabel)}. The practice workbook keeps missing required scores pending.</p>
+        <p><a href="https://www.teachpinas.com/e-class-record-deped-ecr-templates/" target="_blank" rel="noopener noreferrer">Three-term E-Class Record reference files</a></p>
+        <p id="excelExportMessage" role="status"></p>${button("Save practice Excel (.xlsx)", "download-school-excel", "button button-primary", 'aria-label="Save practice Excel (.xlsx)"')}</section>`;
+      document.body.append(modal);
+      return;
+    }
     const settings = section.excelSettings || {};
     const modal = document.createElement("div"); modal.className = "modal-backdrop";
     const fields = [
@@ -2393,6 +2426,17 @@
   async function exportCurrentSheet() {
     const message = document.querySelector("#excelExportMessage");
     const button = document.querySelector('[data-action="download-school-excel"]');
+    if (schoolWorkflow) {
+      const section = currentSection();
+      button.disabled = true;
+      try {
+        await schoolWorkflow.workbook(section, activeSections()[section.id].periods);
+        document.querySelector(".modal-backdrop")?.remove();
+        setStatus("Practice Excel workbook downloaded.");
+      } catch (error) { message.textContent = error.message; }
+      finally { button.disabled = false; }
+      return;
+    }
     try {
       if (button) button.disabled = true;
       await window.CSTRAssets.ensure("excel");
@@ -2418,6 +2462,12 @@
 
   function renderOfficialExportModal() {
     const section = currentSection();
+    if (schoolWorkflow) {
+      if (!section) return;
+      try { schoolWorkflow.reports(section, activeSections()[section.id].periods); }
+      catch (error) { showSaveToast(error.message, "error"); }
+      return;
+    }
     const periodCount = state.calendarMode === "trimester" ? 3 : 4;
     if (!section) {
       setStatus("Open a class grade sheet before exporting the official e-gradesheet.", "error");
@@ -2708,7 +2758,7 @@
   }
 
   function isLearnerAssessmentComplete(learner, period, section = currentSection()) {
-    const result = window.CSTRGrading.calculateLearner(learner,period,section);
+    const result = schoolWorkflow ? learnerResult(learner,period,section) : window.CSTRGrading.calculateLearner(learner,period,section);
     if (!Number.isFinite(result.initial.precise)) return false;
     return ["ww","pt","qa"].every((kind,componentIndex) => section.weights[componentIndex] === 0 || period[kind+"Hps"].every((maximum,index) => {
       if (!String(maximum ?? "").trim()) return !String(learner[kind][index] ?? "").trim();
@@ -2992,7 +3042,7 @@
       ${renderStudentAnalysis(analysis, entry, true)}
       ${renderDetailedChart([entry], section)}
       ${renderScoreLedgerHtml(period, learner)}
-      <p class="report-footnote">A = Absent (zero), M = Missing (zero), L = Late (excluded), E = Excused (excluded). Pending entries keep grades provisional.</p>
+      <p class="report-footnote">${schoolWorkflow ? 'Synthetic practice. Blank and coded scores stay pending.' : 'A = Absent (zero), M = Missing (zero), L = Late (excluded), E = Excused (excluded). Pending entries keep grades provisional.'}</p>
       <div class="student-report-actions">${renderStudentExport(entry, analysis, `Save ${period.name} PNG`, disambiguate)}</div>
     </article>`;
   }
@@ -3055,11 +3105,11 @@
       y+=Math.max(24,titleLines.length*18);
       if(row.meta.competency||row.meta.topic)reportLines([row.meta.competency&&`Competency: ${row.meta.competency}`,row.meta.topic&&`Topic: ${row.meta.topic}`].filter(Boolean).join(' · '),108).forEach(line=>{body+=text(60,y,line,12,muted);y+=17;});
       ledgerNotes(row).forEach(note=>reportLines(note,104).forEach(line=>{body+=text(60,y,line,12,accent);y+=17;}));
-      if(['A','M','E','L'].includes(code)){body+=text(60,y,({A:'A · Absent · counted as 0 / HPS',M:'M · Missing · counted as 0 / HPS',L:'L · Late · excluded from calculation',E:'E · Excused · excluded from calculation'})[code],12,markColor);y+=17;}
+      if(['A','M','E','L'].includes(code)){body+=text(60,y,schoolWorkflow ? code+' · required score pending' : ({A:'A · Absent · counted as 0 / HPS',M:'M · Missing · counted as 0 / HPS',L:'L · Late · excluded from calculation',E:'E · Excused · excluded from calculation'})[code],12,markColor);y+=17;}
       if(row.score==='' && row.hps!==''){body+=text(60,y,'Not recorded · incomplete requirement',12,muted);y+=17;}
       y+=15;
     });y+=20;
-    ['* Added points are separate from the original raw score. Cancelled additions remain in history.','A = Absent (zero); L = Late (excluded); M = Missing (zero); E = Excused (excluded).','HPS = highest possible score; WS = weighted score. Missing requirements keep a grade provisional.','CST-R · Individual grade report'].forEach(line=>{body+=text(44,y,line,12,muted);y+=21;});
+    ['* Added points are separate from the original raw score. Cancelled additions remain in history.',schoolWorkflow?'Attendance codes leave a grade pending.':'A = Absent (zero); L = Late (excluded); M = Missing (zero); E = Excused (excluded).','HPS = highest possible score; WS = weighted score. Missing requirements keep a grade provisional.',schoolWorkflow?'Class Record · Synthetic practice':'CST-R · Individual grade report'].forEach(line=>{body+=text(44,y,line,12,muted);y+=21;});
     const height=y+24;
     return `<svg xmlns="http://www.w3.org/2000/svg" class="student-report-svg" width="960" height="${height}" viewBox="0 0 960 ${height}" role="img" aria-label="Comprehensive grade report for ${escapeHtml(learner.name)}, ${escapeHtml(period.name)}"><rect width="960" height="${height}" fill="#fff"/>${body}</g></svg>`;
   }
@@ -3170,7 +3220,31 @@
     modal.querySelector(".welcome-modal-card")?.focus();
   }
 
+  function renderPracticeClassSettings(section) {
+    const modal = document.createElement("div");
+    modal.className = "modal-backdrop";
+    const colors = ["purple", "green", "blue", "red", "charcoal", "baby-blue", "deep-red", "yellow", "orange", "pink", "gray", "black", "brown"];
+    const title = section ? "Edit class section" : "Add class";
+    modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="practiceClassTitle">
+      <div class="section-heading"><h2 id="practiceClassTitle">${title}</h2>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
+      <p>${escapeHtml(schoolWorkflow.modeLabel)} · WW 20% / PT 50% / EX 30%</p>
+      <div class="settings-grid">
+        ${section ? `<p>${escapeHtml(section.level)} · ${escapeHtml(section.subject)}</p>` :
+          `<label>Grade level<select id="practiceGrade" aria-label="Grade level">${schoolWorkflow.grades.map(grade=>`<option value="${grade}" ${grade === 6 ? "selected" : ""}>Grade ${grade}</option>`).join("")}</select></label>
+           <label>Subject<select id="practiceSubject" aria-label="Subject">${schoolWorkflow.subjects.map(subject=>`<option>${escapeHtml(subject)}</option>`).join("")}</select></label>`}
+        <label>Practice section name<input id="practiceSection" maxlength="80" value="${safeValue(section?.section)}" placeholder="Practice A"></label>
+        <label>Class color<select id="practiceColor">${colors.map(color=>`<option value="${color}" ${color === (section?.theme ?? "blue") ? "selected" : ""}>${color}</option>`).join("")}</select></label></div>
+      <div class="stack-actions">
+        ${section ? section.archived ? `${button("Restore class", "unarchive-section", "button button-secondary", `data-section="${safeValue(section.id)}"`)} ${button("Delete permanently", "request-delete-section", "button button-danger", `data-section="${safeValue(section.id)}"`)}`
+          : button("Archive class", "archive-section", "button button-secondary", `data-section="${safeValue(section.id)}"`) : ""}
+        ${button(section ? "Save changes" : "Create class", "save-practice-class", "button button-primary", `data-section="${safeValue(section?.id)}"`)}
+      </div></section>`;
+    document.body.append(modal);
+    modal.querySelector("#practiceSection").focus();
+  }
+
   function renderAddClass() {
+    if (schoolWorkflow) { renderPracticeClassSettings(); return; }
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
     modal.innerHTML = `
@@ -3242,6 +3316,7 @@
   function renderEditSection(sectionId) {
     const section = activeRegistry().find(s => s.id === sectionId);
     if (!section) return;
+    if (schoolWorkflow) { renderPracticeClassSettings(section); return; }
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
     const isPreset = SUBJECT_PRESETS.some(p => p.name === (section.gradingCategory || section.subject));
@@ -3445,6 +3520,11 @@
   function syncSaveControl() {
     const btn = document.querySelector("#saveChanges");
     if (!btn) return;
+    if (schoolWorkflow) {
+      btn.disabled = !isDataLoaded;
+      setStatus(isDataLoaded ? "Practice workspace ready" : lastLoadError || "Opening practice workspace…", lastLoadError ? "error" : "");
+      return;
+    }
 
     if (!isSyncConfigured()) {
       btn.disabled = false;
@@ -3527,8 +3607,13 @@
         saveQueued = true;
       }
       const newerEditsPending = pendingAutoSaveChanges > 0;
-      setStatus(newerEditsPending ? "Earlier edits saved to cloud; newer edits are still pending." : automatic ? "Autosaved ✓ (live on every device)" : "Saved ✓ (live on every device)");
-      showSaveToast(newerEditsPending ? "Earlier edits saved to cloud; newer edits still need saving." : automatic ? "All changes autosaved — live on every device." : "Changes saved — live on every device.");
+      if (schoolWorkflow) {
+        const message = newerEditsPending ? "Earlier practice edits saved. Newer edits are pending." : "Practice changes saved in this tab.";
+        setStatus(message); showSaveToast(message);
+      } else {
+        setStatus(newerEditsPending ? "Earlier edits saved to cloud; newer edits are still pending." : automatic ? "Autosaved ✓ (live on every device)" : "Saved ✓ (live on every device)");
+        showSaveToast(newerEditsPending ? "Earlier edits saved to cloud; newer edits still need saving." : automatic ? "All changes autosaved — live on every device." : "Changes saved — live on every device.");
+      }
       return true;
     } catch (error) {
       if (error.code === "sync/conflict") {
@@ -3536,7 +3621,7 @@
         pendingRemoteAt = error.savedAt;
       }
       setStatus(error.code === "sync/conflict" ? "Newer cloud changes detected. Open Settings to review both versions." : `Save failed: ${error.message}`, "error");
-      if (automatic) showSaveToast("Autosave could not reach the live database. Your recovery copy remains on this device.", "error");
+      if (automatic) showSaveToast(schoolWorkflow ? "Practice autosave failed. Keep this tab open and download a backup." : "Autosave could not reach the live database. Your recovery copy remains on this device.", "error");
       return false;
     } finally {
       isSaving = false;
@@ -3604,7 +3689,7 @@
           firstUpdateHandled = true;
           cloudRevision = meta.revision || 0;
           if (localDraft) pushVersionSnapshot(localDraft);
-      state = normalizeState(remoteState || {});
+          state = normalizeState(remoteState ?? (schoolWorkflow ? null : {}));
           activePeriodIndex = 0;
           isDataLoaded = true; isLoading = false; lastLoadError = "";
           lastCloudVerifiedAt = new Date();
@@ -3616,7 +3701,7 @@
           startSaveIndicatorTicker();
           try {
             render();
-            setStatus(localDraft ? "Cloud loaded. A recovered draft is available in Settings > Restore a previous version." : "Live sync connected ✓");
+            setStatus(schoolWorkflow ? "Practice workspace ready" : localDraft ? "Cloud loaded. A recovered draft is available in Settings > Restore a previous version." : "Live sync connected ✓");
           } catch (renderError) {
             console.error("Render after initial sync failed:", renderError);
             setStatus("Data loaded, but the screen didn't refresh. Try switching views (Home / Class Record).", "error");
@@ -3649,7 +3734,7 @@
     if (pendingAutoSaveChanges === 0 && !isSaving && !isStale) {
       // Nothing unsaved on this device — safe to take the newer copy immediately.
       cloudRevision = meta.revision || 0;
-      state = normalizeState(remoteState || {});
+      state = normalizeState(remoteState ?? (schoolWorkflow ? null : {}));
       isDataLoaded = true;
       establishCleanBaseline();
       lastSavedAt = new Date();
@@ -3718,6 +3803,7 @@
   }
 
   function renderAccountSection() {
+    if (schoolWorkflow) return '<section><h3>Teacher account</h3><p><a href="/teacher/">Open school and account settings</a></p></section>';
     const user = window.CSTRSync.getCurrentUser ? window.CSTRSync.getCurrentUser() : null;
     const hasPassword = window.CSTRSync.hasPasswordProvider ? window.CSTRSync.hasPasswordProvider(user) : false;
     const isGoogle = Boolean(user && user.providerData && user.providerData.some((p) => p.providerId === "google.com"));
@@ -3832,7 +3918,7 @@
   function renderSettings() {
     const modal = document.createElement("div");
     modal.className = "modal-backdrop";
-    const syncStatusLine = !isSyncConfigured()
+    const syncStatusLine = schoolWorkflow ? '<p class="settings-note">Practice records and recovery are stored in this tab.</p>' : !isSyncConfigured()
       ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> Cloud sync unavailable.</p>`
       : isStale
         ? `<p class="settings-note" style="color: var(--danger, #c0392b); border: 1px solid currentColor; border-radius: 8px; padding: 10px 12px;"> Another device saved changes here${pendingRemoteAt ? ` at ${safeValue(new Date(pendingRemoteAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}` : ""} while you had unsaved edits. Choose which version to keep:</p>
@@ -4247,6 +4333,11 @@
   }
 
   function logoutDialogContent() {
+    if (schoolWorkflow) return `<div class="section-heading"><h2 id="logoutTitle">Log out of Class Record?</h2>
+      ${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div>
+      <p>Logging out clears this tab’s practice records and recovery. Download an encrypted backup to keep a copy.</p>
+      <div class="logout-actions"><button type="button" class="button button-secondary" data-review-action="backup">Download encrypted backup</button>
+        ${button("Log out and clear practice", "logout-without-save", "button button-danger")}${button("Cancel", "close-modal")}</div>`;
     const dirty = pendingAutoSaveChanges > 0;
     const cloudReady = isSyncConfigured() && isDataLoaded && !isStale;
     const unverifiedLocalCopy = !cloudReady && Boolean(restoreLocalDraft());
@@ -4365,6 +4456,7 @@
       return;
     }
     if (action === "choose-sheet-subject") {
+      if (schoolWorkflow) return;
       const section = currentSection();
       if (sectionHasLockedPeriod(section)) { showSaveToast("Unlock all periods before changing grading weights.", "error"); return; }
       const value = target.dataset.subject;
@@ -4511,7 +4603,30 @@
 
     if (action === "download-school-excel") void exportCurrentSheet();
     if (action === "open-add-class") renderAddClass();
+    if (action === "save-practice-class" && schoolWorkflow) {
+      const sectionId = target.dataset.section;
+      const existing = activeRegistry().find(section => section.id === sectionId);
+      if (sectionId && !existing) return;
+      if (!existing && activeRegistry().length >= 12) { showSaveToast("Keep up to 12 classes in this practice workspace.", "info"); return; }
+      const name = document.querySelector("#practiceSection").value.trim();
+      const theme = document.querySelector("#practiceColor").value;
+      if (existing) Object.assign(existing, {section:name,theme,accent:theme});
+      else {
+        const grade = Number(document.querySelector("#practiceGrade").value);
+        const subject = document.querySelector("#practiceSubject").value;
+        const section = schoolWorkflow.classDefinition(`class-${crypto.randomUUID()}`, name, theme, grade, subject);
+        activeRegistry().push(section);
+        activeSections()[section.id] = {periods:[initialPeriod(section, "trimester")]};
+        activeSectionId = section.id;
+        archiveFilter = "active";
+      }
+      document.querySelector(".modal-backdrop")?.remove();
+      markStateDirty(); render();
+      showSaveToast(existing ? "Class settings saved in this tab." : "Practice class created.");
+      return;
+    }
     if (action === "save-new-class") {
+      if (schoolWorkflow) return;
       const level = document.querySelector("#addClassLevel").value.trim() || "Grade 8";
       const presetSelect = document.querySelector("#addClassSubjectPreset");
       const isCustomSubject = presetSelect ? presetSelect.value === "custom" : false;
@@ -4555,6 +4670,7 @@
     if (action === "open-edit-section") renderEditSection(target.dataset.section);
     if (action === "close-modal") document.querySelector(".modal-backdrop")?.remove();
     if (action === "save-section-edit") {
+      if (schoolWorkflow) return;
       const section = activeRegistry().find(s => s.id === target.dataset.section);
       if (section) {
         if (sectionHasLockedPeriod(section)) { setStatus("Unlock all periods before changing class grading settings.", "error"); return; }
@@ -4615,6 +4731,7 @@
     if (action === "go-home") { currentView = "home"; render(); }
     if (action === "go-records") { currentView = "chooser"; render(); }
     if (action === "select-calendar-mode") {
+      if (schoolWorkflow) return;
       const mode = target.dataset.mode;
       if (mode === state.calendarMode || (mode !== "legacy" && mode !== "trimester")) return;
       if (mode === "trimester" && !state.trimesterModeSeen && !state.registryTri.length) renderTrimesterConfirmation();
@@ -4623,6 +4740,7 @@
     }
     if (action === "confirm-calendar-mode") { applyCalendarMode("trimester"); return; }
     if (action === "select-group") { 
+      if (schoolWorkflow) return;
       activeGroup = target.dataset.group; 
       const firstInGroup = activeRegistry().find((section) => section.group === activeGroup && !section.archived) || activeRegistry().find((section) => section.group === activeGroup) || activeRegistry()[0];
       activeSectionId = firstInGroup ? firstInGroup.id : ""; 
@@ -4766,6 +4884,14 @@
     if (input.dataset.nameRow !== undefined) { 
       const rowIndex = Number(input.dataset.nameRow);
       const learner = currentPeriod().roster[rowIndex];
+      if (schoolWorkflow) {
+        const valid = schoolWorkflow.validName(input.value.trim());
+        input.setCustomValidity(valid ? "" : "Use Example learner 1 through Example learner 60.");
+        if (!valid) {
+          setStatus("Use Example learner 1 through Example learner 60.", "error");
+          return;
+        }
+      }
       learner.name = input.value;
       stateChanged = true;
       const cat = getRowCategory(learner);
@@ -4873,6 +4999,10 @@
     const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
     while (lines.length && lines[lines.length - 1] === "") lines.pop();
     if (!lines.length) return;
+    if (schoolWorkflow && startCol === 0 && lines.some(line=>!schoolWorkflow.validName(line.split("\t")[0].trim()))) {
+      showSaveToast("Use Example learner 1 through Example learner 60 in the names column.", "error");
+      return;
+    }
 
     let rowsFilled = 0;
     let truncated = false;
@@ -4931,6 +5061,13 @@
   }
 
   function initApp() {
+    if (schoolWorkflow) {
+      sessionStorage.setItem("cstr-class-record-login", "true");
+      sessionStorage.setItem("cstr-class-record-user", "practice");
+      sessionStorage.setItem("cstr-class-record-name", "Practice teacher");
+      subscribeToSync();
+      return;
+    }
     sessionStorage.removeItem("cstr-class-record-login");
     render();
     if (window.CSTRSync && window.CSTRSync.onAuthStateChanged) {
@@ -5001,7 +5138,8 @@
         if (!isDataLoaded || isStale || isSaving) throw new Error("Connect and resolve pending saves or conflicts before importing.");
         const imported = await CSTRBackup.importFile();
         if (!imported || !confirm("Replace this workspace with the selected backup? Its grades and learners will replace the current record and autosave. Download a backup of the current workspace first.")) return;
-        pushVersionSnapshot(cloneState(state)); state = normalizeState(imported); markStateDirty(); render();
+        const restored = normalizeState(imported);
+        pushVersionSnapshot(cloneState(state)); state = restored; markStateDirty(); render();
       } else if (action === "clear" && confirm("Clear recovery drafts and checkpoints for this account on this browser? Cloud records and downloaded backups remain available.")) {
         for (const key of [localDraftKey(), versionHistoryKey()]) { sessionStorage.removeItem(key); localStorage.removeItem(key); }
         await window.CSTRMobile?.checkpoint();

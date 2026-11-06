@@ -7,6 +7,10 @@ export const TERM_KEYS=Object.freeze(['t1','t2','t3']);
 export const PUBLIC_DEMO=Object.freeze({id:'do015-2026-ks2-science-1',schoolYear:'2026-2027',sector:'public',
   curriculum:'Revised K to 10',grade:6,subject:'Science',template:'science6-practice-v1',mode:'synthetic'});
 export const PRIVATE_POLICY=Object.freeze({id:'private-g6-science-v1',grade:6,subject:'Science',template:'private-supplementary-v1',sector:'private'});
+export const CORE_SUBJECTS=Object.freeze(['Science','Mathematics','English','Filipino','Araling Panlipunan']);
+export const CORE_GRADES=Object.freeze([4,5,6,7,8,9,10]);
+export const WORKFLOW_PRACTICE=Object.freeze({...PUBLIC_DEMO,id:'do015-2026-core-workflow',template:'core-workflow-practice-v1'});
+export const exampleLearner=name=>/^Example learner (?:[1-9]|[1-5][0-9]|60)$/.test(name);
 export const POLICY_GATES=Object.freeze([
   ['Kindergarten and Grade 1','Descriptive progress reports and approved templates'],
   ['Grades 2–3 transition','Year-specific reporting, Makabansa and template approval'],
@@ -63,6 +67,10 @@ export function newDemo(){
   return {...PUBLIC_DEMO,title:'Grade 6 Science',schoolName:'Example school',roster,periods,synthetic:true};
 }
 export function assertScope(record){
+  if(record.synthetic===true&&record.id===WORKFLOW_PRACTICE.id&&record.template===WORKFLOW_PRACTICE.template&&
+    record.schoolYear===WORKFLOW_PRACTICE.schoolYear&&record.curriculum===WORKFLOW_PRACTICE.curriculum&&
+    CORE_GRADES.includes(record.grade)&&CORE_SUBJECTS.includes(record.subject)&&record.schoolName==='Example school'&&
+    Object.entries(record.roster??{}).every(([id,name])=>exampleLearner(name)&&id==='r'+name.slice(16).padStart(2,'0')))return 'practice';
   if(record.synthetic===true&&record.template===PUBLIC_DEMO.template&&record.id===PUBLIC_DEMO.id&&
     record.schoolYear===PUBLIC_DEMO.schoolYear&&record.curriculum===PUBLIC_DEMO.curriculum&&
     record.grade===PUBLIC_DEMO.grade&&record.subject===PUBLIC_DEMO.subject&&record.schoolName==='Example school'&&

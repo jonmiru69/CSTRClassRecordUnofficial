@@ -1,4 +1,5 @@
-import {assertScope,CUTOFFS,evaluate,finalGrade,TERM_KEYS,SLOTS,descriptor,finite} from './policy.mjs';
+import {assertScope,CUTOFFS,evaluate,finalGrade,TERM_KEYS,SLOTS,descriptor,finite,WORKFLOW_PRACTICE} from './policy.mjs';
+import {workflowWorkbook} from './workflow-xlsx.mjs';
 
 const scripts=new Map();
 function load(asset){
@@ -22,6 +23,7 @@ export const reportRows=(record)=>{
 };
 export function xlsxBook(XLSX,record) {
   const {kind,rows}=reportRows(record),practice=kind==='practice';
+  if(record.id===WORKFLOW_PRACTICE.id)return workflowWorkbook(XLSX,record,rows);
   const title=practice?'SYNTHETIC PRACTICE ONLY — not an official ECR':'SUPPLEMENTARY CLASS RECORD — not a DepEd form';
   const book=XLSX.utils.book_new();
   book.Props={Title:practice?'Grade 6 Science synthetic practice':'Supplementary class record',Author:'Class Record'};
@@ -75,7 +77,9 @@ export async function downloadXlsx(record){
   await load('xlsx.min.js');
   const mode=assertScope(record),book=xlsxBook(window.XLSX,record);
   const bytes=window.XLSX.write(book,{type:'array',bookType:'xlsx'});
-  download(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),mode==='practice'?'Grade-6-Science-SYNTHETIC-PRACTICE.xlsx':'Supplementary-class-record.xlsx');
+  const subject=record.subject.replaceAll(' ','-');
+  download(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),
+    mode==='practice'?`Grade-${record.grade}-${subject}-SYNTHETIC-PRACTICE.xlsx`:'Supplementary-class-record.xlsx');
 }
 function el(tag,text){const node=document.createElement(tag);if(text!=null)node.textContent=String(text);return node;}
 export function reportView(record){
