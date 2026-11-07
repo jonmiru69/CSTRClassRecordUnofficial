@@ -68,18 +68,27 @@ async function run(){
         const approval=page.getByRole('dialog',{name:'Developer approval required'});
         await activate(request);
         await approval.waitFor();
-        const gmailLink=approval.getByRole('link',{name:'Open request in Gmail'});
-        const gmail=new URL(await gmailLink.getAttribute('href'));
-        const fallback=new URL(await approval.getByRole('link',{name:'Use another email app'}).getAttribute('href'));
-        check(label+' registration opens a prefilled Gmail compose page',
-          gmail.origin==='https://mail.google.com'&&gmail.pathname==='/mail/'&&gmail.searchParams.get('view')==='cm'&&
-          gmail.searchParams.get('to')==='sanchezramil2202@gmail.com'&&gmail.searchParams.get('su')==='CST-R Class Record access request'&&
-          gmail.searchParams.get('body').includes('Faculty role:')&&await gmailLink.getAttribute('target')==='_blank');
+        const form=approval.locator('form');
+        const gmailButton=approval.getByRole('button',{name:'Open request in Gmail'});
+        check(label+' registration requires the teacher details before opening Gmail', !(await form.evaluate(el=>el.checkValidity())));
+        await approval.getByLabel('Full name').fill('Sample Teacher');
+        await approval.getByLabel('Faculty role').fill('Science Teacher');
+        await approval.getByLabel('Sign-in email').fill('teacher@example.test');
+        await form.evaluate(el=>el.addEventListener('submit',event=>{
+          event.preventDefault();
+          window.__requestDraft=Object.fromEntries(new FormData(el));
+        },{once:true}));
+        await activate(gmailButton);
+        const draft=await page.evaluate(()=>window.__requestDraft);
+        check(label+' registration opens a complete Gmail request at the dedicated address',
+          await form.getAttribute('action')==='https://mail.google.com/mail/'&&await form.getAttribute('target')==='_blank'&&
+          draft.view==='cm'&&draft.to==='sanchezramil2202+cstr-teacher-access@gmail.com'&&
+          draft.su==='CST-R Class Record access request'&&
+          draft.body.includes('Full name: Sample Teacher')&&draft.body.includes('Faculty role: Science Teacher')&&
+          draft.body.includes('Email I will use to sign in: teacher@example.test'));
         check(label+' registration retains a mail app fallback without collecting a password',
-          fallback.protocol==='mailto:'&&fallback.pathname===gmail.searchParams.get('to')&&
-          fallback.searchParams.get('subject')===gmail.searchParams.get('su')&&
-          fallback.searchParams.get('body')===gmail.searchParams.get('body')&&
-          await approval.locator('input').count()===0&&await page.locator('#signupForm').count()===0);
+          await approval.getByRole('button',{name:'Use another email app'}).getAttribute('value')==='mail-app'&&
+          await approval.locator('input[type="password"]').count()===0&&await page.locator('#signupForm').count()===0);
         const dialogBounds=await approval.boundingBox();
         check(label+' approval dialog fits the viewport',dialogBounds.x>=0&&dialogBounds.x+dialogBounds.width<=width);
         await page.keyboard.press('Escape');

@@ -278,5 +278,7 @@
 .teacher-access-dialog h2 { max-width: none; font-size: clamp(1.5rem, 5vw, 2rem); }
 .teacher-access-dialog strong { overflow-wrap: anywhere; }
 .teacher-access-actions { display: grid; gap: 8px; margin-top: 20px; }
+.teacher-access-form { display: grid; gap: 8px; }
+.teacher-access-form .field-label { margin: 0; color: var(--text); }
+.teacher-access-form .teacher-access-note { margin: 2px 0 4px; font-size: 0.85rem; }
 .teacher-access-actions .button { min-height: 44px; justify-content: center; text-align: center; white-space: normal; }
-.teacher-access-actions a { text-decoration: none; }

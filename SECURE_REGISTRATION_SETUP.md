@@ -1,6 +1,6 @@
 # Approve CST-R teacher access from a phone
 
-Teachers select **Request a teacher account** and send the prepared email to **sanchezramil2202@gmail.com** from their intended sign-in address. They include their name and faculty role. The message is a request for the developer to verify, never a password, account code, or learner record.
+Teachers select **Request a teacher account**, complete the name, role, and sign-in email fields, then send the prepared draft from their intended sign-in address. The request uses **sanchezramil2202+cstr-teacher-access@gmail.com**, which routes to the developer’s Gmail inbox. Keep passwords, account codes, and learner records out of the request.
 
 1. Verify the request against school records or through an established school channel. Sign in to Firebase Console on your phone with the authorized developer account.
 2. Open [Authentication → Users](https://console.firebase.google.com/project/cstr-class-record-global/authentication/users). Find the exact email. For a new teacher, choose **Add user** with that email and a unique, randomly generated temporary password. Keep the password private. If an unapproved identity already exists, review its linked providers and verify who controls it before using it. If ownership is unclear, resolve it before granting access.

@@ -1274,12 +1274,8 @@
 
   function showTeacherAccess({ allowGoogle = false, opener = document.activeElement } = {}) {
     if (document.querySelector(".teacher-access-dialog[open]")) return;
-    const address = window.CSTRRegistration.email;
+    const address = window.CSTRRegistration.email.replace("@", "+cstr-teacher-access@");
     const subject = "CST-R Class Record access request";
-    const body = "Hello, I'd like to request access to the CST-R Class Record.\r\n\r\nFull name: \r\nFaculty role: \r\nEmail I will use to sign in: \r\n";
-    const mailto = `mailto:${address}?subject=${encodeURIComponent(subject)}&amp;body=${encodeURIComponent(body)}`;
-    const gmailQuery = new URLSearchParams({ view: "cm", fs: "1", to: address, su: subject, body });
-    const gmail = `https://mail.google.com/mail/?${gmailQuery.toString().replace(/&/g, "&amp;")}`;
     const native = window.CSTRMobile?.native;
     const dialog = document.createElement("dialog");
     dialog.className = "install-dialog teacher-access-dialog";
@@ -1287,16 +1283,44 @@
     dialog.setAttribute("aria-describedby", "teacherAccessDescription");
     dialog.innerHTML = `
       <h2 id="teacherAccessTitle">Developer approval required</h2>
-      <p id="teacherAccessDescription">Teacher accounts are by invitation. Email <strong>${address}</strong> from the address you plan to use to sign in. Include your name and faculty role so the developer can verify your request.</p>
-      <p>Keep passwords, account codes, and learner records out of the email.</p>
+      <p id="teacherAccessDescription">Teacher accounts are by invitation. Complete the form to prepare your request. Check that the email’s <strong>From</strong> address matches your sign-in email before sending.</p>
       <div class="teacher-access-actions">
         ${allowGoogle ? '<button type="button" class="button button-primary" data-approved-google>Sign in with approved Google account</button>' : ""}
-        ${native
-          ? `<a class="button button-primary" href="${mailto}">Email access request</a>`
-          : `<a class="button ${allowGoogle ? "button-secondary" : "button-primary"}" href="${gmail}" target="_blank" rel="noopener noreferrer">Open request in Gmail</a>
-             <a class="button button-secondary" href="${mailto}">Use another email app</a>`}
+        <form class="teacher-access-form" action="https://mail.google.com/mail/" target="_blank" rel="noopener noreferrer">
+          <label class="field-label">Full name<input id="requestFullName" type="text" autocomplete="name" maxlength="120" pattern=".*\\S.*" required></label>
+          <label class="field-label">Faculty role<input id="requestFacultyRole" type="text" maxlength="120" pattern=".*\\S.*" required></label>
+          <label class="field-label">Sign-in email<input id="requestEmail" type="email" autocomplete="email" maxlength="254" required></label>
+          <p class="teacher-access-note">Keep passwords, account codes, and learner records out of the request.</p>
+          <input type="hidden" name="view" value="cm">
+          <input type="hidden" name="fs" value="1">
+          <input type="hidden" name="to" value="${address}">
+          <input type="hidden" name="su" value="${subject}">
+          <input type="hidden" name="body">
+          ${native
+            ? '<button class="button button-primary" type="submit" value="mail-app">Email access request</button>'
+            : `<button class="button ${allowGoogle ? "button-secondary" : "button-primary"}" type="submit">Open request in Gmail</button>
+               <button class="button button-secondary" type="submit" value="mail-app">Use another email app</button>`}
+        </form>
         <button type="button" class="button button-secondary" data-close-access>Back to sign in</button>
       </div>`;
+    const form = dialog.querySelector("form");
+    form.addEventListener("submit", event => {
+      const name = form.querySelector("#requestFullName").value.trim();
+      const role = form.querySelector("#requestFacultyRole").value.trim();
+      const email = form.querySelector("#requestEmail").value.trim();
+      const body = [
+        "I’d like to request teacher access to the CST-R Class Record.",
+        "",
+        `Full name: ${name}`,
+        `Faculty role: ${role}`,
+        `Email I will use to sign in: ${email}`
+      ].join("\r\n");
+      form.elements.body.value = body;
+      if (native || event.submitter?.value === "mail-app") {
+        event.preventDefault();
+        window.location.href = `mailto:${address}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      }
+    });
     dialog.querySelector("[data-close-access]").addEventListener("click", () => dialog.close());
     dialog.querySelector("[data-approved-google]")?.addEventListener("click", () => {
       dialog.close();
