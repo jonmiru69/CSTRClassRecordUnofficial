@@ -11,6 +11,13 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
  assert(doc.includes('PROVISIONAL'));
  console.log('PASS Official Word exporter generates a valid ZIP containing document.xml, supplied metadata and provisional labeling.');
  const pages=ctx.CSTROfficialGradesheet.renderPages({subject:'Synthetic',teacherName:'Synthetic teacher',principalName:'Synthetic principal',schoolYear:'2026-2027',weights:[30,40,30],provisional:true,students:[]});assert(pages.length>0&&pages.every(p=>p.startsWith('<svg')));assert(pages[0].includes('PROVISIONAL'));console.log('PASS Official SVG page generation includes provisional labeling.');
+ const semester={subject:'Synthetic SHS',schoolYear:'2026-2027',periodCount:2,semester:2,students:[{name:'Synthetic Learner',periods:[{periodical:83},{periodical:100}],finalGrade:92}]};
+ const semesterSvg=ctx.CSTROfficialGradesheet.renderPages(semester).join('');
+ assert(semesterSvg.includes('SEMESTER 2')&&semesterSvg.includes('>92</text>'));
+ const semesterWord=await ctx.CSTROfficialGradesheet.createWord(semester);
+ const semesterDoc=await (await zip.loadAsync(await semesterWord.blob.arrayBuffer())).file('word/document.xml').async('string');
+ assert(semesterWord.filename.endsWith('Semester-2.docx')&&semesterDoc.includes('SEMESTER 2')&&semesterDoc.includes('>92</w:t>'));
+ console.log('PASS Official semester exports retain the reporting range and final grade.');
  // Exercise the real PDF exporter and all five fonts. This tiny DOM adapter
  // supplies text nodes only; browser/Poppler acceptance covers complete layout.
  vm.runInContext(fs.readFileSync(path.join(base,'vendor/pdf-lib.min.js'),'utf8'),ctx);const pdfApi=ctx.PDFLib;

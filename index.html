@@ -8,7 +8,7 @@
     <title>CST-R Digital Class Record with AI Tommy</title>
     <link rel="icon" type="image/png" href="ASSETS/logo-compact.png">
     <script src="ASSETS/theme.js?v=20261105-ripple"></script>
-    <link rel="stylesheet" href="ASSETS/theme-motion.css">
+    <link rel="stylesheet" href="ASSETS/theme-motion.css?v=20261107">
     <link rel="stylesheet" href="ASSETS/design-system.css?v=20261016-3">
   <link rel="stylesheet" href="ASSETS/review.css?v=20261018">
   <link rel="stylesheet" href="ASSETS/workspace.css?v=20261018b">
@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="ASSETS/mobile.css?v=20261104-controls">
     <link rel="stylesheet" href="ASSETS/visual-remaster.css?v=20261102">
     <link rel="stylesheet" href="ASSETS/record-folder.css?v=20261102">
+    <link rel="stylesheet" href="ASSETS/master-workspace.css?v=20261107">
 </head>
   <body>
     <div id="siteBg" aria-hidden="true"></div>
@@ -27,10 +28,10 @@
     <script src="ASSETS/asset-loader.js?v=20261023"></script>
     <script src="ASSETS/file-delivery.js?v=20261101"></script>
     <script src="ASSETS/backup.js"></script>
-    <script src="ASSETS/grading-engine.js?v=20261025"></script>
+    <script src="ASSETS/grading-engine.js?v=20261107"></script>
     <script src="ASSETS/excel-export.js?v=20261013"></script>
-    <script src="ASSETS/school-excel.js?v=20261025"></script>
-    <script src="ASSETS/official-egradesheet.js?v=20261013"></script>
+    <script src="ASSETS/school-excel.js?v=20261107"></script>
+    <script src="ASSETS/official-egradesheet.js?v=20261107"></script>
     <!-- Firebase compat SDK, self-hosted (see ASSETS/vendor/firebase-compat.bundle.js
          for what this is and how to rebuild it after a version bump). Used to
          load three separate files from www.gstatic.com; that's now a single
@@ -38,67 +39,13 @@
          where gstatic.com is slow, filtered, or unreachable. -->
     <script src="ASSETS/vendor/firebase-compat.bundle.js"></script>
     <script src="ASSETS/firebase-sync.js?v=20261013"></script>
-    <script src="ASSETS/record-tools.js?v=20261025"></script>
+    <script src="ASSETS/record-tools.js?v=20261107"></script>
     <script src="ASSETS/stable-dom.js?v=20261104-controls"></script>
     <script src="ASSETS/registration.js?v=20261013"></script>
     <script src="ASSETS/performance-analysis.js?v=20261104-tommy"></script>
-    <script src="ASSETS/app.js?v=20261104-controls"></script>
+    <script src="ASSETS/app.js?v=20261107"></script>
     <script src="ASSETS/apple.js?v=20261013" defer></script>
-    <script>
-      (() => {
-        const appRoot = document.querySelector("#app");
-        if (!appRoot) return;
 
-        const navigationIcon = (direction) => direction === "expand"
-          ? '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16M8 12h12M15 7l5 5-5 5"/></svg>'
-          : '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 4v16M16 12H4M9 7l-5 5 5 5"/></svg>';
-
-        let enhancementQueued = false;
-
-        function enhanceInterface() {
-          enhancementQueued = false;
-          const layout = document.querySelector(".app-layout");
-          const sidebar = document.querySelector(".app-sidebar");
-
-          if (layout && sidebar) {
-            const brand = sidebar.querySelector(".sidebar-brand");
-            const search = sidebar.querySelector(".sidebar-search-block");
-            const toggle = sidebar.querySelector('[data-action="toggle-sidebar"]');
-
-            if (brand && search && brand.nextElementSibling !== search) brand.after(search);
-            if (search && toggle && search.nextElementSibling !== toggle) search.after(toggle);
-
-            if (toggle) {
-              const collapsed = layout.classList.contains("sidebar-collapsed");
-              const direction = collapsed ? "expand" : "collapse";
-              if (toggle.dataset.directionIcon !== direction) {
-                toggle.innerHTML = navigationIcon(direction);
-                toggle.dataset.directionIcon = direction;
-              }
-              const label = collapsed ? "Expand navigation" : "Collapse navigation";
-              if (toggle.getAttribute("aria-label") !== label) toggle.setAttribute("aria-label", label);
-              if (toggle.getAttribute("title") !== label) toggle.setAttribute("title", label);
-            }
-          }
-
-        }
-
-        const queueEnhancement = () => {
-          if (enhancementQueued) return;
-          enhancementQueued = true;
-          requestAnimationFrame(enhanceInterface);
-        };
-
-        const observer = new MutationObserver(queueEnhancement);
-        observer.observe(appRoot, {
-          childList: true,
-          subtree: true,
-          attributes: true,
-          attributeFilter: ["class"]
-        });
-        enhanceInterface();
-      })();
-    </script>
   <script src="ASSETS/review-accessibility.js?v=20261016-2"></script>
   <script src="ASSETS/interaction-polish.js?v=20261024-polish" defer></script><script src="ASSETS/release-schema.js?v=20261101"></script><script src="ASSETS/app-install.js?v=20261104-tommy-workspace" defer></script>
   </body>

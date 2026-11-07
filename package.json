@@ -3,14 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "node tests/run.cjs && node tests/render-smoke.cjs && node tests/revision-20261024.cjs && node tests/score-adjustments.cjs && node tests/performance-analysis.cjs && node tests/mobile.cjs && node tests/export-smoke.cjs && node tests/audit-corrections.cjs && node tests/hosting.cjs",
+    "test": "node tests/run.cjs && node tests/grade-policy.cjs && node tests/render-smoke.cjs && node tests/revision-20261024.cjs && node tests/score-adjustments.cjs && node tests/performance-analysis.cjs && node tests/mobile.cjs && node tests/export-smoke.cjs && node tests/audit-corrections.cjs && node tests/hosting.cjs",
     "build": "node tools/build-mobile.mjs",
     "build:web": "node tools/build-web.mjs",
     "android:sync": "node tools/build-mobile.mjs && cap sync android",
     "preview": "node tools/preview.cjs",
     "test:rules": "firebase emulators:exec --only database --project demo-cstr-review \"node tests/firebase-emulator.cjs\"",
     "build:pages": "node tools/build-pages.mjs",
-    "test:visual": "node tests/create-mobile-preview.cjs && node tests/visual-remaster.cjs && node tests/record-folder.cjs && node tests/performance-report-browser.cjs",
+    "test:visual": "node tests/create-mobile-preview.cjs && node tests/visual-remaster.cjs && node tests/record-folder.cjs && node tests/performance-report-browser.cjs && node tests/school-excel-browser.cjs",
     "test:folder": "node tests/create-mobile-preview.cjs && node tests/record-folder.cjs"
   },
   "dependencies": {

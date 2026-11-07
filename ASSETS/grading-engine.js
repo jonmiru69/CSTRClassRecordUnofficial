@@ -18,6 +18,8 @@
   const FINAL_GRADE_DECIMALS = 3;
   // Zero-based grading is an explicit class setting, independent of calendar.
   const ZERO_BASED_GRADE_DECIMALS = 0;
+  const MINIMUM_REPORTED_GRADE = 60;
+  const GRADE_COMPARISON_DECIMALS = 13;
   const QA_INTRA_WEIGHTS = [0.30, 0.30, 0.40];
   // A = Absent, E = Excused, L = Late, M = Missing (present, no excuse)
   const ATTENDANCE_CODES = ["A", "E", "L", "M"];
@@ -79,11 +81,17 @@
   }
 
   function gradingIssue(section) {
+    if (!Array.isArray(section?.weights) || section.weights.length !== 3 ||
+        section.weights.some(weight => typeof weight !== "number" || !Number.isFinite(weight) || weight < 0 || weight > 100) ||
+        Math.abs(section.weights.reduce((sum, weight) => sum + weight, 0) - 100) > 1e-8) {
+      return "Written Work, Performance Tasks, and Examination weights must total 100%.";
+    }
     const category = section?.gradingCategory || section?.subject || "";
     const preset = SUBJECT_PRESETS.find(item => item.name === category);
     if (preset && section.weights.some((weight,index)=>Math.abs(weight-preset.weights[index])>1e-8)) return `The selected ${preset.name} category requires WW/PT/EX ${preset.weights.join("/")}%. Update the class settings.`;
     if (section?.group === "SHS" && category !== "custom" && (!preset || !category.startsWith("SHS "))) return "Choose the SHS subject category in Edit Class. Core, specialized, Research and Work Immersion have different rules. Grade 12 outside the Strengthened curriculum has separate legacy categories.";
     if (section?.group === "JHS" && category.startsWith("SHS ")) return "Choose a JHS subject category for this class. SHS categories have different grading requirements.";
+    if (category.startsWith("SHS Grade 12 Legacy") && !/\b12\b/.test(section.level)) return "The legacy SHS subject categories apply to Grade 12 outside the Strengthened SHS curriculum.";
     return "";
   }
 
@@ -167,9 +175,17 @@
     if (typeof value === "string" && !value.trim()) return null;
     if (isAttendanceCode(value)) return null;
     // Strings must be plain nonnegative decimals, not JS numeric expressions.
-    if (typeof value === "string" && !/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(value.trim())) return null;
+    if (typeof value === "string") {
+      const decimal = value.trim();
+      if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(decimal)) return null;
+      // Excel keeps 15 significant digits. Preserve the original token for
+      // correction instead of silently exporting it at a different precision.
+      const significant = decimal.replace(".", "").replace(/^0+|0+$/g, "");
+      if (significant.length > 15 || (significant && Number(decimal) === 0)) return null;
+    }
     const number = Number(value);
-    return Number.isFinite(number) ? number : null;
+    if (!Number.isFinite(number) || (number !== 0 && (Math.abs(number) < 2.2251e-308 || Math.abs(number) > 9.99999999999999e307))) return null;
+    return number;
   }
 
   function roundHalfUp(value, decimals) {
@@ -200,9 +216,9 @@
 
   function transmuteGrade(initialScore) {
     if (initialScore === null || initialScore === undefined || !Number.isFinite(initialScore)) return null;
-    // Remove only binary arithmetic noise at 12 decimal places. Never use
+    // Remove binary arithmetic noise at the workbook's precision. Never use
     // the displayed 2/3 decimals to promote an IG below the published cutoff.
-    const rounded = Math.round(initialScore * 1e12) / 1e12;
+    const rounded = Number(initialScore.toFixed(GRADE_COMPARISON_DECIMALS));
     for (const entry of TRANSMUTATION_TABLE) {
       if (rounded >= entry.min) return entry.grade;
     }
@@ -219,28 +235,40 @@
   }
 
   const blank = value => value === null || value === undefined || (typeof value === "string" && !value.trim());
+  function scoreIssue(raw, maximum) {
+    if (blank(raw)) return "";
+    const score = numberOrNull(raw);
+    if (!isAttendanceCode(raw) && (score === null || score < 0)) return "invalidScores";
+    const hps = numberOrNull(maximum);
+    if (!(hps > 0)) return "missingHps";
+    return score !== null && score > hps ? "aboveHps" : "";
+  }
+
   function calculateComponent(rawScores, hpsScores, componentWeight, options) {
     if (componentWeight === 0) return { rawTotal: 0, hpsTotal: 0, percentage: null, weighted: 0, used: 0, missing: 0 };
     const groups = options?.groups || [{ id: "all", share: 1 }];
     const buckets = groups.map(group => ({ ...group, raw: 0, hps: 0, configured: 0 }));
     let rawTotal = 0, hpsTotal = 0, used = 0, missing = 0, error = null;
-    hpsScores.forEach((hpsValue, index) => {
+    const length = Math.max(rawScores.length, hpsScores.length);
+    for (let index = 0; index < length; index++) {
+      const hpsValue = hpsScores[index];
       const rawValue = rawScores[index], hps = numberOrNull(hpsValue);
-      if (blank(hpsValue) && blank(rawValue)) return; // Unused activity column.
-      if (hps === null || hps <= 0) { error = "Set a positive HPS for every active activity."; return; }
+      if (blank(hpsValue) && blank(rawValue)) continue;
+      if (hps === null || hps <= 0) { error = "Set a positive HPS for every active activity."; continue; }
       const role = options?.groups ? options.roles?.[index] : "all";
       const bucket = buckets.find(group => group.id === role);
-      if (!bucket) { error = "Assign the assessment group or domain for every active activity."; return; }
+      if (!bucket) { error = "Assign the assessment group or domain for every active activity."; continue; }
       bucket.configured++;
-      if (isExcludedCode(rawValue)) return; // E/L remove this activity only for this learner.
-      let raw = isZeroScoreCode(rawValue) || blank(rawValue) ? 0 : numberOrNull(rawValue);
-      if (raw === null || raw < 0 || raw > hps) { error = "Scores must be between zero and HPS."; return; }
+      if (isExcludedCode(rawValue)) continue; // E/L remove this activity only for this learner.
+      if (scoreIssue(rawValue, hps)) { error = "Scores must be between zero and HPS."; continue; }
+      const raw = isZeroScoreCode(rawValue) || blank(rawValue) ? 0 : numberOrNull(rawValue);
       if (blank(rawValue)) missing++;
       bucket.raw += raw; bucket.hps += hps;
       rawTotal += raw; hpsTotal += hps; used++;
-    });
+    }
     // Do not silently change 30/30/40 into a uniform or partial exam calculation.
     if (buckets.some(group => !group.configured)) error ||= "Configure HPS for every required assessment group or domain.";
+    if (!Number.isFinite(hpsTotal)) error ||= "The combined highest possible score is too large.";
     if (error || !used || hpsTotal <= 0) return { rawTotal, hpsTotal, percentage: null, weighted: null, used, missing, error };
     const active = buckets.filter(group => group.hps > 0);
     const activeShare = active.reduce((sum, group) => sum + group.share, 0);
@@ -255,10 +283,11 @@
   }
 
   function calculateLearner(learner, period, section) {
-    const ww = calculateComponent(learner.ww, period.wwHps, section.weights[0], componentOptions(section, period, "ww"));
-    const pt = calculateComponent(learner.pt, period.ptHps, section.weights[1], componentOptions(section, period, "pt"));
-    const qa = calculateQuarterlyAssessment(learner.qa, period.qaHps, section.weights[2], componentOptions(section, period, "qa"));
     const issue = gradingIssue(section);
+    const weights = section?.weights || [];
+    const ww = calculateComponent(learner.ww, period.wwHps, weights[0], componentOptions(section, period, "ww"));
+    const pt = calculateComponent(learner.pt, period.ptHps, weights[1], componentOptions(section, period, "pt"));
+    const qa = calculateQuarterlyAssessment(learner.qa, period.qaHps, weights[2], componentOptions(section, period, "qa"));
     const initial = issue ? { precise: null, rounded: null, transmuted: null, descriptor: "—", error: issue } : calculateInitialGrade(ww, pt, qa, { transmute: section.gradingMode !== "zero-based" });
     return { ww, pt, qa, initial };
   }
@@ -269,7 +298,8 @@
     if (parts.some((value) => !Number.isFinite(value))) return { precise: null, rounded: null, transmuted: null, descriptor: "—" };
     const precise = parts.reduce((sum, value) => sum + value, 0);
     const rounded = roundHalfUp(precise, FINAL_GRADE_DECIMALS);
-    const transmuted = transmute ? transmuteGrade(precise) : roundHalfUp(Math.round(precise * 1e12) / 1e12, ZERO_BASED_GRADE_DECIMALS);
+    const transmuted = transmute ? transmuteGrade(precise) : Math.max(MINIMUM_REPORTED_GRADE,
+      roundHalfUp(Number(precise.toFixed(GRADE_COMPARISON_DECIMALS)), ZERO_BASED_GRADE_DECIMALS));
     const descriptor = getGradeDescriptor(transmuted);
     return { precise, rounded, transmuted, descriptor };
   }
@@ -295,6 +325,8 @@
 
   return {
     FINAL_GRADE_DECIMALS,
+    MINIMUM_REPORTED_GRADE,
+    GRADE_COMPARISON_DECIMALS,
     QA_INTRA_WEIGHTS,
     ATTENDANCE_CODES,
     ZERO_SCORE_CODES,
@@ -317,6 +349,7 @@
     calculateQuarterlyAssessment,
     calculateInitialGrade,
     hasRawAboveHps,
+    scoreIssue,
     isAttendanceCode,
     isZeroScoreCode,
     isExcludedCode,

@@ -5,13 +5,15 @@ const noop=()=>{};
 function storage(){const map=new Map();return {getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,String(v)),removeItem:k=>map.delete(k),key:i=>[...map.keys()][i],get length(){return map.size;},map};}
 function harness(){
  const element={dataset:{theme:'light'},addEventListener:noop,querySelector:()=>null,querySelectorAll:()=>[],classList:{add:noop,remove:noop,toggle:noop},style:{},setAttribute:noop,append:noop,remove:noop};
- const sessionStorage=storage(),localStorage=storage();let disk={},signedOut=false,failSignOut=false;
+ const sessionStorage=storage(),localStorage=storage();let disk={},signedOut=false,failSignOut=false,semester='';
  const mobile={checkpoint:async()=>{disk=Object.fromEntries([...sessionStorage.map].filter(([k])=>/^cstr-class-record-(autosave-draft|history):/.test(k)));},clearRecovery:async()=>{disk={};}};
  const context={console,Date,Math,setTimeout:()=>0,clearTimeout:noop,setInterval:()=>0,clearInterval:noop,sessionStorage,localStorage,matchMedia:()=>({matches:false,addEventListener:noop}),document:{querySelector:s=>s==='#app'?element:null,querySelectorAll:()=>[],addEventListener:noop,documentElement:element,body:element},window:{addEventListener:noop,CSTRGrading:grading,CSTRRecordTools:record,CSTRMobile:mobile,CSTRRegistration:{clear:noop},CSTRSync:{configured:true,signOut:async()=>{if(failSignOut)throw new Error('Synthetic signout failure');signedOut=true;}}},requestAnimationFrame:noop,ResizeObserver:class{observe(){}},alert:noop,confirm:()=>true};
  context.document.createElement=()=>({...element});
+ const querySelector=context.document.querySelector;
+ context.document.querySelector=selector=>selector==='#officialSemester'?{value:semester}:querySelector(selector);
  let source=fs.readFileSync(path.join(root,'ASSETS/app.js'),'utf8').replace('  initApp();',`window.hooks={sanitizeScoreValue,learnerResult,officialExportPayload,officialExportReadiness,isLearnerAssessmentComplete,renderReportResultHtml,getPeriodInputIntegrity,performLogout,persistLocalDraft,createInitialState,setState(v){state=normalizeState(v);activeSectionId=activeRegistry()[0]?.id;activePeriodIndex=0;},getState:()=>state};`);
  vm.runInNewContext(source,context);
- return {h:context.window.hooks,sessionStorage,localStorage,mobile,get disk(){return disk;},get signedOut(){return signedOut;},failSignOut(){failSignOut=true;}};
+ return {h:context.window.hooks,sessionStorage,localStorage,mobile,chooseSemester(value){semester=value;},get disk(){return disk;},get signedOut(){return signedOut;},failSignOut(){failSignOut=true;}};
 }
 const section={id:'synthetic',subject:'Custom',gradingCategory:'custom',group:'JHS',level:'8',section:'Test',gradingMode:'school-transmutation',weights:[20,50,30],rosterSize:1};
 function period(q,score='10'){return {quarter:q,name:'Quarter '+q,locked:false,wwDates:[''],ptDates:[''],qaDates:['','',''],wwHps:['10'],ptHps:['10'],qaHps:['10','10','10'],roster:[{name:'Synthetic, Learner',ww:[score],pt:[score],qa:[score,score,score]}]};}
@@ -39,6 +41,17 @@ async function main(){
  assert.equal(review.missingHps,1);
  assert.equal(review.invalidScores,0);
  console.log('PASS Tommy flags configured blanks and out-of-range scores while preserving recorded zero and attendance codes.');
+ const older=period(1);older.wwHps.push(20);older.roster[0].ww.push('18.25');
+ h.setState(state(h,[older]));
+ const loaded=h.getState().sections.synthetic.periods[0];
+ assert.deepEqual(Array.from(loaded.wwDates),['','']);
+ assert.equal(loaded.roster[0].ww[1],'18.25');
+ assert.equal(loaded.wwHps[1],20);
+ const invalidReport=period(1);invalidReport.roster[0].ww[0]='11';
+ h.setState(state(h,[invalidReport]));assert.equal(h.officialExportReadiness(h.officialExportPayload()).type,'error');
+ const twins=period(1);twins.roster.push({...twins.roster[0]});
+ h.setState(state(h,[twins,period(2)]));assert.equal(h.officialExportReadiness(h.officialExportPayload()).type,'error');
+ console.log('PASS Legacy uneven activity arrays retain scores, and official export blocks invalid marks and ambiguous learner matches.');
  h.setState(state(h,[period(1)]));const target={...section,gradingMode:'zero-based'},p=period(1,'8');
  assert.equal(h.learnerResult(p.roster[0],p,target).initial.transmuted,80);
  assert.equal(h.learnerResult(p.roster[0],p,section).initial.transmuted,83);
@@ -50,6 +63,11 @@ async function main(){
  assert.equal(payload.students[0].periods[1].periodical,undefined);assert.equal(payload.students[0].periods[2].periodical,83);assert.equal(payload.students[0].periods[3].periodical,72);
  const terms=[period(1),period(3,'8')];terms[0].term=1;terms[1].term=3;h.setState(state(h,terms,'trimester'));payload=h.officialExportPayload();assert.equal(payload.students[0].periods[1].periodical,undefined);assert.equal(payload.students[0].periods[2].periodical,83);
  const shs={...section,group:'SHS'};const quarters=[period(2,'8'),period(1)];quarters[0].semester=2;quarters[1].semester=1;h.setState(state(h,quarters,'legacy',shs));payload=h.officialExportPayload();assert.equal(payload.students[0].periods[0].periodical,100);assert.equal(payload.students[0].periods[3].periodical,83);
+ const secondSemester=[{...period(1,'8'),semester:2},{...period(2),semester:2}];
+ h.setState(state(h,[...secondSemester,{...period(1,'11'),semester:1}],'legacy',shs));
+ a.chooseSemester('2');payload=h.officialExportPayload();
+ assert.equal(payload.periodCount,2);assert.equal(payload.semester,2);assert.equal(payload.students[0].finalGrade,92);
+ assert.equal(h.officialExportReadiness(payload).type,'success');a.chooseSemester('');
  for(const periods of [[period(1),period(1)],[period(1),period(5)]]){h.setState(state(h,periods));assert.equal(h.officialExportReadiness(h.officialExportPayload()).type,'error');}
  console.log('PASS JHS, SHS and trimester exports keep gaps and explicit identities; duplicates and out-of-range periods block export.');
  h.setState(state(h,[1,2,3,4].map(q=>period(q,''))));payload=h.officialExportPayload();assert.equal(h.officialExportReadiness(payload).type,'warning');assert.equal(payload.provisional,true);assert.equal(payload.students[0].finalGrade,null);

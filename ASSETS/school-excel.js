@@ -21,16 +21,19 @@
   function validate(payload) {
     const { section, period } = payload;
     if (!section || !period || !Array.isArray(period.roster)) throw new Error('Open a class record first.');
-    if (!Array.isArray(section.weights) || section.weights.length !== 3 || section.weights.some(w => typeof w !== 'number' || !Number.isFinite(w) || w < 0) || Math.abs(sumNumbers(section.weights) - 100) > 1e-8) throw new Error('Subject weights must total 100%.');
     const issue = root.CSTRGrading.gradingIssue(section); if(issue)throw new Error(issue);
-    for (const kind of ['ww', 'pt', 'qa']) {
+    const kinds = ['ww', 'pt', 'qa'];
+    if (period.roster.some(learner => !present(learner.name) && kinds.some(kind => learner[kind]?.some(present)))) {
+      throw new Error('Name the learner on every scored row.');
+    }
+    for (const [componentIndex, kind] of kinds.entries()) {
       const hps = period[kind + 'Hps'], dates = period[kind + 'Dates'];
       if (!Array.isArray(hps) || !Array.isArray(dates) || hps.length !== dates.length) throw new Error('Assessment columns are inconsistent.');
       if (hps.length > 1000) throw new Error('Too many assessment columns.');
       for (const learner of period.roster) {
         if (!Array.isArray(learner[kind]) || learner[kind].length !== hps.length) throw new Error('Learner scores and assessment columns do not align.');
       }
-      if (section.weights[['ww','pt','qa'].indexOf(kind)] === 0) continue;
+      if (section.weights[componentIndex] === 0) continue;
       const options = root.CSTRGrading.componentOptions(section, period, kind);
       hps.forEach((value, index) => {
         if (present(value) && (root.CSTRGrading.numberOrNull(value) === null || Number(value) <= 0)) throw new Error(`${kind.toUpperCase()} ${index + 1}: enter a positive HPS.`);
@@ -40,11 +43,10 @@
         if (root.CSTRRecordTools?.getRowCategory(learner)) continue;
         learner[kind].forEach((value, index) => {
           if (!present(value)) return;
-          const maximum = root.CSTRGrading.numberOrNull(hps[index]);
-          if (maximum === null || maximum <= 0) throw new Error(`${kind.toUpperCase()} ${index + 1}: a score has no positive HPS.`);
-          if (root.CSTRGrading.isAttendanceCode(value)) return;
-          const number = root.CSTRGrading.numberOrNull(value);
-          if (number === null || number < 0 || number > maximum) throw new Error(`${kind.toUpperCase()} ${index + 1}: a score is outside zero to HPS.`);
+          const label = `${kind.toUpperCase()} ${index + 1}`;
+          const problem = root.CSTRGrading.scoreIssue(value, hps[index]);
+          if (problem === 'missingHps') throw new Error(`${label}: a score has no positive HPS.`);
+          if (problem) throw new Error(`${label}: enter a score from zero to HPS or A, M, E, L.`);
         });
       }
     }
@@ -52,21 +54,21 @@
   }
   const sumNumbers = list => list.reduce((total, value) => total + value, 0);
 
-  // SUMIF and SUMPRODUCT evaluate ranges natively without Ctrl+Shift+Enter.
-  // Compact ranges keep formulas within Excel's 8,192-character limit even
-  // when a teacher adds many activities. There is no N(range) array coercion.
-  function groupTerms(columns, row) {
-    const segments = [];
-    for (const c of columns) {
-      const last = segments[segments.length-1];
-      if (last && last[1]+1===c) last[1]=c; else segments.push([c,c]);
-    }
-    const terms = segments.map(([start,end]) => {
-      const scores = `${col(start)}${row}:${col(end)}${row}`, hps = `${col(start)}$18:${col(end)}$18`;
-      const invalid = `COLUMNS(${scores})-COUNT(${scores})-COUNTBLANK(${scores})-COUNTIF(${scores},"A")-COUNTIF(${scores},"M")-COUNTIF(${scores},"E")-COUNTIF(${scores},"L")+COLUMNS(${hps})-COUNT(${hps})-COUNTBLANK(${hps})+SUMPRODUCT(--ISNUMBER(${hps}),--(${hps}<=0))+SUMPRODUCT(--ISNUMBER(${scores}),--(${scores}<0))+SUMPRODUCT(--ISNUMBER(${scores}),--(${scores}>${hps}))+SUMPRODUCT(--(${scores}<>""),--(${hps}=""))`;
-      return { configured:`SUM(${hps})`,denominator:`SUM(${hps})-SUMIF(${scores},"E",${hps})-SUMIF(${scores},"L",${hps})`,numerator:`SUM(${scores})`,invalid };
-    });
-    return Object.fromEntries(['configured','denominator','numerator','invalid'].map(key => [key,sum(terms.map(term=>`(${term[key]})`))]));
+  // One contiguous range per component, with a hidden row for assessment roles.
+  // Formula length is independent of how often the roles alternate.
+  function groupTerms(columns, row, roleRow, role) {
+    const first = col(columns[0]), last = col(columns[columns.length - 1]);
+    const scores = `${first}${row}:${last}${row}`, hps = `${first}$18:${last}$18`;
+    const roles = `${first}$${roleRow}:${last}$${roleRow}`;
+    const mask = role ? `--(${roles}="${role}"),` : '';
+    return {
+      configured: `SUMPRODUCT(${mask}${hps})`,
+      denominator: `SUMPRODUCT(${mask}--(${scores}<>"E"),--(${scores}<>"L"),${hps})`,
+      numerator: `SUMPRODUCT(${mask}${scores})`,
+      pending: `SUMPRODUCT(--(${hps}>0),--(${scores}=""))`,
+      unassigned: `SUMPRODUCT(--(${roles}=""),--(((${hps}<>"")+(${scores}<>""))>0))`,
+      invalid: `COLUMNS(${scores})-COUNT(${scores})-COUNTBLANK(${scores})-COUNTIF(${scores},"A")-COUNTIF(${scores},"M")-COUNTIF(${scores},"E")-COUNTIF(${scores},"L")+COLUMNS(${hps})-COUNT(${hps})-COUNTBLANK(${hps})+SUMPRODUCT(--ISNUMBER(${hps}),--(${hps}<=0))+SUMPRODUCT(--ISNUMBER(${scores}),--(${scores}<0))+SUMPRODUCT(--ISNUMBER(${scores}),--(${scores}>${hps}))+SUMPRODUCT(--(${scores}<>""),--(${hps}=""))`
+    };
   }
 
   async function build(payload, options = {}) {
@@ -146,6 +148,14 @@
     }
     const W = (oldCol, oldRow, value, formula) => write(mapCol(colIndex(oldCol)), mapRow(oldRow), value, formula);
     const rawColumns = { ww: Array.from({ length: Math.max(10, lengths.ww) }, (_, i) => 2 + i), pt: Array.from({ length: Math.max(8, lengths.pt) }, (_, i) => mapCol(14) + i), qa: Array.from({ length: Math.max(3, lengths.qa) }, (_, i) => mapCol(24) + i) };
+    const roleRow = mapRow(76) + Math.max(7, ...Object.values(lengths));
+    ensureRow(roleRow).setAttribute('hidden', '1');
+    const componentRules = Object.fromEntries(Object.keys(rawColumns).map(kind => [kind, root.CSTRGrading.componentOptions(section, period, kind)]));
+    for (const [kind, columns] of Object.entries(rawColumns)) {
+      const { groups, roles } = componentRules[kind];
+      if (!groups) continue;
+      columns.forEach((c, index) => write(c, roleRow, groups.some(group => group.id === roles[index]) ? roles[index] : ''));
+    }
     // New score columns inherit the corresponding native raw-score style.
     for (const [kind, columns] of Object.entries(rawColumns)) {
       const sourceCol = { ww: 'K', pt: 'V', qa: 'AA' }[kind];
@@ -215,62 +225,69 @@
     }
     const totalCols = { ww: mapCol(12), pt: mapCol(22) }, wsCols = { ww: mapCol(13), pt: mapCol(23), qa: mapCol(31) };
     for (const kind of ['ww','pt']) {
-      const columns = rawColumns[kind], hpsTotal = sum(columns.map(c => `${col(c)}18`));
+      const columns = rawColumns[kind], hpsTotal = `SUM(${col(columns[0])}18:${col(columns.at(-1))}18)`;
       write(totalCols[kind],18, sumNumbers(period[kind+'Hps'].map(x => root.CSTRGrading.numberOrNull(x)||0)),hpsTotal);
     }
     const preset=root.CSTRGrading.SUBJECT_PRESETS.find(item=>item.name===(section.gradingCategory||section.subject));
     const fixedWeights=preset ? [['N',weights[0]/100],['X',weights[1]/100],['AF',weights[2]/100]] : [];
-    if(weights[2]>0)fixedWeights.push(['AB',teOnly?0:.3],['AC',teOnly?0:.3],['AD',teOnly?1:.4]);
+    fixedWeights.push(['AB',teOnly?0:.3],['AC',teOnly?0:.3],['AD',teOnly?1:.4]);
     const subjectWeightGuard=fixedWeights.map(([c,value])=>`ABS(${col(mapCol(colIndex(c)))}$18-${value})>0.0000000001`);
-    const tierFormula = ref => root.CSTRGrading.TRANSMUTATION_TABLE.slice(0,-1).reduceRight((tail,tier) => `IF(ROUND(${ref},12)>=${tier.min},${tier.grade},${tail})`,'60');
+    const comparisonGrade = ref => `ROUND(${ref},${root.CSTRGrading.GRADE_COMPARISON_DECIMALS})`;
+    const tierFormula = ref => root.CSTRGrading.TRANSMUTATION_TABLE.slice(0,-1).reduceRight((tail,tier) => `IF(${comparisonGrade(ref)}>=${tier.min},${tier.grade},${tail})`,'60');
     const resultCells = [];
+    let learnerNumber = 0;
     for (let r = 19; r <= lastLearnerRow; r++) {
       const learner = period.roster[r-19] || { name:'', ww:[],pt:[],qa:[] };
       const category = root.CSTRRecordTools?.getRowCategory(learner);
       if (category) continue;
       const result = root.CSTRGrading.calculateLearner(learner,period,section), named = present(learner.name);
       const setFormula = (c,f,v) => { if(f.length>8192)throw new Error('Excel formula length exceeded. Keep activities from the same assessment group adjacent, or reduce the number of columns.'); write(c,r,named ? v : '',f); resultCells.push(`${col(c)}${r}`); };
+      const terms = Object.fromEntries(Object.entries(rawColumns).map(([kind, columns]) => [kind, groupTerms(columns, r, roleRow)]));
       if(!original){
-        const headingCells=period.roster.slice(0,r-18).flatMap((item,index)=>root.CSTRRecordTools?.getRowCategory(item)?[`$B${19+index}`]:[]);
-        const numbering=`SUMPRODUCT(--($B$19:$B${r}<>""))${headingCells.length?'-'+sum(headingCells.map(ref=>`IF(${ref}<>"",1,0)`)):''}`;
-        const cache=period.roster.slice(0,r-18).filter(item=>present(item.name)&&!root.CSTRRecordTools?.getRowCategory(item)).length;
-        setFormula(0,`IF($B${r}="","",${numbering})`,cache);
+        if (named) learnerNumber++;
+        const numbering = r === 19 ? '1' : `COUNT($A$19:$A${r - 1})+1`;
+        setFormula(0,`IF($B${r}="","",${numbering})`,learnerNumber);
       }
       for (const kind of ['ww','pt']) {
-        const columns = rawColumns[kind], t = groupTerms(columns,r), component = result[kind];
-        setFormula(totalCols[kind],`IF($B${r}="","",${sum(columns.map(c=>`${col(c)}${r}`))})`,component.rawTotal);
-        let percentage, denominator;
-        const options = root.CSTRGrading.componentOptions(section,period,kind);
-        if (options.groups) {
-          const terms = options.groups.map(g=>({...g,...groupTerms(columns.filter((_,i)=>options.roles[i]===g.id),r)}));
-          denominator=sum(terms.map(g=>`IF(${g.denominator}>0,${g.share},0)`));
-          percentage=`IF(OR(${terms.map(g=>`${g.configured}=0`).join(',')}),"",IF(${denominator}=0,"",${sum(terms.map(g=>`IF(${g.denominator}>0,${g.numerator}/${g.denominator}*100*${g.share},0)`))}/${denominator}))`;
-        } else percentage=`IF(${t.denominator}=0,"",${col(totalCols[kind])}${r}/${t.denominator}*100)`;
-        const ws=`${col(wsCols[kind])}$18`;
-        const weighted = options.groups
-          ? `IF(OR(${options.groups.map(g=>`${groupTerms(columns.filter((_,i)=>options.roles[i]===g.id),r).configured}=0`).join(',')}),"",IF(${denominator}=0,"",(${percentage})*${ws}))`
-          : `IF(${t.denominator}=0,"",${col(totalCols[kind])}${r}/${t.denominator}*100*${ws})`;
-        setFormula(wsCols[kind],`IF($B${r}="","",IF(${ws}=0,0,IF(${t.invalid}>0,NA(),${weighted})))`,component.weighted);
+        const columns = rawColumns[kind], t = terms[kind], component = result[kind];
+        const ws = `${col(wsCols[kind])}$18`, total = `${col(totalCols[kind])}${r}`;
+        setFormula(totalCols[kind], `IF($B${r}="","",IF(${ws}=0,0,${t.numerator}))`, component.rawTotal);
+        const { groups } = componentRules[kind];
+        let weighted = `IF(${t.denominator}=0,"",${total}/${t.denominator}*100*${ws})`;
+        if (groups) {
+          const grouped = groups.map(g => ({ ...g, ...groupTerms(columns, r, roleRow, g.id) }));
+          const activeShare = sum(grouped.map(g => `IF(${g.denominator}>0,${g.share},0)`));
+          const ready = grouped.map(g => `${g.configured}>0`).join(',');
+          const percentages = sum(grouped.map(g => `IF(${g.denominator}>0,${g.numerator}/${g.denominator}*100*${g.share},0)`));
+          weighted = `IF(AND(${ready},${activeShare}>0),${percentages}/${activeShare}*${ws},"")`;
+        }
+        const invalid = groups ? `(${t.invalid})+${t.unassigned}` : t.invalid;
+        setFormula(wsCols[kind],`IF($B${r}="","",IF(${ws}=0,0,IF(${invalid}>0,NA(),${weighted})))`,component.weighted);
       }
-      const qaOptions=root.CSTRGrading.componentOptions(section,period,'qa');
-      const qaGroups=(teOnly?['te']:['st1','st2','te']).map(role=>({role,...groupTerms(rawColumns.qa.filter((_,i)=>qaOptions.roles[i]===role),r)}));
+      const qaGroups=componentRules.qa.groups.map(({id: role})=>({role,...groupTerms(rawColumns.qa,r,roleRow,role)}));
       const qaCellRefs=[];
       for(const [i,role] of ['st1','st2','te'].entries()) {
         const c=mapCol(27+i),g=qaGroups.find(g=>g.role===role),weight=`${col(c)}$18`,ref=`${col(c)}${r}`;
         qaCellRefs.push(ref);
         let cache='';
         if(g&&weights[2]>0){const item=result.qa.groups?.find(g=>g.id===role);if(item?.percentage!=null)cache=item.percentage*(teOnly?1:[.3,.3,.4][i]);}
-        setFormula(c,`IF($B${r}="","",IF(${col(wsCols.qa)}$18=0,"",${g?`IF(${g.invalid}>0,NA(),IF(${g.denominator}=0,"",${g.numerator}/${g.denominator}*100*${weight}))`:'""'}))`,cache);
+        setFormula(c,`IF($B${r}="","",IF(${col(wsCols.qa)}$18=0,"",${g?`IF(${g.denominator}=0,"",${g.numerator}/${g.denominator}*100*${weight})`:'""'}))`,cache);
       }
       const activeShare=sum(qaCellRefs.map((ref,i)=>`IF(ISNUMBER(${ref}),${col(mapCol(27+i))}$18,0)`));
       const qaReady=qaGroups.map(g=>`${g.configured}>0`).join(',');
       const qaPS=`IF(AND(${qaReady||'FALSE'}),IF(${activeShare}=0,"",SUM(${qaCellRefs.join(',')})/${activeShare}),"")`;
-      setFormula(mapCol(30),`IF($B${r}="","",IF(${col(wsCols.qa)}$18=0,"",${qaPS}))`,result.qa.percentage);
-      setFormula(wsCols.qa,`IF($B${r}="","",IF(${col(wsCols.qa)}$18=0,0,IF(ISNUMBER(${col(mapCol(30))}${r}),${col(mapCol(30))}${r}*${col(wsCols.qa)}$18,"")))`,result.qa.weighted);
+      setFormula(mapCol(30),`IF($B${r}="","",IF(${col(wsCols.qa)}$18=0,"",IF((${terms.qa.invalid})+${terms.qa.unassigned}>0,NA(),${qaPS})))`,result.qa.percentage);
+      const examPS = `${col(mapCol(30))}${r}`;
+      setFormula(wsCols.qa,`IF($B${r}="","",IF(${col(wsCols.qa)}$18=0,0,IF(${examPS}="","",${examPS}*${col(wsCols.qa)}$18)))`,result.qa.weighted);
       const wsRefs=Object.values(wsCols).map(c=>`${col(c)}${r}`), ig=`${col(mapCol(32))}${r}`, grade=`${col(mapCol(33))}${r}`;
-      setFormula(mapCol(32),`IF($B${r}="","",IF(OR(COUNT(${Object.values(wsCols).map(c=>`${col(c)}$18`).join(',')})<>3,ABS(SUM(${Object.values(wsCols).map(c=>`${col(c)}$18`).join(',')})-1)>0.00000001${subjectWeightGuard.length?','+subjectWeightGuard.join(','):''}),NA(),IF(COUNT(${wsRefs.join(',')})=3,SUM(${wsRefs.join(',')}),"")))`,result.initial.precise);
-      setFormula(mapCol(33),`IF(ISNUMBER(${ig}),${section.gradingMode==='zero-based'?`ROUND(ROUND(${ig},12),0)`:tierFormula(ig)},"")`,result.initial.transmuted);
-      setFormula(mapCol(34),`IF(ISNUMBER(${grade}),IF(${grade}>=90,"Advancing",IF(${grade}>=80,"Benchmarking",IF(${grade}>=75,"Connecting",IF(${grade}>=65,"Developing","Emerging")))),"")`,result.initial.transmuted===null?'':result.initial.descriptor);
+      const weightRefs = Object.values(wsCols).map(c => `${col(c)}$18`).join(',');
+      const invalidWeights = [`COUNT(${weightRefs})<>3`, `MIN(${weightRefs})<0`, `MAX(${weightRefs})>1`, `ABS(SUM(${weightRefs})-1)>0.0000000001`, ...subjectWeightGuard];
+      setFormula(mapCol(32),`IF($B${r}="","",IF(OR(${invalidWeights.join(',')},${wsRefs.map(ref => `ISERROR(${ref})`).join(',')}),NA(),IF(COUNT(${wsRefs.join(',')})=3,SUM(${wsRefs.join(',')}),"")))`,result.initial.precise);
+      setFormula(mapCol(33),`IF(ISNUMBER(${ig}),${section.gradingMode==='zero-based'?`MAX(${root.CSTRGrading.MINIMUM_REPORTED_GRADE},ROUND(${comparisonGrade(ig)},0))`:tierFormula(ig)},"")`,result.initial.transmuted);
+      const pending = sum(Object.keys(terms).map(kind => `IF(${col(wsCols[kind])}$18=0,0,${terms[kind].pending})`));
+      const hasPending = ['ww','pt','qa'].some(kind => result[kind].missing > 0);
+      const descriptor = `IF(${grade}>=90,"Advancing",IF(${grade}>=80,"Benchmarking",IF(${grade}>=75,"Connecting",IF(${grade}>=65,"Developing","Emerging"))))`;
+      setFormula(mapCol(34),`IF($B${r}="","",IF(ISERROR(${ig}),"Check inputs",IF(ISNUMBER(${grade}),${descriptor}&IF(${pending}>0," (pending)",""),"Incomplete")))`,result.initial.transmuted === null ? 'Incomplete' : result.initial.descriptor + (hasPending ? ' (pending)' : ''));
     }
     // Append wrapping variants; all original style IDs remain unchanged.
     const wrappedStyles=new Map();
@@ -362,7 +379,11 @@
     const validations=el(doc,'dataValidations');
     for(const kind of ['ww','pt','qa'])for(const c of rawColumns[kind]){
       const x=`${col(c)}19`,h=`${col(c)}$18`,validation=el(doc,'dataValidation',{type:'custom',allowBlank:1,showErrorMessage:1,errorTitle:'Check score and HPS',error:'Enter a score from 0 to HPS, or A, M, E, L.',sqref:`${col(c)}19:${col(c)}${lastLearnerRow}`});
-      const formula=el(doc,'formula1');formula.textContent=`OR(${x}="",AND(ISNUMBER(${h}),${h}>0,OR(AND(ISNUMBER(${x}),${x}>=0,${x}<=${h}),UPPER(${x})="A",UPPER(${x})="M",UPPER(${x})="E",UPPER(${x})="L")))`;validation.appendChild(formula);validations.appendChild(validation);
+      const options = componentRules[kind];
+      const assigned = options.groups ? `,${col(c)}$${roleRow}<>""` : '';
+      const formula=el(doc,'formula1');formula.textContent=`OR(${x}="",AND($B19<>"",ISNUMBER(${h}),${h}>0${assigned},OR(AND(ISNUMBER(${x}),${x}>=0,${x}<=${h}),UPPER(${x})="A",UPPER(${x})="M",UPPER(${x})="E",UPPER(${x})="L")))`;validation.appendChild(formula);validations.appendChild(validation);
+      const maxValidation=el(doc,'dataValidation',{type:'custom',allowBlank:0,showErrorMessage:1,errorTitle:'Check HPS',error:'Enter a positive maximum in an assigned assessment column, or clear the column.',sqref:`${col(c)}18`});
+      const maxFormula=el(doc,'formula1');maxFormula.textContent=`OR(${h}="",AND(ISNUMBER(${h}),${h}>0${assigned}))`;maxValidation.appendChild(maxFormula);validations.appendChild(maxValidation);
     }
     for(const [c,value] of fixedWeights){
       const ref=`${col(mapCol(colIndex(c)))}18`,v=el(doc,'dataValidation',{type:'custom',allowBlank:0,showErrorMessage:1,errorTitle:'Subject-specific weight',error:`Keep the selected subject's required WW/PT/EX and exam split weights. Change the class category in the website and export again to use a different scheme.`,sqref:ref});
@@ -374,7 +395,7 @@
     // roster and its activity summary onto a single unreadable page.
     const pageSetup=sheet.getElementsByTagNameNS(NS,'pageSetup')[0];
     if(pageSetup){const expanded=Object.values(added).some(n=>n>0);pageSetup.setAttribute('orientation','landscape');pageSetup.setAttribute('fitToWidth',expanded?'0':'1');pageSetup.setAttribute('fitToHeight','0');const fit=sheet.getElementsByTagNameNS(NS,'pageSetUpPr')[0];if(fit)fit.setAttribute('fitToPage',expanded?'0':'1');}
-    const dimension=sheet.getElementsByTagNameNS(NS,'dimension')[0];dimension.setAttribute('ref',`A1:${col(lastCol)}${endRow}`);
+    const dimension=sheet.getElementsByTagNameNS(NS,'dimension')[0];dimension.setAttribute('ref',`A1:${col(lastCol)}${roleRow}`);
     for(const view of [...sheet.getElementsByTagNameNS(NS,'sheetView')]){view.setAttribute('topLeftCell','A1');for(const selection of [...view.getElementsByTagNameNS(NS,'selection')])selection.remove();view.appendChild(el(doc,'selection',{activeCell:'B19',sqref:'B19'}));}
     for(const row of rows.values()){
       const sorted=[...row.children].sort((a,b)=>address(a.getAttribute('r')).c-address(b.getAttribute('r')).c);row.replaceChildren(...sorted);

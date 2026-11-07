@@ -6,7 +6,7 @@
     calculateQuarterlyAssessment,
     calculateInitialGrade,
     format,
-    hasRawAboveHps,
+    scoreIssue,
     isAttendanceCode,
     isZeroScoreCode,
     isExcludedCode,
@@ -31,8 +31,6 @@
   const TRIMESTER_SHS_TERM_NAMES = ["Term 1", "Term 2", "Term 3"];
   // Calendar and reported-grade policy are independent class settings.
   const usesTransmutation = section => section?.gradingMode !== "zero-based";
-  // Verify whether the final grade is an equal average of the three term grades.
-  const TRIMESTER_FINAL_GRADE_WEIGHTS = [1, 1, 1];
 
   let currentView = "home";
   let activeGroup = "JHS";
@@ -45,6 +43,12 @@
   try { const stored = localStorage.getItem("cstr-sidebar-collapsed"); if (stored !== null) sidebarCollapsed = matchMedia("(max-width: 760px)").matches || stored === "true"; } catch (_) {}
   const hpsEdits = new WeakMap();
   let lastRenderedRecord = "";
+  let lastRenderedScreen = "";
+  let welcomeReveal;
+  let sidebarMotion;
+  let sidebarEdge;
+  const motionEase = "cubic-bezier(.23,1,.32,1)";
+  const allowsMotion = () => !keyboardInteraction && !matchMedia("(prefers-reduced-motion: reduce)").matches;
   // Presentation state only; never stored with teacher records.
   let keyboardInteraction = false;
   document.addEventListener('keydown', () => { keyboardInteraction = true; }, true);
@@ -479,9 +483,13 @@
         return;
       }
       sections[section.id] = { periods: loaded.periods.map((period, periodIndex) => {
-        const wwLen = Array.isArray(period.wwDates) ? period.wwDates.length : 10;
-        const ptLen = Array.isArray(period.ptDates) ? period.ptDates.length : 8;
-        const qaLen = Array.isArray(period.qaDates) ? period.qaDates.length : 3;
+        const activityLength = (kind, fallback) => {
+          const rows = Array.isArray(period.roster) ? period.roster : [];
+          const columns = [period[kind + "Dates"], period[kind + "Hps"], period.activityMeta?.[kind]].filter(Array.isArray);
+          const scores = rows.reduce((length, learner) => Array.isArray(learner?.[kind]) ? Math.max(length, learner[kind].length) : length, 0);
+          return columns.length || scores ? Math.max(scores, ...columns.map(column => column.length)) : fallback;
+        };
+        const wwLen = activityLength("ww", 10), ptLen = activityLength("pt", 8), qaLen = activityLength("qa", 3);
 
         return {
           name: typeof period.name === "string" && period.name.trim() ? period.name : initialPeriod(section, calendarMode).name,
@@ -609,6 +617,8 @@
       close: '<path d="m6 6 12 12M18 6 6 18"/>',
       chevron: '<path d="m6 9 6 6 6-6"/>',
       panel: '<rect x="3" y="3" width="18" height="18"/><path d="M9 3v18m5-13 4 4-4 4"/>',
+      "rail-collapse": '<path d="M5 4v16m4-8h11m-7-4-4 4 4 4"/>',
+      "rail-expand": '<path d="M5 4v16m4-8h11m-4-4 4 4-4 4"/>',
       print: '<path d="M6 8V3h12v5M6 17H3V8h18v9h-3M6 14h12v7H6zM17 11h.01"/>',
       eye: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/>',
       more: '<circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/>'
@@ -620,17 +630,15 @@
 
   // Custom/Other subject grading weights — lets a teacher set their own
   // WW / PT / QA split for a subject that isn't one of the DepEd presets.
-  // The QA column's internal ST1/ST2/Term Exam 30/30/40 split is untouched:
-  // that split lives in CSTRGrading.calculateQuarterlyAssessment and applies
-  // uniformly whenever a period has exactly 3 QA columns, regardless of subject.
+  // The standard ST1/ST2/Term Exam split remains available with custom weights.
   function attachCustomWeightLiveTotal(modal, ids, noteId) {
     const inputs = ids.map((id) => modal.querySelector(`#${id}`)).filter(Boolean);
     const note = modal.querySelector(`#${noteId}`);
     if (!note || inputs.length !== 3) return;
     const refresh = () => {
       const total = inputs.reduce((sum, input) => sum + (Number(input.value) || 0), 0);
-      const rounded = Math.round(total * 100) / 100;
-      const balanced = Math.abs(rounded - 100) <= 0.01;
+      const rounded = window.CSTRGrading.roundHalfUp(total, 8);
+      const balanced = Boolean(readCustomWeightInputs(modal, ids));
       note.textContent = balanced
         ? `Total: ${rounded}% ✓ (WW ${Number(inputs[0].value) || 0}% · PT ${Number(inputs[1].value) || 0}% · QA ${Number(inputs[2].value) || 0}%)`
         : `Total: ${rounded}% — WW + PT + QA must add up to exactly 100%.`;
@@ -645,11 +653,8 @@
   // never a partially-valid array) when any value is missing, negative, or
   // the three don't sum to 100 within floating-point tolerance.
   function readCustomWeightInputs(modal, ids) {
-    const values = ids.map((id) => Number(modal.querySelector(`#${id}`)?.value));
-    if (values.some((value) => !Number.isFinite(value) || value < 0)) return null;
-    const total = values.reduce((sum, value) => sum + value, 0);
-    if (Math.abs(total - 100) > 0.01) return null;
-    return values;
+    const weights = ids.map((id) => window.CSTRGrading.numberOrNull(modal.querySelector(`#${id}`)?.value));
+    return window.CSTRGrading.gradingIssue({ weights }) ? null : weights;
   }
 
   function dashboardMetrics() {
@@ -694,6 +699,13 @@
     };
     const cls = clsMap[descriptor] || "";
     return `<span class="descriptor-badge ${cls}">${escapeHtml(descriptor)}</span>`;
+  }
+
+  function renderSheetGradeStatus(learner, result) {
+    if (!learner.name?.trim() || getRowCategory(learner)) return renderDescriptorBadge("—");
+    if (!Number.isFinite(result.initial.transmuted)) return '<small class="sheet-grade-state">Check inputs</small>';
+    const pending = ["ww", "pt", "qa"].some(kind => result[kind].missing > 0);
+    return renderDescriptorBadge(result.initial.descriptor) + (pending ? '<small class="sheet-grade-state">Pending</small>' : "");
   }
 
   function getLearnerCategory(name) {
@@ -842,6 +854,15 @@
     return trimmed;
   }
 
+  const scoreIssueMessage = (value, hps) => ({
+    invalidScores: "Enter a nonnegative decimal (up to 15 significant digits) or A, M, E, L.",
+    missingHps: "Set a positive highest possible score for this activity.",
+    aboveHps: "This score exceeds the highest possible score."
+  })[scoreIssue(value, hps)] || "";
+
+  const invalidMaximum = value => String(value ?? "").trim() !== "" && !(window.CSTRGrading.numberOrNull(value) > 0);
+  const hpsInputState = value => `aria-invalid="${invalidMaximum(value)}" class="${invalidMaximum(value) ? "invalid" : ""}"`;
+
   // Scores remain text while a teacher is typing so partial decimals stay
   // usable. This only drives integrity feedback; grading formulas stay intact.
   function getPeriodInputIntegrity(period, details) {
@@ -884,14 +905,8 @@
             if (hps > 0 && hasEntry(learner.name)) add('pending', kind, index, row);
             return;
           }
-          if (!(hps > 0)) add('missingHps', kind, index, row);
-          if (isAttendanceCode(value)) return;
-          const score = window.CSTRGrading.numberOrNull(value);
-          if (!Number.isFinite(score) || score < 0) {
-            add('invalidScores', kind, index, row);
-            return;
-          }
-          if (hps > 0 && score > hps) add('aboveHps', kind, index, row);
+          const issue = scoreIssue(value, hpsValues[index]);
+          if (issue) add(issue, kind, index, row);
         });
       });
     });
@@ -899,7 +914,7 @@
   }
 
   function hasPeriodInputIssues(issues) {
-    return issues.invalidHps > 0 || issues.invalidScores > 0 || issues.aboveHps > 0 || issues.missingHps > 0 || issues.invalidGroups > 0;
+    return issues.invalidHps > 0 || issues.invalidScores > 0 || issues.aboveHps > 0 || issues.missingHps > 0 || issues.invalidGroups > 0 || issues.unnamed > 0;
   }
 
   const tommyIssueLabels = {
@@ -964,7 +979,8 @@
     if (issues.missingHps) parts.push(`${issues.missingHps} mark(s) without a positive HPS`);
     if (issues.invalidGroups) parts.push(`${issues.invalidGroups} assessment group/domain assignment(s) or HPS total(s) missing`);
     if (issues.aboveHps) parts.push(`${issues.aboveHps} score${issues.aboveHps === 1 ? "" : "s"} above HPS`);
-    return parts.join("; ");
+    if (issues.unnamed) parts.push(`${issues.unnamed} scored row(s) without a learner name`);
+    return parts.join(", ");
   }
 
   function updateSiteBackground() {
@@ -988,6 +1004,8 @@
     ensureActiveSelectionValid();
     const scrollLeft = currentView === "record" ? rememberTableScroll() : null;
     const signedIn = isSignedIn();
+    const screen = signedIn ? currentView : "welcome";
+    const changedScreen = screen !== lastRenderedScreen;
     if (!signedIn) document.querySelector('.modal-backdrop:has(.search-result-modal)')?.remove();
     const recordKey = signedIn && currentView === "record" ? activeSectionId : "";
     const existing = app.querySelector(".app-layout");
@@ -1003,6 +1021,13 @@
       }
     }
     lastRenderedRecord = recordKey;
+    if (changedScreen && allowsMotion()) {
+      if (screen === "welcome") app.querySelector(".login-screen")?.classList.add("welcome-arriving");
+      else animatePanel(app.querySelector(".app-shell :is(.dashboard-hero,.record-chooser .section-heading,.class-header-card)"));
+    }
+    welcomeReveal?.disconnect();
+    if (!signedIn) observeWelcomeProject();
+    lastRenderedScreen = screen;
     if (sessionStorage.getItem("cstr-class-record-login") === "true") {
       syncSaveControl();
       updateSaveIndicators();
@@ -1015,6 +1040,70 @@
     sizeSheetWorkspace();
     requestAnimationFrame(fitSectionName);
     restoreTableScroll(scrollLeft);
+  }
+
+  function animatePanel(element, distance = 6) {
+    if (!allowsMotion() || !element?.animate) return;
+    element.getAnimations().filter(animation => animation.id === "cstr-panel").forEach(animation => animation.cancel());
+    const animation = element.animate(
+      [{ opacity: .76, translate: `0 ${distance}px` }, { opacity: 1, translate: "none" }],
+      { duration: 180, easing: motionEase }
+    );
+    animation.id = "cstr-panel";
+  }
+
+  function observeWelcomeProject() {
+    if (!window.IntersectionObserver || !allowsMotion()) return;
+    welcomeReveal = new IntersectionObserver((entries, observer) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        observer.unobserve(entry.target);
+        if (allowsMotion()) entry.target.classList.add("welcome-revealed");
+      }
+    }, { threshold: .12 });
+    app.querySelectorAll(".project-about :is(h2,h3,.project-subtitle,.project-preview img)").forEach(element => welcomeReveal.observe(element));
+  }
+
+  const sidebarLabel = () => sidebarCollapsed ? "Expand navigation" : "Collapse navigation";
+
+  function updateSidebarControl() {
+    const toggle = app.querySelector('[data-action="toggle-sidebar"]');
+    if (!toggle) return;
+    toggle.setAttribute("aria-expanded", String(!sidebarCollapsed));
+    toggle.setAttribute("aria-label", sidebarLabel());
+    toggle.title = sidebarLabel();
+    toggle.innerHTML = icon(sidebarCollapsed ? "rail-expand" : "rail-collapse");
+  }
+
+  function setSidebarCollapsed(collapsed, animate = false) {
+    const layout = app.querySelector(".app-layout");
+    const sidebar = layout?.querySelector(".app-sidebar");
+    const move = animate && collapsed !== sidebarCollapsed && sidebar?.animate && innerWidth > 1000 && allowsMotion();
+    const before = move ? sidebar.getBoundingClientRect() : null;
+    sidebarMotion?.cancel();
+    sidebarEdge?.remove();
+    sidebarEdge = null;
+    sidebarCollapsed = collapsed;
+    layout?.classList.toggle("sidebar-collapsed", collapsed);
+    updateSidebarControl();
+    if (!before?.width) return;
+
+    const after = sidebar.getBoundingClientRect();
+    const change = Math.abs(after.width - before.width);
+    if (change < 1) return;
+    const timing = { duration: 220, easing: motionEase };
+    if (!collapsed) {
+      sidebarMotion = sidebar.animate([{ clipPath: `inset(0 ${change}px 0 0)` }, { clipPath: "inset(0)" }], timing);
+      return;
+    }
+    const edge = document.createElement("div");
+    edge.className = "sidebar-motion-edge";
+    edge.setAttribute("aria-hidden", "true");
+    Object.assign(edge.style, { top: `${before.top}px`, left: `${after.right}px`, width: `${change}px`, height: `${before.height}px` });
+    sidebarEdge = edge;
+    app.append(edge);
+    sidebarMotion = edge.animate([{ scale: "1 1" }, { scale: "0 1" }], timing);
+    sidebarMotion.onfinish = () => edge.remove();
   }
 
   function fitSectionName() {
@@ -1055,8 +1144,20 @@
       : loginPanel === "legacy" ? renderLegacyClaimPanel()
       : renderSignInPanel();
 
-    return `<header class="welcome-nav"><div class="welcome-brand"><img src="ASSETS/logo-compact.png" alt=""><span class="welcome-brand-copy"><strong>CST-R Class Record</strong><small>Colegio de Sto. Tomás–Recoletos · Unofficial</small></span></div><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies>${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen">
-      <div class="welcome-story"><div class="welcome-story-copy"><h2>Your digital<br> class record</h2><p>Record scores, check how grades were calculated, and prepare learner reports with AI Tommy.</p></div><figure><div class="campus-window"><img src="ASSETS/campus.webp" width="1400" height="788" fetchpriority="high" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"></div><figcaption><span>Colegio de Sto. Tomás – Recoletos</span><span>Faculty workspace</span></figcaption></figure><p class="welcome-unofficial">An independent, unofficial faculty tool.</p></div>
+    return `<header class="welcome-nav"><div class="welcome-brand"><img src="ASSETS/logo-compact.png" alt=""><span class="welcome-brand-copy"><strong>CST-R Class Record</strong><small>Colegio de Sto. Tomás–Recoletos · Unofficial</small></span></div><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies aria-label="Privacy and terms">${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen${window.CSTRMobile?.native ? " login-native" : ""}">
+      <div class="welcome-story"><div class="welcome-story-copy"><h2>Your digital<br>class record</h2><p>Record scores, trace each grade, and prepare learner reports with AI Tommy.</p></div>
+        <figure class="welcome-campus">
+          <div class="welcome-stage">
+            <div class="welcome-plane campus-window"><img src="ASSETS/campus.webp" width="1400" height="788" fetchpriority="high" decoding="async" alt="Colegio de Sto. Tomás – Recoletos campus"></div>
+            <div class="welcome-plane welcome-specimen" data-ui>
+              <div class="specimen-heading"><span>Sample grade sheet</span><strong>Science · Quarter 1</strong></div>
+              <dl><div><dt>Written Work</dt><dd>18.40</dd></div><div><dt>Performance Tasks</dt><dd>44.00</dd></div><div><dt>Examinations</dt><dd>27.30</dd></div></dl>
+              <div class="specimen-grade"><span>Initial <b>89.70</b></span><span>Reported <strong>91</strong></span></div>
+            </div>
+          </div>
+          <figcaption><span>Colegio de Sto. Tomás – Recoletos</span><span>Faculty workspace</span></figcaption>
+        </figure>
+      </div>
       <div class="login-card">
         <h1>${titles[loginPanel]}</h1>
         ${loginPanel === "signin" ? '<p class="signin-context">Sign in with your approved teacher account.</p>' : loginPanel === "signup" ? '<p class="signin-context">Request access to the CST-R faculty workspace. Developer approval is required.</p>' : ''}
@@ -1070,6 +1171,14 @@
       <article class="project-about" aria-labelledby="projectTitle">
         <h2 id="projectTitle">Inside the class record</h2>
         <p class="project-subtitle">An unofficial digital class record for the faculty of Colegio de Sto. Tomás – Recoletos, Incorporated.</p>
+        <figure class="project-preview project-preview-sheet">
+          <img src="ASSETS/sample-grade-sheet.webp" width="1000" height="503" loading="lazy" decoding="async" alt="Full grade sheet showing Written Work and Performance Task scores and their weighted totals">
+          <figcaption>Full grade sheet · Sample data</figcaption>
+        </figure>
+        <figure class="project-preview project-preview-phone">
+          <img src="ASSETS/sample-assessment.webp" width="376" height="560" loading="lazy" decoding="async" alt="Phone assessment view with individual score fields and reported grades">
+          <figcaption>One assessment · Sample data</figcaption>
+        </figure>
         <section>
           <h3>Record assessments</h3>
           <p>Organize Junior and Senior High School classes by subject, section, and grading period. Add assessment dates, learning competencies, and highest possible scores. Enter scores in the full class sheet, by assessment, or by learner.</p>
@@ -1095,7 +1204,7 @@
         </section>
         <section class="project-standout">
           <h3>DepEd grading alignment</h3>
-          <p>The class record supports three-term recording, subject weight presets, and separate entries for summative tests and the term examination. It includes the adjusted transmutation table for SY 2026–2027 and a zero-based option for classes that use it.</p>
+          <p>CST-R uses the Quarterly / Semestral workspace for official recording. Trimester and Zero-based are separate options. Subject presets show the applicable component weights, including categories that use only a term exam or have no exam component.</p>
           <p>DepEd Order No. 015, s. 2026 encourages private schools to adopt the guidelines. Changes to those guidelines require approval from the appropriate DepEd regional office. Use CST-R’s approved settings for your grade level, subject, and school year, and verify outputs before submitting.</p>
           <p><a href="https://www.deped.gov.ph/wp-content/uploads/DO_s2026_015r.pdf" target="_blank" rel="noopener noreferrer">Read DepEd Order No. 015, s. 2026 (PDF)</a></p>
         </section>
@@ -1396,7 +1505,11 @@
     return `<div class="aura-bg"><div class="aura-content app-layout ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${currentView === "record" ? "sheet-layout" : ""}" data-calendar-mode="${state.calendarMode}">
       <aside class="app-sidebar" aria-label="Application navigation" id="workspaceSidebar">
         <div class="sidebar-brand"><span class="sidebar-logo"><img src="ASSETS/logo-compact.png" alt="CST-R crest"></span><span class="sidebar-brand-copy"><strong>CST-R</strong><small>Digital Class Record</small></span></div>
-        <button type="button" class="sidebar-toggle sidebar-link" data-action="toggle-sidebar" aria-controls="workspaceSidebar" aria-expanded="${!sidebarCollapsed}" aria-label="${sidebarCollapsed ? "Expand navigation" : "Retract navigation"}" title="Expand or retract navigation">${icon("panel")}<span>Retract navigation</span></button>
+        <section class="sidebar-search-block" aria-label="Find a learner"><p class="sidebar-label">Learner lookup</p>
+          <button type="button" class="sidebar-link search-expand" data-action="expand-search" aria-label="Expand learner search" title="Find a learner">${icon("search")}<span>Find a learner</span></button>
+          <div class="header-search sidebar-search" role="search"><label for="studentSearch">Find a learner by complete name</label><input id="studentSearch" type="search" autocomplete="off" placeholder="Full student name"><button type="button" class="button button-secondary" data-action="search-student" aria-label="Search learner" title="Search learner">${icon("search")}<span>Search learner</span></button></div>
+        </section>
+        <button type="button" class="sidebar-toggle sidebar-link" data-action="toggle-sidebar" aria-controls="workspaceSidebar" aria-expanded="${!sidebarCollapsed}" aria-label="${sidebarLabel()}" title="${sidebarLabel()}">${icon(sidebarCollapsed ? "rail-expand" : "rail-collapse")}</button>
         <nav class="sidebar-nav" aria-label="Workspace"><p class="sidebar-label">Workspace</p>
           <button class="sidebar-link" type="button" data-action="go-home" aria-current="${currentView === "home" ? "page" : "false"}" title="Overview">${icon("home")}<span>Overview</span></button>
           <button class="sidebar-link" type="button" data-action="go-records" aria-current="${currentView !== "home" ? "page" : "false"}" title="Class records">${icon("records")}<span>Class records</span></button>
@@ -1406,10 +1519,6 @@
             <button class="sidebar-link sidebar-mode-option" type="button" data-action="select-calendar-mode" data-mode="trimester" aria-label="Trimester mode" aria-pressed="${state.calendarMode === "trimester"}" title="Trimester mode">${icon("terms")}<span>Trimester</span></button>
           </div>
         </nav>
-        <section class="sidebar-search-block" aria-label="Find a learner"><p class="sidebar-label">Learner lookup</p>
-          <button type="button" class="sidebar-link search-expand" data-action="expand-search" aria-label="Expand learner search" title="Find a learner">${icon("search")}<span>Find a learner</span></button>
-          <div class="header-search sidebar-search" role="search"><label for="studentSearch">Find a learner by complete name</label><input id="studentSearch" type="search" autocomplete="off" placeholder="Full student name"><button type="button" class="button button-secondary" data-action="search-student" aria-label="Search learner" title="Search learner">${icon("search")}<span>Search learner</span></button></div>
-        </section>
         <nav class="sidebar-account-tools" aria-label="Account"><p class="sidebar-label">Account</p>
           <button class="sidebar-link" type="button" data-action="open-settings" title="Settings">${icon("settings")}<span>Settings</span></button>
           <button class="sidebar-link policy-sidebar-link" type="button" data-open-policies title="Privacy, terms and data protection" aria-label="Privacy, terms and data protection">${icon("lock")}<span>Privacy &amp; terms</span></button>
@@ -1672,6 +1781,7 @@
     const focusPeriod = document.activeElement?.matches('[data-action="select-period"], [data-mobile-period]');
     activePeriodIndex = index;
     render();
+    animatePanel(app.querySelector(".paper-heading"), 3);
     if (focusPeriod) {
       const selector = window.innerWidth <= 1000 ? '[data-mobile-period]' : `[data-action="select-period"][data-period="${index}"]`;
       app.querySelector(selector)?.focus({preventScroll: true});
@@ -1715,6 +1825,7 @@
       sizeActivityTextareas();
       if (!table.hidden) scheduleSheetFit();
       restoreTableScroll(position);
+      animatePanel(table.hidden ? paper.querySelector('.phone-entry,.editable-student-report') : paper.querySelector('.paper-heading'), 3);
     } else {
       render();
     }
@@ -1785,31 +1896,33 @@
     const rows=entryLearnerRows(period), number=computeLearnerNumbering(period.roster).numbering;
     return `<section class="phone-entry" aria-label="Assessment score entry"><div class="phone-assessment"><div class="phone-entry-selectors"><label>Component<select data-mobile-kind>${kinds.map(([key,label])=>`<option value="${key}" ${key===kind?'selected':''}>${label}</option>`).join('')}</select></label><label>Assessment<select data-mobile-activity>${dates.map((_,i)=>`<option value="${i}" ${i===index?'selected':''}>${kind.toUpperCase()} ${i+1}${period.activityMeta[kind][i].title?' · '+escapeHtml(period.activityMeta[kind][i].title):''}</option>`).join('')}</select></label></div>
       <details class="phone-assessment-details"><summary>Activity details · HPS <span data-mobile-hps-label>${escapeHtml(period[kind+"Hps"][index]||"—")}</span></summary><label>Activity title<textarea rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" aria-label="${slot} title" ${disabled}>${safeValue(info.title)}</textarea></label>
-      <div class="phone-assessment-meta"><label>Date<input type="date" data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(dates[index]))}" aria-label="${slot} date" ${disabled}></label><label>HPS<input type="number" inputmode="decimal" min="0" step="any" data-hps="${kind}" data-index="${index}" value="${safeValue(period[kind+'Hps'][index])}" aria-label="${slot} highest possible score" ${disabled}></label></div>
+      <div class="phone-assessment-meta"><label>Date<input type="date" data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(dates[index]))}" aria-label="${slot} date" ${disabled}></label><label>HPS<input type="text" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(period[kind+'Hps'][index])}" aria-label="${slot} highest possible score" ${hpsInputState(period[kind+'Hps'][index])} ${disabled}></label></div>
       ${renderActivityRole(section,period,kind,index)}<details class="phone-activity-details"><summary>Competency and topic</summary>${[['competency','Learning competency'],['topic','Topic']].map(([field,label])=>`<label>${label}<textarea rows="2" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="${field}" ${disabled}>${safeValue(info[field])}</textarea></label>`).join('')}</details>
       </details><p class="phone-entry-legend" id="phoneScoreLegend">A absent · M missing = zero. E excused · L late = excluded.</p></div>
       <div class="phone-roster-heading"><h3>Enter scores</h3><p data-mobile-entry-count role="status"></p></div><label class="phone-learner-filter">Find in this roster<input type="search" data-mobile-filter value="${safeValue(mobileFilter)}" autocomplete="off" placeholder="Learner name"></label>
-      <ol class="phone-score-list">${rows.map(({learner,index:row})=>`<li class="phone-score-row" data-mobile-row="${row}" data-filter-name="${safeValue(learner.name.toLocaleLowerCase())}"><div class="phone-learner-name"><span>${number[row] || row+1}</span>${learner.name.trim()?`<strong class="phone-learner-title">${escapeHtml(learner.name)}</strong>`:`<label><span class="sr-only">Unnamed learner</span><input class="phone-roster-name" data-name-row="${row}" value="" aria-label="Learner row ${row+1} name" placeholder="Enter learner name" ${disabled}></label>`}<small data-mobile-grade="${row}"></small></div><div class="phone-score-control"><label class="sr-only" for="phone-score-${row}">${slot} score for ${escapeHtml(learner.name.trim()||`learner row ${row+1}`)}</label><input id="phone-score-${row}" type="text" inputmode="decimal" enterkeyhint="next" autocomplete="off" maxlength="6" data-score="${kind}" data-row="${row}" data-index="${index}" value="${safeValue(learner[kind][index])}" aria-describedby="phoneScoreLegend phone-error-${row}" ${disabled}><small id="phone-error-${row}" class="phone-score-error"></small>${scoreAdjustmentControl(learner,kind,row,index,period.locked)}</div></li>`).join('')}</ol><p class="phone-no-matches" hidden>No learners match. Clear the roster search to see every row.</p>
+      <ol class="phone-score-list">${rows.map(({learner,index:row})=>`<li class="phone-score-row" data-mobile-row="${row}" data-filter-name="${safeValue(learner.name.toLocaleLowerCase())}"><div class="phone-learner-name"><span>${number[row] || row+1}</span>${learner.name.trim()?`<strong class="phone-learner-title">${escapeHtml(learner.name)}</strong>`:`<label><span class="sr-only">Unnamed learner</span><input class="phone-roster-name" data-name-row="${row}" value="" aria-label="Learner row ${row+1} name" placeholder="Enter learner name" ${disabled}></label>`}<small data-mobile-grade="${row}"></small></div><div class="phone-score-control"><label class="sr-only" for="phone-score-${row}">${slot} score for ${escapeHtml(learner.name.trim()||`learner row ${row+1}`)}</label><input id="phone-score-${row}" type="text" inputmode="decimal" enterkeyhint="next" autocomplete="off" data-score="${kind}" data-row="${row}" data-index="${index}" value="${safeValue(learner[kind][index])}" aria-describedby="phoneScoreLegend phone-error-${row}" ${disabled}><small id="phone-error-${row}" class="phone-score-error"></small>${scoreAdjustmentControl(learner,kind,row,index,period.locked)}</div></li>`).join('')}</ol><p class="phone-no-matches" hidden>No learners match. Clear the roster search to see every row.</p>
       ${period.locked?'<p>Unlock this period in Period options to edit.</p>':'<div class="phone-code-tools" role="group" aria-label="Attendance code for selected score"><span>Selected score</span>'+['A','M','E','L',''].map(code=>`<button type="button" data-mobile-code="${code}" aria-label="${code?'Set '+code+' attendance code':'Clear selected score'}">${code||'Clear'}</button>`).join('')+'</div>'}
       <div class="phone-assessment-pagination">${button('Previous assessment','mobile-previous','button button-secondary',index===0?'disabled':'')}${button('Next assessment','mobile-next','button button-primary',index===dates.length-1?'disabled':'')}</div><p>Changes use the same cloud save as your full grade sheet. Check Save status before switching devices.</p></section>`;
   }
 
-  function refreshMobileEntry() {
+  function refreshMobileEntry(changedRow) {
     const panel=document.querySelector('.phone-entry');
     if(!panel || !currentPeriod())return;
-    const period=currentPeriod(),kind=mobileEntryKind,index=mobileEntryIndex;
+    const period=currentPeriod(),section=currentSection(),kind=mobileEntryKind,index=mobileEntryIndex;
     if(!period[kind+'Dates'].length)return;
     panel.querySelector('[data-mobile-hps-label]').textContent=String(period[kind+'Hps'][index]||'—');
     let entered=0,total=0,visible=0;
     panel.querySelectorAll('[data-mobile-row]').forEach(row=>{
-      const learner=period.roster[Number(row.dataset.mobileRow)],input=row.querySelector('[data-score]');
+      const rowIndex=Number(row.dataset.mobileRow), learner=period.roster[rowIndex],input=row.querySelector('[data-score]');
       const value=learner[kind][index],hps=period[kind+'Hps'][index];
-      const invalid=hasRawAboveHps(value,hps)||(value!==''&&!isAttendanceCode(value)&&(!Number.isFinite(window.CSTRGrading.numberOrNull(value))||Number(value)<0));
+      const message=scoreIssueMessage(value,hps),invalid=Boolean(message);
       input.classList.toggle('invalid',invalid); input.setAttribute('aria-invalid',String(invalid));
-      row.querySelector('.phone-score-error').textContent=invalid?'Use 0–HPS or A/M/E/L.':'';
+      row.querySelector('.phone-score-error').textContent=message;
       row.dataset.filterName=learner.name.toLocaleLowerCase();
       row.hidden=!row.dataset.filterName.includes(mobileFilter.toLocaleLowerCase()); if(!row.hidden)visible++;
-      row.querySelector('[data-mobile-grade]').textContent=`Reported: ${format(learnerResult(learner,period,currentSection()).initial.transmuted,0)} · ${period.locked?'Locked':'Provisional'}`;
+      if (changedRow === undefined || changedRow === rowIndex) {
+        row.querySelector('[data-mobile-grade]').textContent=`Reported: ${format(learnerResult(learner,period,section).initial.transmuted,0)} · ${period.locked?'Locked':'Provisional'}`;
+      }
       if(learner.name.trim()){total++;if(String(value).trim()!=='')entered++;}
     });
     panel.querySelector('[data-mobile-entry-count]').textContent=`${entered} / ${total} named learners entered`;
@@ -1840,14 +1953,14 @@
         const info = period.activityMeta[cat.key][index];
         const date = period[cat.key + "Dates"][index];
         const slot = `${cat.key.toUpperCase()} ${index + 1}`;
-        const invalid = hasRawAboveHps(value, hps) || (value !== "" && !isAttendanceCode(value) && (!Number.isFinite(window.CSTRGrading.numberOrNull(value)) || Number(value) < 0));
+        const invalid = Boolean(scoreIssue(value, hps));
         const locked = period.locked ? "disabled" : "";
         const hpsLabel = hps === "" || hps === null || hps === undefined ? "—" : String(hps);
         return `<div class="report-activity-row" data-report-kind="${cat.key}" data-report-index="${index}">
           <div class="report-activity-name"><strong>${slot}</strong>${renderActivityRole(section,period,cat.key,index)}<label>Activity title<textarea class="activity-register-input" rows="1" data-activity-kind="${cat.key}" data-activity-index="${index}" data-activity-field="title" aria-label="${slot} activity title" placeholder="Activity title" ${locked}>${safeValue(info.title)}</textarea></label></div>
           <label>Date<input type="date" data-calendar-date data-date="${cat.key}" data-index="${index}" value="${safeValue(calendarDate(date))}" aria-label="${slot} date" placeholder="Date" ${locked}></label>
-          <label>HPS<input type="number" min="0" step="any" inputmode="decimal" data-hps="${cat.key}" data-index="${index}" value="${safeValue(hps)}" aria-label="${slot} highest possible score" ${locked}></label>
-          <label>Score <small class="score-hps">/ ${escapeHtml(hpsLabel)}</small><input type="text" inputmode="text" autocomplete="off" maxlength="6" data-score="${cat.key}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(value)}" aria-label="${slot} score for ${escapeHtml(learner.name.trim() || `Learner ${rowIndex + 1}`)}" aria-invalid="${invalid}" class="${invalid ? "invalid" : ""}" data-mark="${safeValue(String(value).toUpperCase())}" ${locked}>${scoreAdjustmentControl(learner, cat.key, rowIndex, index, period.locked)}</label>
+          <label>HPS<input type="text" inputmode="decimal" data-hps="${cat.key}" data-index="${index}" value="${safeValue(hps)}" aria-label="${slot} highest possible score" ${hpsInputState(hps)} ${locked}></label>
+          <label>Score <small class="score-hps">/ ${escapeHtml(hpsLabel)}</small><input type="text" inputmode="text" autocomplete="off" data-score="${cat.key}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(value)}" aria-label="${slot} score for ${escapeHtml(learner.name.trim() || `Learner ${rowIndex + 1}`)}" aria-invalid="${invalid}" class="${invalid ? "invalid" : ""}" data-mark="${safeValue(String(value).toUpperCase())}" ${locked}>${scoreAdjustmentControl(learner, cat.key, rowIndex, index, period.locked)}</label>
         </div>`;
       }).join("")}</div></fieldset>`).join("")}</div></div>`;
     return `<section class="editable-student-report" aria-label="Editable individual grade report">
@@ -1996,7 +2109,7 @@
     }).join("");
     const hpsInputs = (kind, values) => values.map((value, index) => {
       const borderClass = (index === 0 && kind === "pt") ? "border-start-pt" : (index === 0 && kind === "qa") ? "border-start-qa" : "";
-      return `<td class="${borderClass}"><input type="number" min="0" step="any" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(value)}" aria-label="${kind.toUpperCase()} ${index + 1} highest possible score" ${period.locked ? "disabled" : ""}></td>`;
+      return `<td class="${borderClass}"><input type="text" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(value)}" aria-label="${kind.toUpperCase()} ${index + 1} highest possible score" ${hpsInputState(value)} ${period.locked ? "disabled" : ""}></td>`;
     }).join("");
     const { numbering } = computeLearnerNumbering(period.roster);
 
@@ -2078,7 +2191,7 @@
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="competency" placeholder="Learning competency" aria-label="${number} competency" ${disabled}>${safeValue(info.competency)}</textarea></td>
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="topic" placeholder="Topic" aria-label="${number} topic" ${disabled}>${safeValue(info.topic)}</textarea></td>
         <td>${period[`${kind}Dates`][index] && !calendarDate(period[`${kind}Dates`][index]) ? `<small class="legacy-date">${safeValue(period[`${kind}Dates`][index])}</small>` : ""}<input type="date" data-calendar-date data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(period[`${kind}Dates`][index]))}" aria-label="${number} date" ${disabled}></td>
-        <td><input type="number" min="0" step="any" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(hps)}" aria-label="${number} highest possible score" ${disabled}></td></tr>`;
+        <td><input type="text" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(hps)}" aria-label="${number} highest possible score" ${hpsInputState(hps)} ${disabled}></td></tr>`;
     })).join("");
     return `<section class="activity-register" aria-labelledby="activityRegisterTitle"><div class="activity-register-heading"><div><p class="eyebrow">Assessment transparency</p><h3 id="activityRegisterTitle">${state.calendarMode === "trimester" ? "Term" : "Quarter"} activity register</h3></div></div><div class="activity-register-scroll"><table><caption class="sr-only">Activity title, competency, topic, date, and HPS for ${escapeHtml(section.subject)} ${escapeHtml(period.name)}</caption><thead><tr><th scope="col">Score column</th><th scope="col">Activity title</th><th scope="col">Learning competency</th><th scope="col">Topic</th><th scope="col">Date</th><th scope="col">HPS</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
@@ -2092,13 +2205,11 @@
     const scoreInputs = (kind, values, hpsValues) => values.map((value, index) => {
       const tdBorderClass = (index === 0 && kind === "pt") ? "border-start-pt" : (index === 0 && kind === "qa") ? "border-start-qa" : "";
       const codeValue = typeof value === "string" ? value.trim().toUpperCase() : "";
-      const rawNumber = window.CSTRGrading.numberOrNull(value);
-      const invalidScore = !isAttendanceCode(value) && value !== "" && (!Number.isFinite(rawNumber) || rawNumber < 0);
-      const aboveHps = hasRawAboveHps(value, hpsValues[index]);
-      const inputClasses = [aboveHps || invalidScore ? "invalid" : "", isAttendanceCode(value) ? "code-cell" : "", codeValue === "M" ? "code-cell-missing" : ""].filter(Boolean).join(" ");
-      const invalidMessage = invalidScore ? "Invalid score. Enter zero or a positive number, or an attendance code." : aboveHps ? "Score is above the highest possible score." : "";
+      const invalidMessage = cat ? "" : scoreIssueMessage(value, hpsValues[index]);
+      const invalidScore = Boolean(invalidMessage);
+      const inputClasses = [invalidScore ? "invalid" : "", isAttendanceCode(value) ? "code-cell" : "", codeValue === "M" ? "code-cell-missing" : ""].filter(Boolean).join(" ");
       const kindLabel = kind === "ww" ? "Written Work" : kind === "pt" ? "Performance Task" : "Assessment";
-      return `<td class="${tdBorderClass}"><div class="score-entry"><input class="${inputClasses}" type="text" inputmode="text" maxlength="6" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cellsDisabled ? 'disabled tabindex="-1"' : ''} title="${invalidMessage || "Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)"}" aria-invalid="${invalidScore || aboveHps}" aria-label="${learnerLabel}, ${kindLabel} ${index + 1}${invalidMessage ? `, ${invalidMessage}` : ""}" data-mark="${safeValue(codeValue)}">${cat ? "" : scoreAdjustmentControl(learner, kind, rowIndex, index, period.locked)}</div></td>`;
+      return `<td class="${tdBorderClass}"><div class="score-entry"><input class="${inputClasses}" type="text" inputmode="text" autocomplete="off" data-score="${kind}" data-row="${rowIndex}" data-index="${index}" value="${safeValue(cat ? "" : value)}" ${cellsDisabled ? 'disabled tabindex="-1"' : ''} title="${invalidMessage || "Enter a numeric score, or A (Absent, scored 0/HPS), E (Excused, excluded), L (Late, excluded), M (Missing, no excuse, scored 0/HPS)"}" aria-invalid="${invalidScore}" aria-label="${learnerLabel}, ${kindLabel} ${index + 1}${invalidMessage ? `, ${invalidMessage}` : ""}" data-mark="${safeValue(codeValue)}">${cat ? "" : scoreAdjustmentControl(learner, kind, rowIndex, index, period.locked)}</div></td>`;
     }).join("");
     const result = learnerResult(cat ? {
       ww: learner.ww.map(() => ""),
@@ -2106,7 +2217,7 @@
       qa: learner.qa.map(() => "")
     } : learner, period, section);
     const deleteRowBtn = cat ? "" : `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${periodLocked ? "Unlock this grading period to delete rows" : "Remove this learner row from this grading period only"}" aria-label="Delete learner ${rowIndex + 1} row" ${periodLocked ? "disabled" : ""}>${icon("trash")}</button>`;
-    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" title="${learnerLabel}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td><td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td><td class="summary-cell descriptor-cell summary-descriptor">${renderDescriptorBadge(result.initial.descriptor)}</td></tr>`;
+    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" title="${learnerLabel}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td><td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td><td class="summary-cell descriptor-cell summary-descriptor">${renderSheetGradeStatus(learner, result)}</td></tr>`;
   }
 
   function learnerResult(learner, period, section) {
@@ -2177,8 +2288,9 @@
     if (!period) return;
     if (!period.locked) {
       const issues = getPeriodInputIntegrity(period);
-      if (hasPeriodInputIssues(issues)) {
-        const message = `Correct ${periodInputIssueMessage(issues)} before locking this grading period.`;
+      const setupIssue = window.CSTRGrading.gradingIssue(currentSection());
+      if (setupIssue || hasPeriodInputIssues(issues)) {
+        const message = setupIssue || `Correct ${periodInputIssueMessage(issues)} before locking this grading period.`;
         setStatus(message, "error");
         showSaveToast(message, "error");
         return;
@@ -2395,13 +2507,16 @@
     const button = document.querySelector('[data-action="download-school-excel"]');
     try {
       if (button) button.disabled = true;
-      await window.CSTRAssets.ensure("excel");
+      commitHpsField(document.activeElement);
+      commitActiveFieldEdit();
       const metadata = Object.fromEntries([...document.querySelectorAll('[data-excel-meta]')].map(input => [input.dataset.excelMeta, input.value.trim()]));
       if (!/^\d{4}-\d{4}$/.test(metadata.schoolYear) || Number(metadata.schoolYear.slice(5)) !== Number(metadata.schoolYear.slice(0,4))+1) throw new Error("Enter a consecutive school year, for example 2026-2027.");
       const section = currentSection();
-      await window.CSTRSchoolExcel.download({section,period:currentPeriod(),metadata,calendarMode:state.calendarMode});
-      section.excelSettings = metadata; markStateDirty();
-      document.querySelector(".modal-backdrop")?.remove();
+      const payload = cloneState({ section, period: currentPeriod(), metadata, calendarMode: state.calendarMode });
+      await window.CSTRAssets.ensure("excel");
+      await window.CSTRSchoolExcel.download(payload);
+      if (activeRegistry().includes(section)) { section.excelSettings = metadata; markStateDirty(); }
+      message?.closest(".modal-backdrop")?.remove();
       setStatus("School Excel record created with live subject-specific formulas. Print the class-record sheet in landscape; headings repeat on continuation pages.");
     } catch (error) {
       if (message) message.textContent = error.message;
@@ -2435,7 +2550,7 @@
         <div><p class="eyebrow">Official school format</p><h2 id="officialExportTitle">Export to Official E-Gradesheet</h2></div>
         ${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}
       </div>
-      <p class="official-export-intro">CST-R Form 1 · <strong>${escapeHtml(section.subject)}</strong>${section.section ? ` for <strong>${escapeHtml(section.section)}</strong>` : ""} · ${periodCount === 4 ? "Four grading periods" : "Three terms"} and final grade.</p>
+      <p class="official-export-intro">CST-R Form 1 · <strong>${escapeHtml(section.subject)}</strong>${section.section ? ` for <strong>${escapeHtml(section.section)}</strong>` : ""} · ${periodCount === 4 ? section.group === "SHS" ? "Quarterly / Semestral" : "Four quarters" : "Three terms"}</p>
       <div class="settings-grid official-export-grid">
         <label>School year
           <input id="officialSchoolYear" value="${safeValue(currentSchoolYear())}" inputmode="numeric" placeholder="2026-2027" aria-describedby="officialExportAccuracy">
@@ -2446,8 +2561,11 @@
         <label>Subject teacher
           <input id="officialTeacherName" value="${safeValue(state.teacher.name || currentUserName() || "")}" placeholder="Teacher's full name" aria-describedby="officialExportAccuracy">
         </label>
+        ${section.group === "SHS" && periodCount === 4 ? `<label>Reporting range
+          <select id="officialSemester"><option value="">Full-year record · four quarters</option><option value="1">Semester 1 · two quarters</option><option value="2">Semester 2 · two quarters</option></select>
+        </label>` : ""}
       </div>
-      <p id="officialExportAccuracy" class="official-export-accuracy">Incomplete grades remain blank.</p>
+      <p id="officialExportAccuracy" class="official-export-accuracy">Final grades stay blank until the selected periods are complete. Provisional period grades may appear for review.</p>
       <p id="officialExportMessage" class="official-export-message" role="status" aria-live="polite"></p>
       <div class="official-export-format-note"><strong>Output:</strong> Word / PDF · US Letter portrait · CST-R Form 1.</div>
       <div class="stack-actions official-export-actions">
@@ -2456,20 +2574,31 @@
       </div>
     </section>`;
     document.body.append(modal);
-    const readiness = officialExportReadiness(officialExportPayload());
-    setOfficialExportMessage(readiness.message, readiness.type);
+    const refreshReadiness = () => {
+      const readiness = officialExportReadiness(officialExportPayload());
+      setOfficialExportMessage(readiness.message, readiness.type);
+    };
+    modal.querySelector("#officialSemester")?.addEventListener("change", refreshReadiness);
+    refreshReadiness();
     modal.querySelector("#officialSchoolYear")?.focus();
   }
 
   function officialExportPayload() {
     const section = currentSection();
-    const periodCount = state.calendarMode === "trimester" ? 3 : 4;
+    const annualCount = state.calendarMode === "trimester" ? 3 : 4;
+    const semesterChoice = document.querySelector("#officialSemester")?.value;
+    const semester = annualCount === 4 && section.group === "SHS" && ["1", "2"].includes(semesterChoice) ? Number(semesterChoice) : null;
+    const periodCount = semester ? 2 : annualCount;
+    const firstSlot = semester === 2 ? 2 : 0;
     const periods = (activeSections()[section.id] && activeSections()[section.id].periods) || [];
 
     const slotPeriods = Array(periodCount).fill(null);
     const slotErrors = [];
+    const inputErrors = [];
+    const setupIssue = window.CSTRGrading.gradingIssue(section);
+    if (setupIssue) inputErrors.push(setupIssue);
     periods.forEach((period, index) => {
-      const slot = reportSlot(section, period, index);
+      const annualSlot = reportSlot(section, period, index);
       const identity = state.calendarMode === "trimester" ? period.term : period.quarter;
       const maxIdentity = state.calendarMode === "trimester" ? 3 : section.group === "SHS" ? 2 : 4;
       if ((identity != null && (!Number.isInteger(identity) || identity < 1 || identity > maxIdentity)) ||
@@ -2478,9 +2607,17 @@
         slotErrors.push(`Invalid period identity for ${period.name || "unnamed period"}.`);
         return;
       }
-      if (slot >= periodCount || slotPeriods[slot]) {
+      if (annualSlot >= annualCount) {
+        slotErrors.push(`Review the period identity for ${period.name || "unnamed period"}.`);
+        return;
+      }
+      const slot = annualSlot - firstSlot;
+      if (slot < 0 || slot >= periodCount) return;
+      if (slotPeriods[slot]) {
         slotErrors.push(`Review the period identity for ${period.name || "unnamed period"}.`);
       } else slotPeriods[slot] = period;
+      const issues = getPeriodInputIntegrity(period);
+      if (hasPeriodInputIssues(issues)) inputErrors.push(`${period.name}: ${periodInputIssueMessage(issues)}.`);
     });
 
     // Each grading period has its own roster, so learners are matched by name,
@@ -2500,6 +2637,19 @@
       });
       return entries;
     });
+    const namePeriods = new Map(), repeatedNames = new Set();
+    for (const entries of listed) {
+      const names = new Set();
+      for (const { name } of entries) {
+        const key = normalizedName(name);
+        if (names.has(key)) repeatedNames.add(key);
+        names.add(key);
+      }
+      for (const key of names) namePeriods.set(key, (namePeriods.get(key) || 0) + 1);
+    }
+    if ([...repeatedNames].some(key => namePeriods.get(key) > 1)) {
+      inputErrors.push("Two learners share the same name across reporting periods. Use distinct roster names consistently before exporting a combined report.");
+    }
     // Ordered union: keep each period's own order; a learner missing from the
     // earlier lists slots in right after the learner who precedes them.
     const order = [];
@@ -2533,9 +2683,7 @@
         name,
         periods: gradePeriods,
         finalGrade: periodicalGrades.length === periodCount && gradePeriods.every(entry => entry.complete)
-          ? state.calendarMode === "trimester"
-            ? Math.round(periodicalGrades.reduce((sum, value, index) => sum + value * TRIMESTER_FINAL_GRADE_WEIGHTS[index], 0) / TRIMESTER_FINAL_GRADE_WEIGHTS.reduce((sum, value) => sum + value, 0))
-            : Math.round(periodicalGrades.reduce((sum, value) => sum + value, 0) / 4)
+          ? Math.round(periodicalGrades.reduce((sum, value) => sum + value, 0) / periodCount)
           : null
       };
     });
@@ -2550,15 +2698,18 @@
       weights: section.weights,
       students,
       periodCount,
+      semester,
       calendarMode: state.calendarMode,
       provisional: students.some(student => student.periods.some(period => !period.complete)),
       slotErrors,
+      inputErrors,
       sourcePeriodCount: slotPeriods.filter(Boolean).length
     };
   }
 
   function officialExportReadiness(payload) {
     if (payload.slotErrors?.length) return { type: "error", message: payload.slotErrors.join(" ") + " Export is blocked until period identities are corrected." };
+    if (payload.inputErrors?.length) return { type: "error", message: payload.inputErrors.join(" ") };
     const learnerCount = payload.students.length;
     if (!learnerCount) {
       return {
@@ -2572,7 +2723,7 @@
     if (completedGrades === expectedGrades && finalGrades === learnerCount) {
       return {
         type: "success",
-        message: `Ready to export: all ${payload.periodCount === 4 ? "four period" : "three term"} grades and final grades are calculated for ${learnerCount} learner${learnerCount === 1 ? "" : "s"}.`
+        message: `Ready to export: all ${payload.periodCount} ${payload.periodCount === 3 ? "term" : "quarter"} grades and final grades are calculated for ${learnerCount} learner${learnerCount === 1 ? "" : "s"}.`
       };
     }
     const missingGrades = expectedGrades - completedGrades;
@@ -2709,12 +2860,7 @@
 
   function isLearnerAssessmentComplete(learner, period, section = currentSection()) {
     const result = window.CSTRGrading.calculateLearner(learner,period,section);
-    if (!Number.isFinite(result.initial.precise)) return false;
-    return ["ww","pt","qa"].every((kind,componentIndex) => section.weights[componentIndex] === 0 || period[kind+"Hps"].every((maximum,index) => {
-      if (!String(maximum ?? "").trim()) return !String(learner[kind][index] ?? "").trim();
-      const score = learner[kind][index];
-      return isAttendanceCode(score) || (String(score ?? "").trim() !== "" && Number.isFinite(window.CSTRGrading.numberOrNull(score)) && Number(score)>=0 && Number(score)<=Number(maximum));
-    }));
+    return Number.isFinite(result.initial.precise) && ["ww","pt","qa"].every(kind => result[kind].missing === 0);
   }
 
   function reportLines(value, limit = 60) {
@@ -3417,14 +3563,16 @@
 
     const initCell = row.querySelector(".summary-initial"); if (initCell) initCell.textContent = format(result.initial.rounded, 3);
     const transCell = row.querySelector(".summary-transmuted"); if (transCell) transCell.textContent = format(result.initial.transmuted, 0);
-    const descCell = row.querySelector(".summary-descriptor"); if (descCell) descCell.innerHTML = renderDescriptorBadge(result.initial.descriptor);
+    const descCell = row.querySelector(".summary-descriptor"); if (descCell) descCell.innerHTML = renderSheetGradeStatus(learner, result);
 
     ["ww", "pt", "qa"].forEach((kind) => row.querySelectorAll(`[data-score="${kind}"]`).forEach((input) => {
       const index = Number(input.dataset.index);
       const cellValue = learner[kind][index];
-      const bad = hasRawAboveHps(cellValue, period[kind + "Hps"][index]) || (cellValue !== "" && !isAttendanceCode(cellValue) && (!Number.isFinite(Number(cellValue)) || Number(cellValue) < 0));
+      const message = scoreIssueMessage(cellValue, period[kind + "Hps"][index]);
+      const bad = Boolean(message);
       input.classList.toggle("invalid", bad);
       input.setAttribute("aria-invalid", String(bad));
+      input.title = message || "Enter 0–HPS or A, M, E, L.";
       input.dataset.mark = String(cellValue).toUpperCase();
       const control = input.closest(".score-entry")?.querySelector(".score-adjustment");
       if (control) control.outerHTML = scoreAdjustmentControl(learner, kind, rowIndex, index, period.locked);
@@ -4361,12 +4509,8 @@
     if (action === "cancel-score-points") { openScoreAdjustment(target, true); return; }
     if (action === "report-period") { selectReportPeriod(target); return; }
     if (action === "toggle-sidebar" || action === "expand-search") {
-      sidebarCollapsed = action === "expand-search" ? false : !sidebarCollapsed;
+      setSidebarCollapsed(action === "expand-search" ? false : !sidebarCollapsed, true);
       try { localStorage.setItem("cstr-sidebar-collapsed", String(sidebarCollapsed)); } catch (_) {}
-      document.querySelector(".app-layout")?.classList.toggle("sidebar-collapsed", sidebarCollapsed);
-      const toggle = document.querySelector('[data-action="toggle-sidebar"]');
-      toggle?.setAttribute("aria-expanded", String(!sidebarCollapsed));
-      toggle?.setAttribute("aria-label", sidebarCollapsed ? "Expand navigation" : "Retract navigation");
       if (action === "expand-search") document.querySelector("#studentSearch")?.focus();
       sizeSheetWorkspace();
       return;
@@ -4378,6 +4522,8 @@
       if (value === "custom") { renderEditSection(section.id); return; }
       const preset = SUBJECT_PRESETS.find(p => p.name === value);
       if (!preset) return;
+      const issue = window.CSTRGrading.gradingIssue({ ...section, gradingCategory: preset.name, weights: preset.weights });
+      if (issue) { showSaveToast(issue, "error"); return; }
       section.subject = preset.name;
       section.weights = [...preset.weights];
       section.gradingCategory = preset.name;
@@ -4540,13 +4686,15 @@
       } else {
         weights = matchSubjectWeights(subject);
       }
-      const isSHS = String(level).includes("11") || String(level).includes("12");
+      const isSHS = /\b(?:11|12)\b/.test(level);
       const group = isSHS ? "SHS" : "JHS";
 
       const newId = "class-" + Date.now();
       const subjectTitle = document.querySelector("#addClassSubjectName").value.trim() || subject;
       const gradingMode = document.querySelector("#addClassGradingMode").value;
       const newClass = { id: newId, group, level, subject: subjectTitle, gradingCategory: isCustomSubject ? "custom" : subject, gradingMode, section: sectionName, weights, theme, accent: theme, rosterSize: 50, archived: false };
+      const issue = window.CSTRGrading.gradingIssue(newClass);
+      if (issue) { showSaveToast(issue, "error"); return; }
 
       activeRegistry().push(newClass);
       activeSections()[newId] = { periods: [initialPeriod(newClass, state.calendarMode)] };
@@ -4565,7 +4713,7 @@
       const section = activeRegistry().find(s => s.id === target.dataset.section);
       if (section) {
         if (sectionHasLockedPeriod(section)) { setStatus("Unlock all periods before changing class grading settings.", "error"); return; }
-        section.level = document.querySelector("#editSectionLevel").value.trim();
+        const level = document.querySelector("#editSectionLevel").value.trim();
         const presetSelect = document.querySelector("#editSectionSubjectPreset");
         const isCustomSubject = presetSelect ? presetSelect.value === "custom" : false;
         let subject = presetSelect ? presetSelect.value : section.subject;
@@ -4573,28 +4721,18 @@
           const customInput = document.querySelector("#editSectionCustomSubject");
           subject = (customInput && customInput.value.trim()) || section.subject;
         }
-        if (isCustomSubject) {
-          const customWeights = readCustomWeightInputs(document, ["editSectionWW", "editSectionPT", "editSectionQA"]);
-          if (!customWeights) {
-            showSaveToast("Custom grading weights must be zero or greater and add up to exactly 100% (WW + PT + QA).", "error");
-            return;
-          }
-          section.subject = subject;
-          section.weights = customWeights;
-        } else {
-          section.subject = subject;
-          section.weights = matchSubjectWeights(subject);
-        }
-        section.gradingCategory = isCustomSubject ? "custom" : subject;
-        section.subject = document.querySelector("#editSectionSubjectName").value.trim() || subject;
-        section.gradingMode = document.querySelector("#editSectionGradingMode").value;
-        section.section = document.querySelector("#editSectionSection").value.trim();
+        const weights = isCustomSubject ? readCustomWeightInputs(document, ["editSectionWW", "editSectionPT", "editSectionQA"]) : matchSubjectWeights(subject);
+        const group = /\b(?:11|12)\b/.test(level) ? "SHS" : "JHS";
+        const gradingCategory = isCustomSubject ? "custom" : subject;
+        const issue = window.CSTRGrading.gradingIssue({ level, group, gradingCategory, weights });
+        if (issue) { showSaveToast(issue, "error"); return; }
         const theme = document.querySelector("#editSectionTheme").value;
-        section.theme = theme;
-        section.accent = theme;
-
-        const isSHS = String(section.level).includes("11") || String(section.level).includes("12");
-        section.group = isSHS ? "SHS" : "JHS";
+        Object.assign(section, {
+          level, group, weights, gradingCategory, theme, accent: theme,
+          subject: document.querySelector("#editSectionSubjectName").value.trim() || subject,
+          gradingMode: document.querySelector("#editSectionGradingMode").value,
+          section: document.querySelector("#editSectionSection").value.trim()
+        });
 
         markStateDirty();
         render();
@@ -4716,11 +4854,7 @@
   // Enter narrow layouts with navigation retracted, keeping the sheet visible.
   matchMedia("(max-width: 760px)").addEventListener("change", event => {
     if (!event.matches || sidebarCollapsed) return;
-    sidebarCollapsed = true;
-    document.querySelector(".app-layout")?.classList.add("sidebar-collapsed");
-    const toggle = document.querySelector('[data-action="toggle-sidebar"]');
-    toggle?.setAttribute("aria-expanded", "false");
-    toggle?.setAttribute("aria-label", "Expand navigation");
+    setSidebarCollapsed(true);
     sizeSheetWorkspace();
   });
   window.addEventListener("resize", sizeSheetWorkspace, { passive: true });
@@ -4814,7 +4948,7 @@
       window.CSTRRecordTools.setScore(currentPeriod().roster[row], kind, index, sanitized); updateLiveSummary(row);
       if (input.closest('.editable-student-report')) {
         const hps = currentPeriod()[kind + 'Hps'][index];
-        const bad = hasRawAboveHps(sanitized, hps) || (sanitized !== '' && !isAttendanceCode(sanitized) && (!Number.isFinite(window.CSTRGrading.numberOrNull(sanitized)) || Number(sanitized) < 0));
+        const bad = Boolean(scoreIssue(sanitized, hps));
         input.classList.toggle('invalid', bad);
         input.setAttribute('aria-invalid', String(bad));
       }
@@ -4823,14 +4957,17 @@
     if (input.dataset.hps) {
       if (!hpsEdits.has(input)) hpsEdits.set(input, currentPeriod()[input.dataset.hps + "Hps"][Number(input.dataset.index)]);
       currentPeriod()[input.dataset.hps + "Hps"][Number(input.dataset.index)] = input.value;
-      document.querySelectorAll(`[data-hps="${input.dataset.hps}"][data-index="${input.dataset.index}"]`).forEach(peer => { if (peer !== input) peer.value = input.value; });
-      input.classList.toggle("invalid", input.value !== "" && (!Number.isFinite(Number(input.value)) || Number(input.value) <= 0));
-      input.setAttribute("aria-invalid", String(input.classList.contains("invalid")));
+      const invalid = invalidMaximum(input.value);
+      document.querySelectorAll(`[data-hps="${input.dataset.hps}"][data-index="${input.dataset.index}"]`).forEach(peer => {
+        if (peer !== input) peer.value = input.value;
+        peer.classList.toggle("invalid", invalid);
+        peer.setAttribute("aria-invalid", String(invalid));
+      });
       updateAllSummaries(); stateChanged = true;
     }
     if (stateChanged) {
       if (sheetEntryView === 'one' && currentView === 'record') refreshEditableStudentReport();
-      refreshMobileEntry();
+      refreshMobileEntry(input.dataset.score ? Number(input.dataset.row) : undefined);
       const fieldKey = getFieldKeyForInput(input);
       if (fieldKey) markFieldEditDirty(fieldKey); else markStateDirty();
       // A real edit landed on the cell a multi-cell selection was dragged

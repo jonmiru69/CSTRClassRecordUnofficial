@@ -1,14 +1,14 @@
 /* Data-only record operations. Provenance is stored with its learner, so row
    deletion, JSON export, local recovery and cloud sync retain correct ownership. */
 (function (root, factory) {
-  const api = factory();
+  const api = factory(root.CSTRGrading || (typeof module === 'object' && module.exports ? require('./grading-engine.js') : null));
   if (typeof module === 'object' && module.exports) module.exports = api;
   root.CSTRRecordTools = api;
-})(typeof window === 'object' ? window : globalThis, function () {
+})(typeof window === 'object' ? window : globalThis, function (grading) {
   'use strict';
   const kinds = ['ww', 'pt', 'qa'];
   const present = v => v !== '' && v !== null && v !== undefined && String(v).trim() !== '';
-  const numeric = v => present(v) && (typeof v === 'number' || (typeof v === 'string' && /^(?:\d+(?:\.\d*)?|\.\d+)$/.test(v.trim()))) && Number.isFinite(Number(v)) && Number(v) >= 0;
+  const numeric = v => grading.numberOrNull(v) !== null && Number(v) >= 0;
   // Only explicit roster dividers are categories. Names such as Boysen are learners.
   function getLearnerCategory(name) {
     // Match whole-word heading labels, including strand/section prefixes.
@@ -48,7 +48,20 @@
     learner[kind][index] = value;
   }
 
-  const precise = n => Math.round((n + Number.EPSILON) * 1e8) / 1e8;
+  function sumDecimals(left, right) {
+    const parse = value => {
+      const [coefficient, exponent = '0'] = String(value).trim().toLowerCase().split('e');
+      const [whole, fraction = ''] = coefficient.split('.');
+      return { digits: BigInt(whole + fraction), places: fraction.length - Number(exponent) };
+    };
+    const parts = [parse(left), parse(right)];
+    const places = Math.max(0, ...parts.map(part => part.places));
+    const total = parts.reduce((sum, part) => sum + part.digits * 10n ** BigInt(places - part.places), 0n);
+    if (!places) return String(total);
+    const text = String(total).padStart(places + 1, '0');
+    return `${text.slice(0, -places)}.${text.slice(-places)}`.replace(/\.?0+$/, '');
+  }
+
   function addPoints(period, kind, row, index, amount, reason, actor = '') {
     if (period.locked) throw new Error('Unlock this period before adding points.');
     if (!kinds.includes(kind) || !Number.isInteger(index) || index < 0 || index >= period[kind + 'Hps'].length) throw new Error('Unknown activity.');
@@ -56,16 +69,18 @@
     if (!learner || !learner.name.trim() || category(learner.name)) throw new Error('Enter a learner name first.');
     if (!numeric(learner[kind][index])) throw new Error('Enter a numeric raw score first. A, L, M, E and blank marks remain unchanged.');
     if (!numeric(maximum) || Number(maximum) <= 0) throw new Error('Set a valid HPS first.');
-    const points = Number(amount), explanation = String(reason || '').trim();
-    if (!present(amount) || !Number.isFinite(points) || points <= 0 || precise(points) === 0) throw new Error('Points must be a positive number.');
+    const points = grading.numberOrNull(amount), explanation = String(reason || '').trim();
+    if (!(points >= 1e-8)) throw new Error('Enter at least 0.00000001 points as a decimal.');
     if (!explanation || explanation.length > 500) throw new Error('A reason of 1–500 characters is required.');
-    const result = precise(Number(learner[kind][index]) + points);
+    const adjusted = sumDecimals(learner[kind][index], amount);
+    const result = grading.numberOrNull(adjusted);
+    if (result === null) throw new Error('The resulting score exceeds Excel’s 15 significant digits.');
     if (result > Number(maximum)) throw new Error('The resulting score cannot exceed HPS.');
     learner.scoreAdjustments ||= {};
     learner.scoreAdjustments[kind] ||= {};
     const ledger = learner.scoreAdjustments[kind][index] ||= { raw: learner[kind][index], entries: [], history: [] };
-    ledger.entries.push({ points: precise(points), reason: explanation, at: new Date().toISOString(), actor: String(actor).slice(0, 200) });
-    learner[kind][index] = String(result);
+    ledger.entries.push({ points, reason: explanation, at: new Date().toISOString(), actor: String(actor).slice(0, 200) });
+    learner[kind][index] = adjusted;
     if (learner.hpsOriginals?.[kind]) delete learner.hpsOriginals[kind][index];
     return result;
   }
@@ -118,7 +133,7 @@
         const restored = Number(next) >= Number(origin.hps);
         // Intermediate ceilings stay capped; restoration of the original HPS
         // restores the exact original value (including its string precision).
-        const adjusted = restored ? origin.score : String(Math.min(Number(origin.score), Number(next)));
+        const adjusted = restored || Number(origin.score) <= Number(next) ? origin.score : next;
         if (String(value) !== String(adjusted)) result[Number(adjusted) < Number(value) ? 'capped' : 'restored']++;
         learner[kind][index] = adjusted;
         if (restored) delete learner.hpsOriginals[kind][index];

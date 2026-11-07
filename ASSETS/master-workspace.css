@@ -1,0 +1,271 @@
+@media screen {
+  :root {
+    --control-time: 140ms;
+    --surface-time: 220ms;
+    --campus-ink: #061f2d;
+    --campus-muted: #dce8ef;
+  }
+
+  :root body #app .welcome-nav {
+    max-width: 1440px;
+    min-height: 78px;
+    margin-inline: auto;
+    padding: 14px clamp(20px, 4vw, 60px);
+  }
+
+  :root body #app .login-screen {
+    display: grid;
+    grid-template-columns: minmax(0, 1.68fr) minmax(320px, .92fr);
+    max-width: 1440px;
+    gap: 0 clamp(24px, 4.6vw, 76px);
+    margin: 0 auto;
+    padding: 16px clamp(20px, 4vw, 60px) 68px;
+    align-items: start;
+  }
+
+  :root body #app .welcome-story {
+    display: block;
+    min-width: 0;
+    align-self: start;
+    padding: clamp(26px, 4vw, 60px) clamp(24px, 4vw, 60px) 22px;
+    background: var(--campus-ink);
+    color: #f6f2e9;
+    border-radius: 4px;
+  }
+
+  :root body #app .welcome-story-copy { padding: 0; }
+  :root body #app .welcome-story h2 {
+    font-size: clamp(54px, 5.9vw, 92px);
+    line-height: .97;
+    letter-spacing: -.035em;
+    color: inherit;
+    margin: 0 0 18px;
+    text-wrap: initial;
+  }
+  :root body #app .welcome-story-copy > p {
+    max-width: 40ch;
+    color: var(--campus-muted);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+
+  :root body #app .welcome-story .welcome-campus {
+    display: block !important;
+    width: 100%;
+    margin: 22px 0 0;
+    background: transparent;
+  }
+
+  .welcome-stage {
+    position: relative;
+    min-height: clamp(230px, 24vw, 350px);
+    perspective: 960px;
+    perspective-origin: 53% 40%;
+  }
+
+  :root body #app .welcome-stage .campus-window {
+    position: absolute;
+    inset: 8px 15% 16px 2px;
+    height: auto;
+    background: #345263;
+    transform: translateZ(-24px) rotateY(7deg) rotateX(2deg);
+    transform-origin: 48% 52%;
+  }
+
+  :root body #app .welcome-stage .campus-window img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 48% 60%;
+    transform: none;
+  }
+
+  .welcome-specimen {
+    position: absolute;
+    right: 3%;
+    bottom: 4%;
+    width: clamp(208px, 43%, 292px);
+    padding: 16px 18px 12px;
+    background: #f8f4eb;
+    color: #152b39;
+    font-size: 13px;
+    line-height: 1.45;
+    font-variant-numeric: tabular-nums;
+    transform: translateZ(32px) rotateY(-9deg) rotateX(3deg) rotateZ(-2deg);
+    transform-origin: 85% 80%;
+    box-shadow: 0 16px 32px #0007; /* taste-skill-ignore: This sheet is suspended in front of the photograph. */
+  }
+
+  .specimen-heading { display: grid; gap: 2px; padding-bottom: 8px; }
+  .specimen-heading > span { color: #435865; }
+  .specimen-heading > strong { font-family: var(--font-serif); font-size: 20px; font-weight: 400; }
+  .welcome-specimen dl { margin: 0; padding-block: 4px; background: #e8e9e4; }
+  .welcome-specimen dl div, .specimen-grade { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .welcome-specimen dl div { padding: 2px 8px; }
+  .welcome-specimen dd { margin: 0; font-weight: 600; }
+  .specimen-grade { margin-top: 7px; }
+  .specimen-grade strong { font-size: 22px; color: #941010; }
+
+  :root body #app .welcome-story .welcome-campus figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 10px 0 0;
+    background: transparent;
+    color: var(--campus-muted);
+  }
+
+  :root body #app .login-card {
+    margin: clamp(10px, 3vw, 46px) 0 0;
+    padding: clamp(26px, 3vw, 42px) !important;
+    background: var(--paper);
+    border-radius: 4px;
+  }
+
+  :root body #app .login-card::before { display: none; }
+  :root body #app .login-card h1 { font-size: clamp(34px, 3.3vw, 49px) !important; }
+  :root body #app .login-card .field-label,
+  :root body #app .login-card input { font-size: 16px; }
+  :root body #app .login-card input { background: var(--canvas); }
+  :root body #app .login-support { justify-content: flex-start; gap: 0 14px; }
+  :root body #app .login-support a { padding-inline: 0; }
+
+  :root body #app .project-about {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 16px clamp(24px, 6vw, 94px);
+    margin-top: clamp(44px, 8vw, 104px);
+    padding: 0;
+  }
+  :root body #app .project-about h2 { font-size: clamp(34px, 4vw, 56px); }
+  :root body #app .project-subtitle { font-size: 16px; max-width: 56ch; margin-bottom: 14px; }
+  :root body #app .project-about section { padding: 16px 0 10px; }
+  :root body #app .project-about .project-standout { padding: 22px 24px; }
+  :root body #app .project-about section h3 { font-size: 23px; }
+  :root body #app .project-about .project-preview {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    justify-items: start;
+    align-self: stretch;
+    gap: 10px;
+    margin: 0 0 16px;
+  }
+  .project-preview img { display: block; width: 100%; height: auto; align-self: center; }
+  .project-preview-phone img { max-width: 234px; justify-self: center; }
+  .project-preview figcaption { color: var(--muted); font-size: 14px; }
+
+  :root body #app .app-header { background: var(--paper); }
+  .sheet-grade-state { display: block; color: var(--muted); font-size: 12px; line-height: 1.15; }
+  :root body #app .app-title { font-size: clamp(22px, 2vw, 29px); }
+  :root body #app .folder-tab { overflow: hidden; }
+  :root body #app button.folder-tab::before {
+    content: "";
+    position: absolute;
+    inset: 0 14px auto;
+    height: 3px;
+    background: var(--ledger-amber);
+    opacity: 0;
+    transform: scaleX(.6);
+  }
+  :root body #app button.folder-tab[aria-selected="true"]::before {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  .sidebar-motion-edge {
+    position: fixed;
+    z-index: 79;
+    background: var(--ledger-navy);
+    pointer-events: none;
+    transform-origin: left center;
+  }
+
+  @media (max-width: 1000px) {
+    :root body #app .welcome-brand { flex: 1 1 auto; }
+    :root body #app .welcome-tools { width: auto; }
+    :root body #app .welcome-tools .theme-toggle { margin-right: 0; }
+  }
+
+  @media (min-width: 761px) and (max-width: 1000px) {
+    :root body #app .login-screen { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(292px, .88fr); }
+  }
+
+  @media (max-width: 760px) {
+    :root body #app .login-screen {
+      display: flex !important;
+      max-width: 580px;
+      gap: 18px !important;
+      padding: 8px 16px 36px !important;
+    }
+    :root body #app .welcome-nav { padding: 12px 16px !important; gap: 4px 8px !important; flex-wrap: nowrap !important; }
+    :root body #app .welcome-brand-copy small { max-width: 25ch; font-size: 13px; }
+    :root body #app .welcome-tools { gap: 6px !important; flex: none; flex-wrap: nowrap; }
+    :root body #app .welcome-tools .welcome-policy { min-width: 44px; justify-content: center; }
+    :root body #app .welcome-tools .welcome-policy span { display: none; }
+    :root body #app .welcome-tools .welcome-policy .ui-icon { display: block; }
+    :root body #app .welcome-story { order: 0 !important; margin: 0; padding: 24px 20px 14px; }
+    :root body #app .welcome-story h2 { font-size: clamp(39px, 9vw, 58px) !important; }
+    :root body #app .welcome-story-copy > p { font-size: 16px; }
+    :root body #app .welcome-story .welcome-campus { margin-top: 14px; }
+    .welcome-stage { min-height: 178px; perspective: 760px; }
+    :root body #app .welcome-stage .campus-window { inset: 4px 13% 10px 0; }
+    .welcome-specimen { right: 1%; bottom: 1%; width: min(70%, 202px); padding: 9px 10px 7px; }
+    .specimen-heading { padding-bottom: 4px; }
+    .specimen-heading > strong { font-size: 18px; }
+    .welcome-specimen dl div { padding-block: 0; }
+    .specimen-grade { margin-top: 3px; }
+    .specimen-grade strong { font-size: 18px; }
+    :root body #app .welcome-story .welcome-campus figcaption > span:last-child { display: none; }
+    :root body #app .login-card { order: 1 !important; padding: 24px 20px !important; margin: 0 !important; }
+    :root body #app .login-native .login-card { order: 0 !important; margin-top: 0 !important; }
+    :root body #app .login-native .welcome-story { order: 1 !important; }
+    :root body #app .project-about { order: 2; display: block; }
+  }
+
+  @media (max-width: 350px) {
+    :root body #app .welcome-brand-copy small { display: none; }
+    .welcome-specimen { width: min(79%, 202px); }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :root body #app :is(button, a[data-action], summary):not(:disabled, .theme-toggle) {
+      transition: background-color var(--control-time) ease, color var(--control-time) ease,
+        scale var(--control-time) var(--ledger-ease), translate var(--control-time) var(--ledger-ease) !important;
+    }
+    :root body #app :is(button, a[data-action], summary):not(:disabled, .theme-toggle):active { scale: .98; }
+    :root body #app .record-table :is(button, input) { scale: none; translate: none; transition: none !important; }
+    :root body #app button.folder-tab::before { transition: transform var(--surface-time) var(--ledger-ease), opacity var(--control-time) ease; }
+    .welcome-plane { transition: transform 480ms var(--ledger-ease); }
+    .welcome-arriving .welcome-story-copy > *,
+    .welcome-arriving .welcome-stage,
+    .welcome-arriving .welcome-campus figcaption,
+    :root body #app .welcome-arriving .login-card {
+      animation: ledger-arrive 520ms var(--ledger-ease) both;
+    }
+    .welcome-arriving .welcome-story-copy > p { animation-delay: 45ms; }
+    .welcome-arriving .welcome-stage { animation-delay: 85ms; }
+    .welcome-arriving .welcome-campus figcaption { animation-delay: 125ms; }
+    :root body #app .welcome-arriving .login-card { animation-delay: 85ms; }
+    .welcome-arriving .campus-window img { animation: campus-settle 900ms var(--ledger-ease) both; }
+    .welcome-revealed { animation: ledger-arrive 360ms var(--ledger-ease) both; }
+
+    @media (hover: hover) and (pointer: fine) {
+      :root body #app .welcome-stage:hover .campus-window { transform: translateZ(-30px) rotateY(3deg) rotateX(1deg); }
+      .welcome-stage:hover .welcome-specimen { transform: translateZ(45px) rotateY(-4deg) rotateX(1deg) rotateZ(-1deg) translateY(-5px); }
+      :root body #app :is(.button-primary, .button-google, .folder-tab, .welcome-policy):not(:disabled):hover { translate: 0 -1px; }
+      :root body #app .app-sidebar .sidebar-link:not(:disabled):hover > .ui-icon { translate: 2px 0; }
+      :root body #app .app-sidebar .sidebar-link > .ui-icon { transition: translate var(--control-time) var(--ledger-ease); }
+    }
+  }
+}
+
+@keyframes ledger-arrive {
+  from { opacity: .7; translate: 0 10px; }
+  to { opacity: 1; translate: none; }
+}
+
+@keyframes campus-settle {
+  from { scale: 1.06; }
+  to { scale: 1; }
+}

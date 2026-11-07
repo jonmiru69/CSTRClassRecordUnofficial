@@ -63,7 +63,8 @@
       payload.level,
       payload.subject,
       payload.section,
-      payload.schoolYear
+      payload.schoolYear,
+      payload.semester ? `Semester-${payload.semester}` : ""
     ].map(safeFilePart).filter(Boolean);
     return `${parts.join("-") || "Official-E-Gradesheet"}.${extension}`;
   }
@@ -169,7 +170,7 @@
       size: 9.2,
       anchor: "middle"
     }));
-    pieces.push(svgText((left + right) / 2, 146.5, `${payload.provisional ? "PROVISIONAL — " : ""}REPORT ON RATINGS S.Y. ${cleanText(payload.schoolYear)}`, {
+    pieces.push(svgText((left + right) / 2, 146.5, `${payload.provisional ? "PROVISIONAL — " : ""}REPORT ON RATINGS S.Y. ${cleanText(payload.schoolYear)}${payload.semester ? ` · SEMESTER ${payload.semester}` : ""}`, {
       size: 13.1,
       anchor: "middle"
     }));
@@ -266,7 +267,7 @@
           ww: period ? fixedOrBlank(period.ww, 2) : "",
           pt: period ? fixedOrBlank(period.pt, 2) : "",
           qa: period ? fixedOrBlank(period.qa, 2) : "",
-          initial: period ? fixedOrBlank(period.initial, 2) : "",
+          initial: period ? fixedOrBlank(period.initial, 3) : "",
           periodical: period ? integerOrBlank(period.periodical) : integerOrBlank(student.finalGrade)
         });
       }
@@ -382,11 +383,11 @@
       anchor: "middle"
     }));
 
-    if (payload.periodCount === 3) {
+    if (payload.periodCount < 4) {
       [left + 2, middle + 2].forEach((columnLeft) => {
         pieces.push(svgText(columnLeft, top + 79, "1st __________________", { size: 7.5 }));
         pieces.push(svgText(columnLeft, top + 94, "2nd __________________", { size: 7.5 }));
-        pieces.push(svgText(columnLeft, top + 109, "3rd __________________", { size: 7.5 }));
+        if (payload.periodCount === 3) pieces.push(svgText(columnLeft, top + 109, "3rd __________________", { size: 7.5 }));
       });
       return pieces.join("");
     }
@@ -408,7 +409,8 @@
   function normalizePayload(payload) {
     const weights = Array.isArray(payload && payload.weights) ? payload.weights.map(Number) : [20, 50, 30];
     return {
-      periodCount: payload && payload.periodCount === 3 ? 3 : 4,
+      periodCount: [2, 3].includes(payload?.periodCount) ? payload.periodCount : 4,
+      semester: [1, 2].includes(payload?.semester) ? payload.semester : null,
       provisional: payload?.provisional === true,
       schoolYear: cleanText(payload && payload.schoolYear),
       level: cleanText(payload && payload.level),
@@ -592,7 +594,7 @@
       group.forEach((student, index) => {
         for (let term = 0; term <= payload.periodCount; term++) {
           const final = term === payload.periodCount, grade = student.periods[term] || {};
-          const values = [term === 0 ? `${offset + index + 1}. ${student.name}` : '', final ? 'F' : String(term + 1), final ? '' : fixedOrBlank(grade.ww,2), final ? '' : fixedOrBlank(grade.pt,2), final ? '' : fixedOrBlank(grade.qa,2), final ? '' : fixedOrBlank(grade.initial,2), integerOrBlank(final ? student.finalGrade : grade.periodical)];
+          const values = [term === 0 ? `${offset + index + 1}. ${student.name}` : '', final ? 'F' : String(term + 1), final ? '' : fixedOrBlank(grade.ww,2), final ? '' : fixedOrBlank(grade.pt,2), final ? '' : fixedOrBlank(grade.qa,2), final ? '' : fixedOrBlank(grade.initial,3), integerOrBlank(final ? student.finalGrade : grade.periodical)];
           rows.push(new d.TableRow({ cantSplit: true, height: { value: 250, rule: d.HeightRule.ATLEAST }, children: values.map((text, col) => cell(text, col, {
             ...(col === 0 ? { verticalMerge: term === 0 ? d.VerticalMergeType.RESTART : d.VerticalMergeType.CONTINUE } : {}),
             ...(final ? { shading: { fill: 'F2F4F6' }, run: { bold: true } } : {})
@@ -603,7 +605,7 @@
         paragraph('CST-R FORM 1', { run: { size: 14 } }),
         paragraph('COLEGIO DE STO. TOMAS-RECOLETOS, INC.', { alignment: d.AlignmentType.CENTER, run: { bold: true, size: 23 } }),
         paragraph('Azcona St., San Carlos City, Negros Occidental', { alignment: d.AlignmentType.CENTER, run: { size: 16 } }),
-        paragraph(`${payload.provisional ? "PROVISIONAL — " : ""}REPORT ON RATINGS — S.Y. ${payload.schoolYear}`, { alignment: d.AlignmentType.CENTER, spacing: { before: 100, after: 100 }, run: { bold: true, size: 20 } }),
+        paragraph(`${payload.provisional ? "PROVISIONAL — " : ""}REPORT ON RATINGS — S.Y. ${payload.schoolYear}${payload.semester ? ` · SEMESTER ${payload.semester}` : ""}`, { alignment: d.AlignmentType.CENTER, spacing: { before: 100, after: 100 }, run: { bold: true, size: 20 } }),
         paragraph(`YEAR & SECTION: ${gradeAndSection(payload)}`, { run: { bold: true } }),
         paragraph(`SUBJECT: ${payload.subject}`, { spacing: { after: 100 }, run: { bold: true } }),
         new d.Table({ width: { size: 9600, type: d.WidthType.DXA }, columnWidths: widths, layout: d.TableLayoutType.FIXED, rows })
