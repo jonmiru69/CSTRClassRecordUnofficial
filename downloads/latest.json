@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
   "available": true,
-  "version": "1.0.30",
-  "versionCode": 10030,
+  "version": "1.0.36",
+  "versionCode": 10036,
   "minimumSupportedVersionCode": 0,
-  "sha256": "be17d32e1fe89f04689f775f7676c8869cbe3f27009ddbe8363cef4f7ba0dbbf",
+  "sha256": "7ab6ef6647e205c70771291f5ec0a195c2fd14b284e42194ac46ed57119be859",
   "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
-  "bytes": 6055964,
-  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.30.apk",
-  "publishedAt": "2026-11-05T01:36:44.438Z",
-  "notes": "The sign-in page has one privacy control and clearer account help. Android downloads are available in the page information."
+  "bytes": 6122866,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.36.apk",
+  "publishedAt": "2026-11-07T02:56:22.018Z",
+  "notes": "Updated class record workflows and reliability fixes."
 }
