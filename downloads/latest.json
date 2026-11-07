@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
   "available": true,
-  "version": "1.0.36",
-  "versionCode": 10036,
+  "version": "1.0.37",
+  "versionCode": 10037,
   "minimumSupportedVersionCode": 0,
-  "sha256": "7ab6ef6647e205c70771291f5ec0a195c2fd14b284e42194ac46ed57119be859",
+  "sha256": "750f68cef202d8ce9ee6e2d6e05ce313f8180e27fc75301f963bf131a24fbdbe",
   "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
-  "bytes": 6122866,
-  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.36.apk",
-  "publishedAt": "2026-11-07T02:56:22.018Z",
-  "notes": "Updated class record workflows and reliability fixes."
+  "bytes": 6122422,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.37.apk",
+  "publishedAt": "2026-11-07T06:07:12.577Z",
+  "notes": "Teacher accounts are now by invitation. Request access from the sign-in screen. Existing approved accounts can continue to sign in."
 }
