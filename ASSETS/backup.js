@@ -3,8 +3,6 @@
   const enc = new TextEncoder(), dec = new TextDecoder();
   const b64 = bytes => { let s = ""; for (const b of new Uint8Array(bytes)) s += String.fromCharCode(b); return btoa(s); };
   const un64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
-  const MAX_BACKUP_BYTES=25000000;
-  const encoded=(s,max)=>typeof s==='string'&&s.length<=max&&s.length%4===0&&/^[A-Za-z0-9+/]+={0,2}$/.test(s);
   async function key(password, salt) {
     const material = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]);
     return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:600000, hash:"SHA-256"}, material, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
@@ -34,15 +32,12 @@
   }
   async function encrypt(value, password) {
     validate(value); if (password.length < 12) throw new Error("Use at least 12 characters for the backup passphrase.");
-    const bytes=enc.encode(JSON.stringify(value));
-    if(bytes.length>18749000)throw new Error("This workspace exceeds the encrypted backup size limit.");
     const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
-    const ciphertext = await crypto.subtle.encrypt({name:"AES-GCM",iv}, await key(password,salt),bytes);
+    const ciphertext = await crypto.subtle.encrypt({name:"AES-GCM",iv}, await key(password,salt),enc.encode(JSON.stringify(value)));
     return {format:"CSTR-encrypted-backup",version:1,algorithm:"AES-256-GCM",kdf:"PBKDF2-SHA256",iterations:600000,salt:b64(salt),iv:b64(iv),ciphertext:b64(ciphertext)};
   }
   async function decrypt(envelope,password) {
-    if (!envelope || envelope.format !== "CSTR-encrypted-backup" || envelope.version !== 1 || envelope.iterations !== 600000 || envelope.algorithm !== "AES-256-GCM" || envelope.kdf !== "PBKDF2-SHA256") throw new Error("Unsupported backup format.");
-    if(!encoded(envelope.salt,24)||!encoded(envelope.iv,16)||!encoded(envelope.ciphertext,MAX_BACKUP_BYTES)||envelope.ciphertext.length<24)throw new Error("Invalid backup encoding.");
+    if (envelope.format !== "CSTR-encrypted-backup" || envelope.version !== 1 || envelope.iterations !== 600000 || envelope.algorithm !== "AES-256-GCM" || envelope.kdf !== "PBKDF2-SHA256") throw new Error("Unsupported backup format.");
     const salt=un64(envelope.salt),iv=un64(envelope.iv); if(salt.length!==16||iv.length!==12) throw new Error("Invalid backup header.");
     try { return validate(JSON.parse(dec.decode(await crypto.subtle.decrypt({name:"AES-GCM",iv},await key(password,salt),un64(envelope.ciphertext))))); }
     catch (_) { throw new Error("Unable to restore: incorrect passphrase, damaged file, or invalid record."); }
@@ -69,7 +64,7 @@
     },
     async importFile() {
       const file=await new Promise(resolve=>{const input=document.createElement("input");input.type="file";input.accept=".cstrbackup";input.onchange=()=>resolve(input.files[0]||null);input.oncancel=()=>resolve(null);input.click();});
-      if(!file)return null;if(file.size>MAX_BACKUP_BYTES)throw new Error("Backup exceeds the 25 MB import limit.");
+      if(!file)return null;if(file.size>25000000)throw new Error("Backup exceeds the 25 MB import limit.");
       const envelope=JSON.parse(await file.text());const password=await askPassword();if(!password)return null;return decrypt(envelope,password);
     }
   };

@@ -34,7 +34,7 @@ async function main(){
  await test('Invalid revision cannot save',()=>assert.rejects(()=>sync.save('teacher-a',sample,NaN),/Invalid record revision/));
  const rules=JSON.parse(fs.readFileSync(path.join(__dirname,'../firebase-database-rules.json'),'utf8')).rules;
  const tree={'cstr-registration-approved':{'teacher-a':true,'teacher-b':true},'cstr-class-record-bindings':{'old-record':{boundUid:'teacher-a'}}};
- const snap=v=>({exists:()=>v!==null&&v!==undefined,val:()=>v??null,child:k=>snap(v?.[k]),hasChildren:keys=>keys?keys.every(k=>v?.[k]!=null):Boolean(v&&typeof v==='object'&&Object.keys(v).length),isNumber:()=>typeof v==='number',isString:()=>typeof v==='string'});
+ const snap=v=>({exists:()=>v!==null&&v!==undefined,val:()=>v??null,child:k=>snap(v?.[k]),hasChildren:keys=>keys.every(k=>v?.[k]!=null),isNumber:()=>typeof v==='number',isString:()=>typeof v==='string'});
  const evalRule=(rule,{uid='teacher-a',key='teacher-a',data={},next={},root=tree}={})=>typeof rule==='boolean'?rule:Function('auth','root','data','newData','$key','$uid','now','return '+rule)(uid?{uid}:null,snap(root),snap(data),snap(next),key,key,Date.now());
  const dr=rules['cstr-class-record-data'].$key;
  await test('Rule expressions deny unauthenticated and unapproved access',()=>{assert(!evalRule(dr['.read'],{uid:null}));assert(!evalRule(dr['.read'],{uid:'unapproved',key:'unapproved'}));});

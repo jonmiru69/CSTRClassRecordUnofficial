@@ -74,50 +74,12 @@
             "value": "public, max-age=3600, must-revalidate"
           }
         ]
-      },
-      {
-        "source": "/",
-        "headers": [
-          {
-            "key": "Content-Security-Policy",
-            "value": "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
-          },
-          {"key": "Cache-Control", "value": "no-cache"}
-        ]
-      },
-      {
-        "source": "/{signin,register,teacher,practice,privacy}/**",
-        "headers": [
-          {
-            "key": "Content-Security-Policy",
-            "value": "default-src 'none'; script-src 'self' https://apis.google.com; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://*.asia-southeast1.firebasedatabase.app wss://*.asia-southeast1.firebasedatabase.app; frame-src 'self' https://cstr-class-record-global.firebaseapp.com https://accounts.google.com https://apis.google.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
-          },
-          {"key": "Cache-Control", "value": "no-store"}
-        ]
-      },
-      {
-        "source": "ASSETS/nationwide/**",
-        "headers": [{"key": "Cache-Control", "value": "no-cache"}]
-      },
-      {
-        "source": "/workflow/**",
-        "headers": [
-          {"key": "Content-Security-Policy", "value": "default-src 'none'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://*.asia-southeast1.firebasedatabase.app wss://*.asia-southeast1.firebasedatabase.app; frame-src 'self' https://cstr-class-record-global.firebaseapp.com https://accounts.google.com https://apis.google.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"},
-          {"key": "Cache-Control", "value": "no-store"}
-        ]
-      },
-      {
-        "source": "schools/manifest.json",
-        "headers": [{"key": "Cache-Control", "value": "no-cache"}]
       }
     ]
   },
   "emulators": {
     "database": {
       "port": 9000
-    },
-    "auth": {
-      "port": 9099
     },
     "hosting": {
       "port": 5000

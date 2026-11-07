@@ -30,12 +30,12 @@ For a new email/password user:
 1. The teacher chooses **Create account** on the revised site. A password of at least 12 characters is required by the UI. Account creation signs them out and explains the approval process.
 2. They email the developer from their sign-in address requesting approval. They must not send their password or learner data.
 3. Verify the teacher through the established school channel. In Firebase Console → Authentication → Users, find that email and copy its exact UID. Do not infer the UID from a display name.
-4. In Realtime Database → Data, the candidate rules recognize `cstr-registration-approved/<UID>` as active when the value is `true` or a verified metadata object containing a positive numeric `approvedAt` and a nonempty `approvedBy`, unless marked inactive or revoked. Before any candidate rules release, privately verify that each currently active institutional approval has a compatible shape. Only an authorized Firebase administrator manages approvals.
+4. In Realtime Database → Data, create the child `cstr-registration-approved/<UID>` with a boolean value of `true`, or an object containing your approval metadata. Only the Firebase administrator performs this step.
 5. The teacher signs in again and creates a workspace. The frontend can create a profile only for that user's UID and only after approval. For a new workspace, the profile's `dataKey` equals the UID and `isLegacy` is false.
 
 For Google users, their first sign-in creates an Authentication identity but access is denied until you approve its UID. They then repeat Google sign-in. A pending approval message is expected.
 
-**Revocation:** the candidate rules deny absent, false and explicitly revoked approvals. Verify the deployed rule version before relying on this behavior. Disable the Authentication user and revoke sessions using the authorized administrator workflow when an account is compromised. Legacy registration tickets cannot grant approval.
+**Revocation:** remove the entire `cstr-registration-approved/<UID>` node. Setting it to `false` does not revoke approval because the compatibility rules check existence. Disable the Authentication user and revoke sessions using your authorized administrator workflow if the account is compromised. The old registration-ticket route cannot grant approval again under the new rules.
 
 Configure the Firebase Authentication password policy to match the 12-character UI minimum where available. The client minimum alone is not a server-enforced password policy. Keep email/password and Google enabled only if you use them. Confirm email action templates and authorized domains.
 
