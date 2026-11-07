@@ -80,12 +80,15 @@ async function run(){
         },{once:true}));
         await activate(gmailButton);
         const draft=await page.evaluate(()=>window.__requestDraft);
-        check(label+' registration opens a complete Gmail request at the dedicated address',
-          await form.getAttribute('action')==='https://mail.google.com/mail/'&&await form.getAttribute('target')==='_blank'&&
-          draft.view==='cm'&&draft.to==='sanchezramil2202+cstr-teacher-access@gmail.com'&&
-          draft.su==='CST-R Class Record access request'&&
-          draft.body.includes('Full name: Sample Teacher')&&draft.body.includes('Faculty role: Science Teacher')&&
-          draft.body.includes('Email I will use to sign in: teacher@example.test'));
+        const compose=new URL(draft.continue);
+        const body=compose.searchParams.get('body');
+        check(label+' registration routes through the teacher’s Google account to a complete draft',
+          await form.getAttribute('action')==='https://accounts.google.com/AccountChooser'&&await form.getAttribute('target')==='_blank'&&
+          draft.Email==='teacher@example.test'&&compose.origin==='https://mail.google.com'&&compose.pathname==='/mail/'&&
+          compose.searchParams.get('view')==='cm'&&compose.searchParams.get('to')==='sanchezramil2202+cstr-teacher-access@gmail.com'&&
+          compose.searchParams.get('su')==='CST-R Class Record access request'&&
+          body.includes('Full name: Sample Teacher')&&body.includes('Faculty role: Science Teacher')&&
+          body.includes('Email I will use to sign in: teacher@example.test'));
         check(label+' registration retains a mail app fallback without collecting a password',
           await approval.getByRole('button',{name:'Use another email app'}).getAttribute('value')==='mail-app'&&
           await approval.locator('input[type="password"]').count()===0&&await page.locator('#signupForm').count()===0);

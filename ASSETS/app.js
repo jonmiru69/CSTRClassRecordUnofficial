@@ -1283,19 +1283,16 @@
     dialog.setAttribute("aria-describedby", "teacherAccessDescription");
     dialog.innerHTML = `
       <h2 id="teacherAccessTitle">Developer approval required</h2>
-      <p id="teacherAccessDescription">Teacher accounts are by invitation. Complete the form to prepare your request. Check that the email’s <strong>From</strong> address matches your sign-in email before sending.</p>
+      <p id="teacherAccessDescription">Teacher accounts are by invitation. Use the same email address to send the request and sign in to the class record.</p>
       <div class="teacher-access-actions">
         ${allowGoogle ? '<button type="button" class="button button-primary" data-approved-google>Sign in with approved Google account</button>' : ""}
-        <form class="teacher-access-form" action="https://mail.google.com/mail/" target="_blank" rel="noopener noreferrer">
+        <form class="teacher-access-form" action="https://accounts.google.com/AccountChooser" target="_blank" rel="noopener noreferrer">
           <label class="field-label">Full name<input id="requestFullName" type="text" autocomplete="name" maxlength="120" pattern=".*\\S.*" required></label>
           <label class="field-label">Faculty role<input id="requestFacultyRole" type="text" maxlength="120" pattern=".*\\S.*" required></label>
           <label class="field-label">Sign-in email<input id="requestEmail" type="email" autocomplete="email" maxlength="254" required></label>
-          <p class="teacher-access-note">Keep passwords, account codes, and learner records out of the request.</p>
-          <input type="hidden" name="view" value="cm">
-          <input type="hidden" name="fs" value="1">
-          <input type="hidden" name="to" value="${address}">
-          <input type="hidden" name="su" value="${subject}">
-          <input type="hidden" name="body">
+          <p class="teacher-access-note">${native ? "Check the From address before sending." : "If Google asks you to choose an account, select your sign-in email or choose Use another account. Check the From address before sending."} Keep passwords, account codes, and learner records out of the request.</p>
+          <input type="hidden" name="Email">
+          <input type="hidden" name="continue">
           ${native
             ? '<button class="button button-primary" type="submit" value="mail-app">Email access request</button>'
             : `<button class="button ${allowGoogle ? "button-secondary" : "button-primary"}" type="submit">Open request in Gmail</button>
@@ -1315,11 +1312,15 @@
         `Faculty role: ${role}`,
         `Email I will use to sign in: ${email}`
       ].join("\r\n");
-      form.elements.body.value = body;
       if (native || event.submitter?.value === "mail-app") {
         event.preventDefault();
         window.location.href = `mailto:${address}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        return;
       }
+      const gmail = new URL("https://mail.google.com/mail/");
+      gmail.search = new URLSearchParams({ view: "cm", fs: "1", to: address, su: subject, body });
+      form.elements.namedItem("Email").value = email;
+      form.elements.namedItem("continue").value = gmail.href;
     });
     dialog.querySelector("[data-close-access]").addEventListener("click", () => dialog.close());
     dialog.querySelector("[data-approved-google]")?.addEventListener("click", () => {
