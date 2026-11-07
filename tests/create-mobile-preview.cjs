@@ -11,7 +11,7 @@ const fixture=`<script>
   let state={version:4,teacher:{name:'Synthetic Teacher',level:'Secondary',specialization:'Science',bio:'Preview uses invented records only.'},photo:'',registry:classes.map(([id,subject,section,group,level,weights])=>({id,subject,section,group,level,weights,gradingMode:'school-transmutation',rosterSize:6,theme:'blue',accent:'blue',archived:false})),sections:Object.fromEntries(classes.map(([id])=>[id,{periods:[makePeriod('Quarter 1'),makePeriod('Quarter 2',true)]}])),calendarMode:'legacy',registryTri:[],sectionsTri:{},trimesterModeSeen:false};
   let revision=1;const user={uid:'synthetic-teacher',email:'teacher@example.test',displayName:'Synthetic Teacher',providerData:[{providerId:'password'}]};
   localStorage.setItem('cstr-class-record-welcome-seen:synthetic-teacher','true');
-  window.CSTRRegistration={isApproved:async()=>true,clear(){}};
+  window.CSTRRegistration={email:'sanchezramil2202@gmail.com',isApproved:async()=>true};
   const updateCase=new URLSearchParams(location.search).get('update');
   if(updateCase){
     window.CSTRMobile={native:true,ready:Promise.resolve(),checkpoint:async()=>{},clearRecovery:async()=>{},getInfo:async()=>({version:'1.0.0',build:'10000'}),verifyRelease:async()=>({valid:updateCase!=='wrong-key'}),enableUpdateAlerts:async()=>({granted:false}),openDownload:async()=>{},openWebsite:async()=>{}};

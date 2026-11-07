@@ -1,10 +1,11 @@
 const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert/strict');const base=path.resolve(__dirname,'../ASSETS');const read=f=>fs.readFileSync(path.join(base,f),'utf8');
 const noop=()=>{};const element={dataset:{theme:"light"},addEventListener:noop,querySelector:()=>null,querySelectorAll:()=>[],classList:{add:noop,remove:noop,toggle:noop},style:{},getBoundingClientRect:()=>({width:1280,height:720})};const storage={getItem:()=>null,setItem:noop,removeItem:noop};
 const context={console,setTimeout,clearTimeout,setInterval:()=>0,clearInterval:noop,Date,Math,localStorage:storage,sessionStorage:storage,matchMedia:()=>({matches:false,addEventListener:noop}),document:{querySelector:s=>s==='#app'?element:null,querySelectorAll:()=>[],addEventListener:noop,documentElement:element,body:element},window:{addEventListener:noop},requestAnimationFrame:noop,ResizeObserver:class{observe(){}}};
+vm.runInNewContext(read('registration.js'),context);
 context.window.CSTRGrading=require(path.join(base,'grading-engine.js'));context.window.CSTRRecordTools=require(path.join(base,'record-tools.js'));
-const source=read('app.js').replace('  initApp();','  window.testHooks={renderLogin,renderHome,renderSignUpPanel,renderLegacyClaimPanel,normalizeState,createInitialState,renderSectionRecord,setState(value){state=normalizeState(value);activeSectionId=state.registry[0]?.id||"";}};');
+const source=read('app.js').replace('  initApp();','  window.testHooks={renderLogin,renderHome,renderLegacyClaimPanel,normalizeState,createInitialState,renderSectionRecord,setState(value){state=normalizeState(value);activeSectionId=state.registry[0]?.id||"";}};');
 vm.runInNewContext(source,context);const h=context.window.testHooks;
-assert(h.renderLogin().includes('Unofficial'));assert(h.renderSignUpPanel().includes('minlength="12"'));assert(!h.renderLegacyClaimPanel().includes('type="password"'));assert(h.renderHome().includes('Active class records'));assert(h.renderHome().includes('Teacher details'));assert.equal(h.createInitialState().teacher.age,'');
+assert(h.renderLogin().includes('Unofficial'));assert(h.renderLogin().includes('request-teacher-access'));assert(!h.renderLogin().includes('signupForm'));assert(!h.renderLegacyClaimPanel().includes('type="password"'));assert(h.renderHome().includes('Active class records'));assert(h.renderHome().includes('Teacher details'));assert.equal(h.createInitialState().teacher.age,'');
 context.window.CSTRMobile={native:true};
 const nativeLogin=h.renderLogin();
 assert(!nativeLogin.includes('login-divider')&&!nativeLogin.includes('google-login'));

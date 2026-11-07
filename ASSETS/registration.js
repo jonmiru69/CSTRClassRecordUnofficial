@@ -1,19 +1,14 @@
 (() => {
   "use strict";
-  const pending = "Account approval required. Email SANCHEZRAMIL2202@GMAIL.COM from your sign-in address. Never send passwords or student records.";
+  const email = "sanchezramil2202@gmail.com";
   async function isApproved(user) {
     if (!user) return false;
     return (await firebase.database().ref("cstr-registration-approved/" + user.uid).once("value")).exists();
   }
-  window.CSTRRegistration = {
-    authorized: () => true, requireGrant() {}, clear() {}, isApproved,
-    async authorize() { throw new Error(pending); },
-    async enroll(user) { if (!await isApproved(user)) throw new Error(pending); },
-    async createEmail(email, password) {
-      if (password.length < 12) throw new Error("Use a passphrase of at least 12 characters.");
-      const result = await firebase.auth().createUserWithEmailAndPassword(email, password);
-      await firebase.auth().signOut();
-      return result.user;
-    }
-  };
+  function approvalRequired() {
+    const error = new Error("Developer approval is required to use the CST-R Class Record.");
+    error.code = "cstr/approval-required";
+    return error;
+  }
+  window.CSTRRegistration = { email, isApproved, approvalRequired };
 })();

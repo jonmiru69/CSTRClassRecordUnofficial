@@ -73,7 +73,7 @@
   let autoSaveTimer = null;
   let saveToastTimer = null;
   let unsubscribeSync = null;
-  let isLinkingLegacyInProgress = false;
+  let signInInProgress = false;
   let loginPanel = "signin"; // "signin" | "signup" | "legacy" — which login-screen panel is showing
   // isStale = true means a DIFFERENT device just saved changes to this same
   // account while THIS device had unsaved edits in progress. Rather than
@@ -992,12 +992,6 @@
 
   // Authorization is an expiring server-issued ticket; sessionStorage flags
   // and client-side hashes are never accepted as security evidence.
-  function isRegistrationAuthorized() { return true; }
-
-  async function verifySecretRegistrationCode() { throw new Error("Approval is managed by the developer. Contact SANCHEZRAMIL2202@GMAIL.COM."); }
-
-  function showRegistrationCodeModal() { alert("Contact SANCHEZRAMIL2202@GMAIL.COM for account approval. Do not send passwords or student records by email."); }
-
   function render() {
     const focusedGreeting = document.activeElement?.closest('#tommy-welcome > summary')?.parentElement.dataset.tommyView;
     updateSiteBackground();
@@ -1139,10 +1133,8 @@
   window.addEventListener('resize', sizeActivityTextareas, { passive: true });
 
   function renderLogin() {
-    const titles = { signin: "Welcome back", signup: "Create your account", legacy: "Recover existing records" };
-    const panelBody = loginPanel === "signup" ? renderSignUpPanel()
-      : loginPanel === "legacy" ? renderLegacyClaimPanel()
-      : renderSignInPanel();
+    const recovering = loginPanel === "legacy";
+    const panelBody = recovering ? renderLegacyClaimPanel() : renderSignInPanel();
 
     return `<header class="welcome-nav"><div class="welcome-brand"><img src="ASSETS/logo-compact.png" alt=""><span class="welcome-brand-copy"><strong>CST-R Class Record</strong><small>Colegio de Sto. Tomás–Recoletos · Unofficial</small></span></div><div class="welcome-tools">${themeControl()}<button type="button" class="welcome-policy" data-open-policies aria-label="Privacy and terms">${icon("lock")}<span>Privacy &amp; terms</span></button></div></header><section class="login-screen${window.CSTRMobile?.native ? " login-native" : ""}">
       <div class="welcome-story"><div class="welcome-story-copy"><h2>Your digital<br>class record</h2><p>Record scores, trace each grade, and prepare learner reports with AI Tommy.</p></div>
@@ -1159,11 +1151,11 @@
         </figure>
       </div>
       <div class="login-card">
-        <h1>${titles[loginPanel]}</h1>
-        ${loginPanel === "signin" ? '<p class="signin-context">Sign in with your approved teacher account.</p>' : loginPanel === "signup" ? '<p class="signin-context">Request access to the CST-R faculty workspace. Developer approval is required.</p>' : ''}
+        <h1>${recovering ? "Recover existing records" : "Welcome back"}</h1>
+        ${recovering ? "" : '<p class="signin-context">Sign in with your approved teacher account.</p>'}
 
         ${panelBody}
-        ${loginPanel !== "signin" ? '<p class="login-alternative"><a href="#" class="legacy-toggle-link" data-action="show-signin">Back to sign in</a></p>' : ''}
+        ${recovering ? '<p class="login-alternative"><a href="#" class="legacy-toggle-link" data-action="show-signin">Back to sign in</a></p>' : ''}
 
         <p id="loginError" class="login-error" role="alert"></p>
         <p id="loginSuccess" class="login-success" role="status" style="display: none;"></p>
@@ -1228,7 +1220,7 @@
 
       ${native ? `<p class="native-signin-note">Use your approved email and password. If you use Google, add a password in website Settings first, then return here.</p><button type="button" class="button button-secondary" data-action="open-web-workspace">Open website sign-in</button>` : `<div class="login-divider"><span>OR</span></div>
       <div class="login-cta-group">
-        <button type="button" class="button-google" data-action="google-login">
+        <button type="button" class="button-google" data-action="google-login" aria-haspopup="dialog">
           <svg class="google-icon" viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
             <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -1240,27 +1232,9 @@
       </div>`}
 
       <nav class="login-support" aria-label="Account help">
-        <a href="#" class="legacy-toggle-link" data-action="show-signup">Create a teacher account</a>
+        <a href="mailto:${window.CSTRRegistration.email}" class="legacy-toggle-link" data-action="request-teacher-access" aria-haspopup="dialog">Request a teacher account</a>
         <a href="#" class="legacy-toggle-link" data-action="show-legacy-claim">Recover existing records</a>
       </nav>`;
-  }
-
-  function renderSignUpPanel() {
-    return `<form id="signupForm" class="legacy-login-box">
-        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Full Name
-          <input id="signupName" type="text" autocomplete="name" placeholder="e.g. Maria Santos" required>
-        </label>
-        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Email
-          <input id="signupEmail" type="email" autocomplete="username" placeholder="you@example.com" required>
-        </label>
-        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Password
-          <input id="signupPassword" type="password" autocomplete="new-password" placeholder="At least 12 characters" minlength="12" required>
-        </label>
-        <label class="field-label" style="text-align: left; margin: 10px 0 6px;">Confirm Password
-          <input id="signupPasswordConfirm" type="password" autocomplete="new-password" placeholder="Re-enter password" minlength="12" required>
-        </label>
-        <button type="submit" class="button button-primary" data-action="email-signup" style="width: 100%; margin-top: 6px;"> Create account</button>
-      </form>`;
   }
 
   function renderLegacyClaimPanel() {
@@ -1268,17 +1242,6 @@
   }
 
   function showSignInPanel() { loginPanel = "signin"; render(); }
-  function showSignUpPanel() {
-    if (!isRegistrationAuthorized()) {
-      showRegistrationCodeModal(() => {
-        loginPanel = "signup";
-        render();
-      });
-      return;
-    }
-    loginPanel = "signup";
-    render();
-  }
   function showLegacyClaimPanel() { loginPanel = "legacy"; render(); }
 
   // Turns a raw Firebase/JS error into user-facing text. Specifically catches
@@ -1309,42 +1272,63 @@
     startSaveIndicatorTicker();
   }
 
-  function showGoogleContinuation(prefillAccountCode) {
-    // A fresh click after verification preserves the browser's popup permission.
-    const modal = document.createElement("div");
-    modal.className = "modal-backdrop";
-    modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="googleContinueTitle"><h2 id="googleContinueTitle">Registration authorized</h2><p>Continue with the Google account matching the email you entered.</p><button type="button" class="button button-primary" id="authorizedGoogleContinue">Continue with Google</button>${button("Cancel","close-modal","button")}</section>`;
-    document.body.append(modal);
-    modal.querySelector("#authorizedGoogleContinue").addEventListener("click", () => { modal.remove(); performGoogleLogin(prefillAccountCode); });
-    modal.querySelector("#authorizedGoogleContinue").focus();
+  function showTeacherAccess({ allowGoogle = false, opener = document.activeElement } = {}) {
+    if (document.querySelector(".teacher-access-dialog[open]")) return;
+    const address = window.CSTRRegistration.email;
+    const subject = encodeURIComponent("CST-R Class Record access request");
+    const body = encodeURIComponent("Hello, I'd like to request access to the CST-R Class Record.\r\n\r\nFull name: \r\nFaculty role: \r\nEmail I will use to sign in: \r\n");
+    const dialog = document.createElement("dialog");
+    dialog.className = "install-dialog teacher-access-dialog";
+    dialog.setAttribute("aria-labelledby", "teacherAccessTitle");
+    dialog.setAttribute("aria-describedby", "teacherAccessDescription");
+    dialog.innerHTML = `
+      <h2 id="teacherAccessTitle">Developer approval required</h2>
+      <p id="teacherAccessDescription">Teacher accounts are by invitation. Email <strong>${address}</strong> from the address you plan to use to sign in. Include your name and faculty role so the developer can verify your request.</p>
+      <p>Keep passwords, account codes, and learner records out of the email.</p>
+      <div class="teacher-access-actions">
+        ${allowGoogle ? '<button type="button" class="button button-primary" data-approved-google>Sign in with approved Google account</button>' : ""}
+        <a class="button ${allowGoogle ? "button-secondary" : "button-primary"}" href="mailto:${address}?subject=${subject}&amp;body=${body}">Email access request</a>
+        <button type="button" class="button button-secondary" data-close-access>Back to sign in</button>
+      </div>`;
+    dialog.querySelector("[data-close-access]").addEventListener("click", () => dialog.close());
+    dialog.querySelector("[data-approved-google]")?.addEventListener("click", () => {
+      dialog.close();
+      dialog.remove();
+      performGoogleLogin();
+    });
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+      if (opener?.isConnected && !opener.disabled) opener.focus();
+    }, { once: true });
+    document.body.append(dialog);
+    dialog.showModal();
+  }
+
+  function isApprovalError(error) {
+    return ["cstr/approval-required", "auth/admin-restricted-operation"].includes(error?.code);
   }
 
   async function authFeedback(action, label, operation) {
     const control = document.querySelector(`[data-action="${action}"]`);
-    if (control?.getAttribute("aria-busy") === "true") return;
+    if (signInInProgress) return;
+    signInInProgress = true;
     const original = control?.innerHTML;
     if (control) { control.setAttribute("aria-busy", "true"); control.disabled = true; control.textContent = label; }
     try { return await operation(); }
     finally {
+      signInInProgress = false;
       if (control) { control.removeAttribute("aria-busy"); control.disabled = false; control.innerHTML = original; }
     }
   }
-  function performGoogleLogin(...args) { return authFeedback("google-login", "Connecting…", () => performGoogleLoginRequest(...args)); }
-  function performEmailSignIn(...args) { return authFeedback("email-signin", "Signing in…", () => performEmailSignInRequest(...args)); }
-  function performEmailSignUp(...args) { return authFeedback("email-signup", "Creating account…", () => performEmailSignUpRequest(...args)); }
-  function performLegacyClaim(...args) { return authFeedback("legacy-claim", "Checking account…", () => performLegacyClaimRequest(...args)); }
+  function performGoogleLogin() { return authFeedback("google-login", "Connecting…", performGoogleLoginRequest); }
+  function performEmailSignIn() { return authFeedback("email-signin", "Signing in…", performEmailSignInRequest); }
 
-  async function performGoogleLoginRequest(prefillAccountCode) {
-    if (!isRegistrationAuthorized()) {
-      showRegistrationCodeModal(() => showGoogleContinuation(prefillAccountCode));
-      return;
-    }
+  async function performGoogleLoginRequest() {
     const error = document.querySelector("#loginError");
     const success = document.querySelector("#loginSuccess");
     if (error) { error.textContent = ""; error.classList.remove("error"); }
     if (success) { success.textContent = ""; success.style.display = "none"; }
 
-    isLinkingLegacyInProgress = true;
     try {
       setStatus("Signing in with Google...", "saving");
       const user = await window.CSTRSync.signInWithGoogle();
@@ -1354,22 +1338,26 @@
       if (profile && profile.dataKey) {
         completeSignInSession(profile, user);
       } else {
-        showOnboardingModal(user, prefillAccountCode);
+        showOnboardingModal(user);
       }
     } catch (err) {
-      console.error("Google sign-in error:", err);
+      if (isApprovalError(err)) {
+        showTeacherAccess({ opener: document.querySelector('[data-action="google-login"]') });
+        return;
+      }
+      console.error("Google sign-in error:", err.code || "unknown");
       if (error) {
         if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
           error.textContent = "Sign-in cancelled. Please try again.";
         } else if (err.code === "auth/unauthorized-domain") {
           error.textContent = "Sign-in is unavailable on this domain. Contact support.";
+        } else if (err.code === "auth/account-exists-with-different-credential") {
+          error.textContent = "Sign in using the email and password approved for your account.";
         } else {
-          error.textContent = friendlyAuthErrorMessage(err, "Sign-in failed");
+          error.textContent = "Google sign-in failed. Check your connection and try again.";
         }
         error.classList.add("error");
       }
-    } finally {
-      isLinkingLegacyInProgress = false;
     }
   }
 
@@ -1399,7 +1387,11 @@
         showOnboardingModal(user);
       }
     } catch (err) {
-      console.error("Email sign-in error:", err);
+      if (isApprovalError(err)) {
+        showTeacherAccess({ opener: document.querySelector('[data-action="email-signin"]') });
+        return;
+      }
+      console.error("Email sign-in error:", err.code || "unknown");
       if (error) {
         if (["auth/invalid-credential", "auth/wrong-password", "auth/user-not-found"].includes(err.code)) {
           error.textContent = "Incorrect email or password.";
@@ -1408,34 +1400,12 @@
         } else if (err.code === "auth/invalid-email") {
           error.textContent = "Please enter a valid email address.";
         } else {
-          error.textContent = friendlyAuthErrorMessage(err, "Sign-in failed");
+          error.textContent = "Sign-in failed. Check your connection and try again.";
         }
         error.classList.add("error");
       }
     }
   }
-
-  async function performEmailSignUpRequest() {
-    const name = document.querySelector("#signupName")?.value.trim();
-    const email = document.querySelector("#signupEmail")?.value.trim();
-    const password = document.querySelector("#signupPassword")?.value || "";
-    const confirmation = document.querySelector("#signupPasswordConfirm")?.value;
-    const error = document.querySelector("#loginError");
-    if (!name || !email || password.length < 12 || password !== confirmation) {
-      if (error) error.textContent = "Enter your name, a valid email, and matching passwords of at least 12 characters.";
-      return;
-    }
-    isLinkingLegacyInProgress = true;
-    try {
-      await window.CSTRSync.signUpWithEmail(email, password);
-      showSignInPanel();
-      const message = document.querySelector("#loginError");
-      if (message) message.textContent = "Account created. Request approval from SANCHEZRAMIL2202@GMAIL.COM using your sign-in email. Do not send your password or student records. Sign in after approval.";
-    } catch (err) { if (error) error.textContent = friendlyAuthErrorMessage(err, "Account creation failed"); }
-    finally { isLinkingLegacyInProgress = false; }
-  }
-
-  async function performLegacyClaimRequest() { showLegacyClaimPanel(); }
 
   async function performForgotPassword() {
     const emailInput = document.querySelector("#signinEmail");
@@ -1451,16 +1421,18 @@
 
     try {
       await window.CSTRSync.sendPasswordResetEmail(email);
-      if (success) {
-        success.textContent = `Password reset link sent to ${email}. Check your inbox (and spam folder) and click the link to set a new password.`;
-        success.style.display = "block";
-      }
     } catch (err) {
-      console.error("Password reset error:", err);
-      if (error) {
-        error.textContent = err.code === "auth/user-not-found" ? "No account found with that email." : friendlyAuthErrorMessage(err, "Couldn't send reset email");
-        error.classList.add("error");
+      if (err.code !== "auth/user-not-found") {
+        if (error) {
+          error.textContent = friendlyAuthErrorMessage(err, "Couldn't send reset email");
+          error.classList.add("error");
+        }
+        return;
       }
+    }
+    if (success) {
+      success.textContent = "If this email has a password account, Firebase will send a reset link. Check your inbox and spam folder.";
+      success.style.display = "block";
     }
   }
 
@@ -1472,10 +1444,6 @@
   }
 
   async function completeNewTeacherSignup(user) {
-    if (!await window.CSTRRegistration.isApproved(user)) {
-      showRegistrationCodeModal(async () => { await window.CSTRRegistration.enroll(user); completeNewTeacherSignup(user); });
-      return;
-    }
     const nameInput = document.querySelector("#onboardTeacherName");
     const teacherName = nameInput ? nameInput.value.trim() : (user.displayName || "Teacher");
     const error = document.querySelector("#onboardError");
@@ -1489,6 +1457,11 @@
 
       completeSignInSession(profile, user);
     } catch (err) {
+      if (isApprovalError(err)) {
+        document.querySelector(".onboarding-modal")?.remove();
+        showTeacherAccess({ opener: document.querySelector('[data-action="request-teacher-access"]') });
+        return;
+      }
       if (error) {
         error.textContent = friendlyAuthErrorMessage(err, "Setup failed");
         error.classList.add("error");
@@ -4467,7 +4440,6 @@
     try { await window.CSTRMobile?.clearRecovery(); }
     catch (_) { alert("Signed out, but encrypted device recovery could not be cleared. Close the app and contact support before sharing this device."); }
     isLoggingOut = false;
-    window.CSTRRegistration?.clear();
     document.querySelector("#logoutModal")?.remove();
     currentView = "home";
     render();
@@ -4486,8 +4458,6 @@
     }
     const id = event.target && event.target.id;
     if (id === "signinForm") { event.preventDefault(); performEmailSignIn(); }
-    if (id === "signupForm") { event.preventDefault(); performEmailSignUp(); }
-    if (id === "legacyClaimForm") { event.preventDefault(); performLegacyClaim(); }
     if (id === "changePasswordForm") { event.preventDefault(); performChangePassword(); }
     if (id === "setPasswordForm") { event.preventDefault(); performSetPassword(); }
   });
@@ -4535,14 +4505,10 @@
     }
 
     if (action === "google-login") {
-      performGoogleLogin();
+      if (!signInInProgress) showTeacherAccess({ allowGoogle: true, opener: target });
+      return;
     }
-    if (action === "legacy-continue-google") {
-      const codeInput = document.querySelector("#legacyClaimCode");
-      const legacyKey = codeInput ? codeInput.value.trim() : "";
-      performGoogleLogin(legacyKey);
-    }
-    // Note: email-signin, email-signup, legacy-claim, change-password, and
+    // Note: email-signin, change-password, and
     // set-password are NOT handled here even though their buttons carry
     // data-action — they're type="submit" buttons inside <form> elements,
     // so a click already triggers the form's native submit event. Handling
@@ -4557,9 +4523,9 @@
       event.preventDefault();
       showSignInPanel();
     }
-    if (action === "show-signup") {
+    if (action === "request-teacher-access") {
       event.preventDefault();
-      showSignUpPanel();
+      showTeacherAccess({ opener: target });
     }
     if (action === "show-legacy-claim") {
       event.preventDefault();
@@ -5081,15 +5047,17 @@
     if (window.CSTRSync && window.CSTRSync.onAuthStateChanged) {
       window.CSTRSync.onAuthStateChanged(async (firebaseUser) => {
         if (firebaseUser) {
-          if (isLinkingLegacyInProgress) return;
+          if (signInInProgress) return;
           try {
             const approved = await window.CSTRRegistration.isApproved(firebaseUser);
+            if (window.CSTRSync.getCurrentUser()?.uid !== firebaseUser.uid) return;
             if (!approved) {
-              sessionStorage.removeItem("cstr-class-record-login");
-              render();
+              await window.CSTRSync.signOut();
+              showTeacherAccess({ opener: document.querySelector('[data-action="request-teacher-access"]') });
               return;
             }
             const profile = await window.CSTRSync.getUserProfile(firebaseUser.uid);
+            if (window.CSTRSync.getCurrentUser()?.uid !== firebaseUser.uid) return;
             if (profile && profile.dataKey) {
               sessionStorage.setItem("cstr-class-record-login", "true");
               sessionStorage.setItem("cstr-class-record-user", profile.dataKey);
@@ -5103,18 +5071,13 @@
                 subscribeToSync();
               }
             } else if (sessionStorage.getItem("cstr-class-record-login") !== "true") {
-              // Don't show onboarding modal if we're in the middle of an email
-              // sign-up or legacy claim — performEmailSignUp()/performLegacyClaim()
-              // set this flag first, since onAuthStateChanged can fire before
-              // their own profile write finishes.
-              if (!isLinkingLegacyInProgress) {
-                showOnboardingModal(firebaseUser);
-              }
+              showOnboardingModal(firebaseUser);
             }
           } catch (err) {
             console.error("Auth state restore error:", err);
           }
         } else {
+          document.querySelector(".onboarding-modal")?.remove();
           if (unsubscribeSync) { unsubscribeSync(); unsubscribeSync = null; }
           ++loadRequestId; isDataLoaded = false; isLoading = false;
           if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }

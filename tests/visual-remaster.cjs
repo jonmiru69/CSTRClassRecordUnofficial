@@ -64,10 +64,33 @@ async function run(){
         await page.locator('.welcome-story :is(button,summary)').count()===0&&await page.locator('a.welcome-brand').count()===0);
       const greeting=page.locator('#tommy-welcome');
       if((width===1440||width===390)&&theme==='light'&&!config.reduced){
-        await activate(page.locator('[data-action="show-signup"]'));
-        check(label+' signup keeps one submit and one return link',await page.locator('#signupForm button[type="submit"]').count()===1&&
-          await page.locator('[data-action="show-signin"]').count()===1);
-        await activate(page.locator('[data-action="show-signin"]'));
+        const request=page.locator('[data-action="request-teacher-access"]');
+        const approval=page.getByRole('dialog',{name:'Developer approval required'});
+        await activate(request);
+        await approval.waitFor();
+        check(label+' registration opens the email request without collecting a password',
+          (await approval.getByRole('link',{name:'Email access request'}).getAttribute('href')).startsWith('mailto:sanchezramil2202@gmail.com?')&&
+          await approval.locator('input').count()===0&&await page.locator('#signupForm').count()===0);
+        const dialogBounds=await approval.boundingBox();
+        check(label+' approval dialog fits the viewport',dialogBounds.x>=0&&dialogBounds.x+dialogBounds.width<=width);
+        await page.keyboard.press('Escape');
+        await approval.waitFor({state:'hidden'});
+        check(label+' closing approval restores focus',await request.evaluate(el=>document.activeElement===el));
+        await page.evaluate(()=>{
+          window.__googleAttempts=0;
+          window.CSTRSync={signInWithGoogle:async()=>{
+            ++window.__googleAttempts;
+            throw Object.assign(new Error('Synthetic signup denial'),{code:'auth/admin-restricted-operation'});
+          }};
+        });
+        await activate(page.locator('[data-action="google-login"]'));
+        await approval.waitFor();
+        check(label+' Google stays closed until approved sign-in is chosen',await page.evaluate(()=>window.__googleAttempts)===0);
+        await activate(approval.getByRole('button',{name:'Sign in with approved Google account'}));
+        await approval.waitFor();
+        check(label+' Firebase rejection returns to the request-only dialog',
+          await page.evaluate(()=>window.__googleAttempts)===1&&await approval.getByRole('button',{name:'Sign in with approved Google account'}).count()===0);
+        await activate(approval.getByRole('button',{name:'Back to sign in'}));
         await activate(page.locator('[data-action="show-legacy-claim"]'));
         check(label+' record recovery keeps one heading, one contact and one return link',
           await page.getByRole('heading',{name:'Recover existing records'}).count()===1&&

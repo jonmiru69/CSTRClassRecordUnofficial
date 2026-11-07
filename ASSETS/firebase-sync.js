@@ -42,7 +42,6 @@
       subscribe() { return () => {}; },
       async save() { throw new Error("Firebase SDK not loaded"); },
       async signInWithGoogle() { throw new Error("Firebase SDK not loaded"); },
-      async signUpWithEmail() { throw new Error("Firebase SDK not loaded"); },
       async signInWithEmail() { throw new Error("Firebase SDK not loaded"); },
       async sendPasswordResetEmail() { throw new Error("Firebase SDK not loaded"); },
       async changePassword() { throw new Error("Firebase SDK not loaded"); },
@@ -77,6 +76,17 @@
     });
   }
 
+  async function approvedSignIn(user) {
+    try {
+      if (!await window.CSTRRegistration.isApproved(user)) throw window.CSTRRegistration.approvalRequired();
+      if (auth.currentUser?.uid !== user.uid) throw new Error("The sign-in session changed. Please sign in again.");
+      return user;
+    } catch (error) {
+      if (auth.currentUser?.uid === user?.uid) await auth.signOut();
+      throw error;
+    }
+  }
+
   window.CSTRSync = {
     configured: isConfigured,
     clientId: CLIENT_ID,
@@ -103,26 +113,14 @@
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
       const result = await auth.signInWithPopup(provider);
-      try { await window.CSTRRegistration.enroll(result.user); }
-      catch (error) { await auth.signOut(); throw error; }
-      return result.user;
-    },
-
-    // Creates a pending identity. Developer approval is required for database access.
-    async signUpWithEmail(email, password) {
-      await authPersistence;
-      return window.CSTRRegistration.createEmail(String(email || "").trim(), password);
+      return approvedSignIn(result.user);
     },
 
     // Typical email + password sign-in — no popup, no redirect.
     async signInWithEmail(email, password) {
       await authPersistence;
       const result = await auth.signInWithEmailAndPassword(String(email || "").trim(), password);
-      if (!await window.CSTRRegistration.isApproved(result.user)) {
-        await auth.signOut();
-        throw new Error("This account requires administrator approval. Contact the developer before signing in.");
-      }
-      return result.user;
+      return approvedSignIn(result.user);
     },
 
     // Sends Firebase's built-in password-reset email (a secure one-time link).
@@ -208,11 +206,10 @@
       throw new Error("Legacy recovery requires verified developer approval. Contact SANCHEZRAMIL2202@GMAIL.COM.");
     },
 
-    // Auto-provision a new teacher profile using their Google account (zero manual code edits needed!)
+    // Create a workspace profile only for the signed-in, approved UID.
     async registerNewTeacher(user, teacherName) {
-      if (!user || !user.uid) throw new Error("Authenticated Google user required");
-
-      if (!await window.CSTRRegistration.isApproved(user)) throw new Error("Administrator registration approval required.");
+      if (!user?.uid || auth.currentUser?.uid !== user.uid) throw new Error("Sign in to your approved teacher account.");
+      await approvedSignIn(user);
       const existing = await this.getUserProfile(user.uid);
       if (existing?.dataKey) return existing;
       const now = Date.now();

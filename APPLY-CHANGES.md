@@ -10,7 +10,7 @@ The supplied Firebase project configuration remains in `website/ASSETS/firebase-
 
 The record structure remains version 4. Grading calculations are preserved. Successful saves add `_syncProtocol: 2`, a monotonically increasing `_syncRevision`, a server save timestamp and a tab identifier. Existing records without a revision begin at revision 0; their first successful new-client save uses revision 1. Do not manually reset revisions.
 
-Existing approved accounts and verified legacy bindings remain supported. The public client cannot create approvals, registration tickets or legacy bindings. New account creation creates only a Firebase Authentication identity. The developer must approve access separately. The old site will be unable to write after the new rules are published. Coordinate rules and frontend deployment; ask teachers to save and close old tabs first.
+Existing approved accounts and verified legacy bindings remain supported. Firebase restricts new identities to authorized administrators. Realtime Database rules require developer approval and verified workspace ownership. The public client cannot create approvals, registration tickets or legacy bindings.
 
 ## 2. Contain the previously exposed account codes
 
@@ -25,19 +25,7 @@ Existing approved accounts and verified legacy bindings remain supported. The pu
 
 ## 3. Approve teachers using Firebase Console
 
-For a new email/password user:
-
-1. The teacher chooses **Create account** on the revised site. A password of at least 12 characters is required by the UI. Account creation signs them out and explains the approval process.
-2. They email the developer from their sign-in address requesting approval. They must not send their password or learner data.
-3. Verify the teacher through the established school channel. In Firebase Console → Authentication → Users, find that email and copy its exact UID. Do not infer the UID from a display name.
-4. In Realtime Database → Data, create the child `cstr-registration-approved/<UID>` with a boolean value of `true`, or an object containing your approval metadata. Only the Firebase administrator performs this step.
-5. The teacher signs in again and creates a workspace. The frontend can create a profile only for that user's UID and only after approval. For a new workspace, the profile's `dataKey` equals the UID and `isLegacy` is false.
-
-For Google users, their first sign-in creates an Authentication identity but access is denied until you approve its UID. They then repeat Google sign-in. A pending approval message is expected.
-
-**Revocation:** remove the entire `cstr-registration-approved/<UID>` node. Setting it to `false` does not revoke approval because the compatibility rules check existence. Disable the Authentication user and revoke sessions using your authorized administrator workflow if the account is compromised. The old registration-ticket route cannot grant approval again under the new rules.
-
-Configure the Firebase Authentication password policy to match the 12-character UI minimum where available. The client minimum alone is not a server-enforced password policy. Keep email/password and Google enabled only if you use them. Confirm email action templates and authorized domains.
+Use the [phone approval procedure](SECURE_REGISTRATION_SETUP.md). It covers request verification, administrator provisioning, password setup, Google sign-in, and revocation. The teacher can create a workspace profile after signing in with the approved UID. A new profile uses that UID as its `dataKey` and sets `isLegacy` to false.
 
 ## 4. Reconnect verified older records
 
