@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
   "available": true,
-  "version": "1.0.39",
-  "versionCode": 10039,
+  "version": "1.0.40",
+  "versionCode": 10040,
   "minimumSupportedVersionCode": 0,
-  "sha256": "505e1f881845cc6307542fd381062b88720abd75a8d88ca91f754c15fc51c54b",
+  "sha256": "6cd8bff49f99ffbc69c5c9c0343bbec2c16fa58533c6b3f135bed7b0c627ef7a",
   "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
-  "bytes": 6122894,
-  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.39.apk",
-  "publishedAt": "2026-11-07T08:03:06.509Z",
-  "notes": "Teacher requests now collect the required details and prepare a standard email for automatic recognition in Gmail."
+  "bytes": 6123006,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.40.apk",
+  "publishedAt": "2026-11-07T08:24:14.266Z",
+  "notes": "Teacher requests use the entered sign-in email to guide Google account selection before opening the prepared draft."
 }
