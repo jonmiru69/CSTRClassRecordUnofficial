@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
   "available": true,
-  "version": "1.0.38",
-  "versionCode": 10038,
+  "version": "1.0.39",
+  "versionCode": 10039,
   "minimumSupportedVersionCode": 0,
-  "sha256": "f98fd394d9dd4a1accef6b0ed5928492b6aa3f1f4080d5dcd10c01aa7547a58a",
+  "sha256": "505e1f881845cc6307542fd381062b88720abd75a8d88ca91f754c15fc51c54b",
   "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
-  "bytes": 6122654,
-  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.38.apk",
-  "publishedAt": "2026-11-07T07:34:03.021Z",
-  "notes": "The website opens teacher access requests directly in Gmail and offers another email app as a fallback."
+  "bytes": 6122894,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.39.apk",
+  "publishedAt": "2026-11-07T08:03:06.509Z",
+  "notes": "Teacher requests now collect the required details and prepare a standard email for automatic recognition in Gmail."
 }
