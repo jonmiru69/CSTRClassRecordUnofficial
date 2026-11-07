@@ -216,7 +216,7 @@
     .welcome-specimen dl div { padding-block: 0; }
     .specimen-grade { margin-top: 3px; }
     .specimen-grade strong { font-size: 18px; }
-    :root body #app .welcome-story .welcome-campus figcaption > span:last-child { display: none; }
+    :root body #app .welcome-story .welcome-campus figcaption { display: none; }
     :root body #app .login-card { order: 1 !important; padding: 24px 20px !important; margin: 0 !important; }
     :root body #app .login-native .login-card { order: 0 !important; margin-top: 0 !important; }
     :root body #app .login-native .welcome-story { order: 1 !important; }

@@ -1825,7 +1825,8 @@
       sizeActivityTextareas();
       if (!table.hidden) scheduleSheetFit();
       restoreTableScroll(position);
-      animatePanel(table.hidden ? paper.querySelector('.phone-entry,.editable-student-report') : paper.querySelector('.paper-heading'), 3);
+      const heading = { sheet: ".paper-heading", activity: ".phone-roster-heading", one: ".report-heading" }[view];
+      animatePanel(paper.querySelector(heading), 3);
     } else {
       render();
     }
