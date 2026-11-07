@@ -1275,8 +1275,12 @@
   function showTeacherAccess({ allowGoogle = false, opener = document.activeElement } = {}) {
     if (document.querySelector(".teacher-access-dialog[open]")) return;
     const address = window.CSTRRegistration.email;
-    const subject = encodeURIComponent("CST-R Class Record access request");
-    const body = encodeURIComponent("Hello, I'd like to request access to the CST-R Class Record.\r\n\r\nFull name: \r\nFaculty role: \r\nEmail I will use to sign in: \r\n");
+    const subject = "CST-R Class Record access request";
+    const body = "Hello, I'd like to request access to the CST-R Class Record.\r\n\r\nFull name: \r\nFaculty role: \r\nEmail I will use to sign in: \r\n";
+    const mailto = `mailto:${address}?subject=${encodeURIComponent(subject)}&amp;body=${encodeURIComponent(body)}`;
+    const gmailQuery = new URLSearchParams({ view: "cm", fs: "1", to: address, su: subject, body });
+    const gmail = `https://mail.google.com/mail/?${gmailQuery.toString().replace(/&/g, "&amp;")}`;
+    const native = window.CSTRMobile?.native;
     const dialog = document.createElement("dialog");
     dialog.className = "install-dialog teacher-access-dialog";
     dialog.setAttribute("aria-labelledby", "teacherAccessTitle");
@@ -1287,7 +1291,10 @@
       <p>Keep passwords, account codes, and learner records out of the email.</p>
       <div class="teacher-access-actions">
         ${allowGoogle ? '<button type="button" class="button button-primary" data-approved-google>Sign in with approved Google account</button>' : ""}
-        <a class="button ${allowGoogle ? "button-secondary" : "button-primary"}" href="mailto:${address}?subject=${subject}&amp;body=${body}">Email access request</a>
+        ${native
+          ? `<a class="button button-primary" href="${mailto}">Email access request</a>`
+          : `<a class="button ${allowGoogle ? "button-secondary" : "button-primary"}" href="${gmail}" target="_blank" rel="noopener noreferrer">Open request in Gmail</a>
+             <a class="button button-secondary" href="${mailto}">Use another email app</a>`}
         <button type="button" class="button button-secondary" data-close-access>Back to sign in</button>
       </div>`;
     dialog.querySelector("[data-close-access]").addEventListener("click", () => dialog.close());

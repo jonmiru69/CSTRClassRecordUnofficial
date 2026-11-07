@@ -68,8 +68,17 @@ async function run(){
         const approval=page.getByRole('dialog',{name:'Developer approval required'});
         await activate(request);
         await approval.waitFor();
-        check(label+' registration opens the email request without collecting a password',
-          (await approval.getByRole('link',{name:'Email access request'}).getAttribute('href')).startsWith('mailto:sanchezramil2202@gmail.com?')&&
+        const gmailLink=approval.getByRole('link',{name:'Open request in Gmail'});
+        const gmail=new URL(await gmailLink.getAttribute('href'));
+        const fallback=new URL(await approval.getByRole('link',{name:'Use another email app'}).getAttribute('href'));
+        check(label+' registration opens a prefilled Gmail compose page',
+          gmail.origin==='https://mail.google.com'&&gmail.pathname==='/mail/'&&gmail.searchParams.get('view')==='cm'&&
+          gmail.searchParams.get('to')==='sanchezramil2202@gmail.com'&&gmail.searchParams.get('su')==='CST-R Class Record access request'&&
+          gmail.searchParams.get('body').includes('Faculty role:')&&await gmailLink.getAttribute('target')==='_blank');
+        check(label+' registration retains a mail app fallback without collecting a password',
+          fallback.protocol==='mailto:'&&fallback.pathname===gmail.searchParams.get('to')&&
+          fallback.searchParams.get('subject')===gmail.searchParams.get('su')&&
+          fallback.searchParams.get('body')===gmail.searchParams.get('body')&&
           await approval.locator('input').count()===0&&await page.locator('#signupForm').count()===0);
         const dialogBounds=await approval.boundingBox();
         check(label+' approval dialog fits the viewport',dialogBounds.x>=0&&dialogBounds.x+dialogBounds.width<=width);
