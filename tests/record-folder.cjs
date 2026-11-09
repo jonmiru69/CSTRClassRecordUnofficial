@@ -5,6 +5,7 @@ const {chromium}=require('playwright-core');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'.build-artifacts','record-folder');
 const report={checks:[],errors:[],external:[]};
 const check=(name,value)=>{assert(value,name);report.checks.push(name);};
+const longName='Villanueva de los Santos y Fernández, María Alexandra Gabriela Maximiliana';
 const source=fs.readFileSync(path.join(root,'ASSETS/app.js'),'utf8').replace('  initApp();',`  window.__folderQA={state:()=>JSON.stringify(state),context:()=>({activePeriodIndex,sheetEntryView}),period:selectRecordPeriod};
   initApp();`);
 const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.webp':'image/webp','.otf':'font/otf'};
@@ -26,6 +27,7 @@ async function run(){
         if(new URL(url).pathname.endsWith('/ASSETS/app.js'))return route.fulfill({contentType:'text/javascript',body:source});
         if(new URL(url).pathname==='/test-preview/index.html'){
           let fixture=fs.readFileSync(path.join(root,'test-preview/index.html'),'utf8');
+          fixture=fixture.replace('Alvarez, Sample',longName);
           fixture=fixture.replace('let revision=1;', "state.sections.research.periods=Array.from({length:4},(_,i)=>({...makePeriod('Quarter '+(i%2+1)),quarter:i%2+1,semester:Math.floor(i/2)+1}));let revision=1;");
           fixture=fixture.replace('return ++revision;', 'window.__savedFixture=JSON.stringify(state);return ++revision;');
           return route.fulfill({contentType:'text/html',body:fixture});
@@ -58,6 +60,9 @@ async function run(){
         check(label+' '+view+' preserves records',before===await snap(page));await layout(page,label+' '+view);
       }
       await page.locator('#view-tab-sheet').click();await page.locator('#view-tab-sheet').focus();
+      const nameField=page.locator('.record-table [data-name-row="0"]');
+      check(label+' long learner name fits its editable field',await nameField.evaluate(field=>
+        field.scrollHeight<=field.clientHeight+1&&field.scrollWidth<=field.clientWidth+1&&getComputedStyle(field).textAlign==='left'));
       check(label+' folder tabs retain navigation, the grade grid and its scroll position',await page.evaluate(()=>
         window.__stableFolderNodes.every(node=>node.isConnected)&&document.querySelector('.table-wrap').scrollLeft===window.__folderScroll));
       await page.keyboard.press('ArrowRight');check(label+' arrow moves focus',await page.locator('#view-tab-activity').evaluate(e=>e===document.activeElement));
@@ -74,6 +79,7 @@ async function run(){
         return {index:window.__folderQA.context().activePeriodIndex,locked:document.querySelector('.record-table input[data-score]').disabled,animations:document.querySelector('.sheet-paper').getAnimations().filter(a=>a.playState==='running').length};
       });
       check(label+' rapid changes end at requested period',rapid.index===1&&rapid.locked);
+      check(label+' locked period disables bulk points',await page.locator('.activity-register [data-action="add-bulk-points"]').first().isDisabled());
       check(label+' period switches keep the paper visually stable',rapid.animations===0);
       check(label+' period switches retain the header and navigation',await page.evaluate(()=>window.__stableFolderNodes.slice(0,3).every(node=>node.isConnected)));
       check(label+' rapid period changes preserve data',before===await snap(page));
@@ -97,12 +103,36 @@ async function run(){
         await page.locator('[data-action="select-period"][data-period="1"]').first().click();
         const changed=JSON.parse(await snap(page));check('Leaving HPS commits cap in old period',changed.sections.science.periods[0].roster.every(r=>Number(r.ww[0])<=10));check('HPS does not leak to new period',changed.sections.science.periods[1].wwHps[0]==='20');
         await page.evaluate(()=>window.__folderQA.period(0));await hps.fill('20');await hps.press('Tab');check('HPS restoration still restores scores',JSON.parse(await snap(page)).sections.science.periods[0].roster[0].ww[0]==='12');
+        const bulk=page.locator('.activity-register [data-action="add-bulk-points"][data-kind="ww"][data-index="0"]');
+        await bulk.click();
+        const dialog=page.getByRole('dialog',{name:'Add points in bulk'});
+        await dialog.getByLabel('Points per learner').fill('4');
+        check('Bulk preview skips scores that would exceed HPS',/5 learners eligible.*1 would exceed HPS/.test(await dialog.getByRole('status').innerText()));
+        check('Bulk points require a reason',await dialog.getByRole('button',{name:'Apply to 5 learners'}).isDisabled());
+        await dialog.getByLabel('Reason').fill('Corrected answer key');
+        await dialog.getByRole('button',{name:'Apply to 5 learners'}).click();
+        const adjusted=JSON.parse(await snap(page)).sections.science.periods[0].roster;
+        assert.deepEqual(adjusted.map(learner=>learner.ww[0]),['16','17','18','19','20','17']);
+        check('Bulk changes retain the same reason in every affected score ledger',adjusted.slice(0,5).every(learner=>learner.scoreAdjustments.ww[0].entries[0].reason==='Corrected answer key'));
+        check('Bulk changes refresh the full grade sheet immediately',await score.inputValue()==='16');
         await page.emulateMedia({media:'print'});check('Folder chrome excluded from print',await page.locator('.folder-toolbar').evaluate(e=>getComputedStyle(e).display==='none'));check('Paper wrapper does not alter print geometry',await page.locator('.sheet-paper').evaluate(e=>getComputedStyle(e).display==='contents'));await page.emulateMedia({media:'screen'});
         await page.locator('.sidebar-nav [data-action="go-records"]').click();await page.locator('[data-group="SHS"]').click();await page.locator('.section-card[data-section="research"]').click();
         const shs=await snap(page);await page.locator('[data-action="select-period"][data-period="2"]').first().click();
         check('Semester 2 selection uses original SHS index',await page.evaluate(()=>window.__folderQA.context().activePeriodIndex===2));
         check('Semester tab and paper label agree',await page.locator('.paper-heading h3').innerText()===await page.locator('.period-tabs [aria-pressed="true"]').innerText().then(s=>s.replace(/[·✓]\s*$/,'').trim()));
         check('Semester change preserves all records',shs===await snap(page));await shot(page,'semester-1440');
+      }
+      if(config.width===390&&!config.reduced){
+        await page.locator('#view-tab-activity').click();
+        const bulk=page.locator('.phone-entry [data-action="add-bulk-points"]');
+        await bulk.click();
+        const dialog=page.getByRole('dialog',{name:'Add points in bulk'});
+        await dialog.getByLabel('Points per learner').fill('1');
+        await dialog.getByLabel('Reason').fill('Cancelled adjustment');
+        await page.keyboard.press('Escape');
+        await dialog.waitFor({state:'hidden'});
+        check('Phone Escape cancels bulk points without changing scores',before===await snap(page));
+        check('Phone returns focus to its bulk-points button',await bulk.evaluate(button=>button===document.activeElement));
       }
       await context.close();
     }

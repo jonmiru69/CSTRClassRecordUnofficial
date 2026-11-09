@@ -204,7 +204,7 @@
   :root body #app .entry-focus-controls select {min-height: 38px;font-size: 14px;background: var(--paper);}
   :root body #app .record-section .table-wrap {border-radius: 2px;border-color: var(--paper-edge);}
   :root body #app .record-section .record-table input[data-score] {font-size: 13px!important;}
-  :root body #app .record-section .record-table input[data-name-row] {font-size: 13px!important;}
+  :root body #app .record-section .record-table textarea[data-name-row] {font-size: 13px!important;}
   :root body #app .activity-register {margin: 24px 0 0;padding: 20px 0 0;border-radius: 0;background: var(--paper);}
   :root body #app .activity-register-heading h3 {font: 400 25px/1.2 var(--font-serif);}
   :root body #app .locked-period-note {margin: 8px 0;background: var(--surface-subtle);color: var(--text);}
@@ -242,7 +242,7 @@
     :root body #app .phone-entry {margin-top: 0;}
     :root body #app .phone-assessment {padding: 16px 0;}
     :root body #app .phone-score-row {padding: 14px 8px;}
-    :root body #app .record-section .record-table input:is([data-score],[data-name-row]) {font-size: 16px!important;min-height: 48px!important;}
+    :root body #app .record-section .record-table :is(input[data-score],textarea[data-name-row]) {font-size: 16px!important;min-height: 48px!important;}
     :root body #app .record-section .record-table .score-entry {min-height: 48px;height: auto;}
     :root body #app .record-section .table-wrap {scrollbar-width: auto;}
     :root body #app .activity-register {padding-top: 20px;}

@@ -84,6 +84,12 @@
     const doc = parse(await zip.file('xl/worksheets/sheet1.xml').async('string'));
     const sheet = doc.documentElement, sheetData = sheet.getElementsByTagNameNS(NS, 'sheetData')[0];
     const original = options.preserveInputs === true;
+    const signatures = [
+      ['B', 'I', 'B', 'Submitted by:', metadata.teacherName, 'Subject Teacher'],
+      ['K', 'S', 'C', 'Checked by:', metadata.checkerName, 'Subject Area Coordinator'],
+      ['U', 'AB', 'O', 'Reviewed by:', metadata.reviewerName, section.group === 'SHS' ? 'SHS Coordinator' : 'JHS Coordinator'],
+      ['AD', 'AI', 'Y', 'Noted by:', metadata.principalName, 'Principal']
+    ];
     const lengths = { ww: period.wwHps.length, pt: period.ptHps.length, qa: period.qaHps.length };
     const added = { ww: Math.max(0, lengths.ww - 10), pt: Math.max(0, lengths.pt - 8), qa: Math.max(0, lengths.qa - 3) };
     const mapCol = c => c + (c >= 12 ? added.ww : 0) + (c >= 22 ? added.pt : 0) + (c >= 27 ? added.qa : 0);
@@ -165,38 +171,76 @@
       }
     }
     const stylesDoc=parse(await zip.file('xl/styles.xml').async('string'));
-    const cellXfs=stylesDoc.getElementsByTagNameNS(NS,'cellXfs')[0],dateStyles=new Map();
+    const fonts = stylesDoc.getElementsByTagNameNS(NS, 'fonts')[0];
+    // The template shares its score fonts across populated, blank and inserted cells.
+    for (const font of fonts.children) {
+      const color = font.getElementsByTagNameNS(NS, 'color')[0];
+      const black = el(stylesDoc, 'color', { rgb: 'FF000000' });
+      if (color) color.replaceWith(black);
+      else font.appendChild(black);
+    }
+    const cellXfs=stylesDoc.getElementsByTagNameNS(NS,'cellXfs')[0],numberStyles=new Map();
     let numFmts=stylesDoc.getElementsByTagNameNS(NS,'numFmts')[0];
     if(!numFmts){numFmts=el(stylesDoc,'numFmts',{count:0});stylesDoc.documentElement.insertBefore(numFmts,stylesDoc.documentElement.firstChild);}
+    function formatNumber(node, format) {
+      const base = Number(node.getAttribute('s') || 0), key = base + '|' + format;
+      if (!numberStyles.has(key)) {
+        let numFmtId = 0; // General keeps the raw score's decimals visible.
+        if (format !== 'General') {
+          let numFmt = [...numFmts.children].find(n => n.getAttribute('formatCode') === format);
+          if (!numFmt) {
+            const nextId = Math.max(163, ...[...numFmts.children].map(n => Number(n.getAttribute('numFmtId')))) + 1;
+            numFmt = el(stylesDoc, 'numFmt', { numFmtId: nextId, formatCode: format });
+            numFmts.appendChild(numFmt);
+            numFmts.setAttribute('count', numFmts.children.length);
+          }
+          numFmtId = numFmt.getAttribute('numFmtId');
+        }
+        const clone = cellXfs.children[base].cloneNode(true);
+        clone.setAttribute('numFmtId', numFmtId);
+        clone.setAttribute('applyNumberFormat', '1');
+        numberStyles.set(key, cellXfs.children.length);
+        cellXfs.appendChild(clone);
+      }
+      node.setAttribute('s', numberStyles.get(key));
+    }
     function writeDate(c,r,value,format){
       const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value||''));
       if(!match){write(c,r,value);return;}
       const time=Date.UTC(Number(match[1]),Number(match[2])-1,Number(match[3]));
       if(new Date(time).toISOString().slice(0,10)!==value){write(c,r,value);return;}
       write(c,r,(time-Date.UTC(1899,11,30))/86400000);
-      const node=cell(c,r),base=Number(node.getAttribute('s')||0),key=base+'|'+format;
-      if(!dateStyles.has(key)){
-        const numFmtId=Math.max(163,...[...numFmts.children].map(n=>Number(n.getAttribute('numFmtId'))))+1;
-        numFmts.appendChild(el(stylesDoc,'numFmt',{numFmtId,formatCode:format}));numFmts.setAttribute('count',numFmts.children.length);
-        const clone=cellXfs.children[base].cloneNode(true);clone.setAttribute('numFmtId',numFmtId);clone.setAttribute('applyNumberFormat','1');
-        dateStyles.set(key,cellXfs.children.length);cellXfs.appendChild(clone);
-      }
-      node.setAttribute('s',dateStyles.get(key));
+      formatNumber(cell(c,r), format);
     }
     const rowHasData = learner => present(learner?.name) || ['ww','pt','qa'].some(k => (learner?.[k] || []).some(present));
     const lastUsedIndex = period.roster.reduce((last, learner, index) => rowHasData(learner) ? index : last, -1);
+    const learnerStyleColumns = new Map(Array.from({ length: 35 }, (_, c) => [mapCol(c), col(c)]));
+    for (const [kind, source] of [['ww', 'K'], ['pt', 'U'], ['qa', 'AA']]) {
+      for (const c of rawColumns[kind]) if (!learnerStyleColumns.has(c)) learnerStyleColumns.set(c, source);
+    }
     for (let r = 19; r <= lastLearnerRow; r++) {
       const row = ensureRow(r);
       if (r - 19 <= lastUsedIndex) row.removeAttribute('hidden');
-      if (!original) for (let c = 0; c <= lastCol; c++) write(c, r, '');
+      else if (!original) row.setAttribute('hidden', '1');
+      if (!original) {
+        row.setAttribute('ht', '15');
+        row.setAttribute('customHeight', '1');
+        // Use the same native body style through the roster, including added rows.
+        for (const [c, source] of learnerStyleColumns) {
+          write(c, r, '');
+          const node = cell(c, r);
+          node.setAttribute('s', originalStyles.get(`${source}20`) || '0');
+        }
+        rawColumns.qa.forEach(c => formatNumber(cell(c, r), 'General'));
+        formatNumber(cell(mapCol(29), r), '0.00'); // Match the other exam WS columns.
+        formatNumber(cell(mapCol(30), r), '0.000');
+        formatNumber(cell(mapCol(32), r), '0.000');
+      }
     }
     if (!original) {
       W('AG', 11, metadata.schoolYear || '');
       W('A', 13, period.name || ''); W('H', 13, `${section.level || ''}${section.section ? ' - ' + section.section : ''}`);
       W('O', 13, metadata.teacherName || ''); W('AG', 13, section.subject || '');
-      W('B', 68, metadata.teacherName || ''); W('C', 68, metadata.checkerName || ''); W('O', 68, metadata.reviewerName || ''); W('Y', 68, metadata.principalName || '');
-      W('B', 69, 'Subject Teacher'); W('C', 69, 'Subject Area Coordinator');
-      W('O', 69, section.group === 'SHS' ? 'SHS Coordinator' : 'JHS Coordinator');
       let number = 0;
       period.roster.forEach((learner, index) => {
         const r = 19 + index, category = root.CSTRRecordTools?.getRowCategory(learner);
@@ -205,21 +249,49 @@
         for (const kind of ['ww','pt','qa']) learner[kind].forEach((value, i) => write(rawColumns[kind][i], r, root.CSTRGrading.isAttendanceCode(value) ? String(value).trim().toUpperCase() : root.CSTRGrading.numberOrNull(value) ?? (present(value) ? value : '')));
       });
     }
-    const weights = section.weights, rules = root.CSTRGrading.subjectRules(section.gradingCategory || section.subject), teOnly = rules.examMode === 'te-only';
-    W('C', 14, `WRITTEN WORKS (${weights[0]}%)`, `"WRITTEN WORKS ("&TEXT(${col(mapCol(13))}$18,"0%")&")"`); W('O', 14, `PERFORMANCE TASK (${weights[1]}%)`, `"PERFORMANCE TASK ("&TEXT(${col(mapCol(23))}$18,"0%")&")"`);
-    W('Y', 14, `${payload.calendarMode === 'trimester' ? 'TERM' : 'QUARTERLY'} ASSESSMENT (${weights[2]}%)`, `"${payload.calendarMode === 'trimester' ? 'TERM' : 'QUARTERLY'} ASSESSMENT ("&TEXT(${col(mapCol(31))}$18,"0%")&")"`);
-    W('C', 15, `Activities/Exercises\n${weights[0]}%`, `"Activities/Exercises"&CHAR(10)&TEXT(${col(mapCol(13))}$18,"0%")`); W('O', 15, `Performance Check/Performance Tasks\n${weights[1]}%`, `"Performance Check/Performance Tasks"&CHAR(10)&TEXT(${col(mapCol(23))}$18,"0%")`);
+    const weights = section.weights;
+    const examRoles = ['st1', 'st2', 'te'];
+    const examShares = examRoles.map(role => weights[2] === 0 ? 0 : componentRules.qa.groups.find(group => group.id === role)?.share || 0);
+    const examTitle = payload.calendarMode === 'trimester' ? 'TERM ASSESSMENT' : 'QUARTERLY ASSESSMENT';
+    const weightCells = ['N', 'X', 'AF'];
+    const percentText = ref => `ROUND(${ref}*100,12)&"%"`;
+    const componentHeaders = [
+      ['ww', 'C', 'WRITTEN WORKS', 'Activities/Exercises'],
+      ['pt', 'O', 'PERFORMANCE TASK', 'Performance Check/Performance Tasks'],
+      ['qa', 'Y', examTitle]
+    ];
+    componentHeaders.forEach(([kind, c, title, subtitle], i) => {
+      const ref = `${col(mapCol(colIndex(weightCells[i])))}$18`;
+      W(c, 14, `${title} (${weights[i]}%)`, `"${title} ("&${percentText(ref)}&")"`);
+      if (subtitle) {
+        const groups = weights[i] > 0 ? componentRules[kind].groups : null;
+        const groupText = groups ? `Grade shares (${groups.map(({id, share}) => `${roleLabel(id)} ${weights[i] * share}%`).join(' / ')})` : '';
+        W(c, 15, [subtitle, `${weights[i]}%`, groupText].filter(Boolean).join('\n'),
+          `"${subtitle}"&CHAR(10)&${percentText(ref)}${groupText ? `&CHAR(10)&"${groupText}"` : ''}`);
+      }
+      W(weightCells[i], 18, weights[i] / 100);
+      if (!Number.isInteger(weights[i])) {
+        const [coefficient, exponent = '0'] = String(weights[i]).split('e');
+        const decimals = Math.min(12, (coefficient.split('.')[1]?.length || 0) - Number(exponent));
+        formatNumber(cell(mapCol(colIndex(weightCells[i])), 18), `0.${'0'.repeat(decimals)}%`);
+      }
+    });
     W('AH', 14, section.gradingMode === 'zero-based' ? 'REPORTED GRADE' : 'TRANSMUTED GRADE');
-    for (const [key, value] of [['N',weights[0]/100],['X',weights[1]/100],['AF',weights[2]/100],['AB',teOnly?0:.3],['AC',teOnly?0:.3],['AD',teOnly?1:.4],['AE',100]]) W(key,18,value);
-    for (const [c, text] of [['AB',`WS ST1\n(${teOnly?0:30}%)`],['AC',`WS ST2\n(${teOnly?0:30}%)`],['AD',`WS TE\n(${teOnly?100:40}%)`]]) W(c,15,text);
+    const examWeightCells = ['AB', 'AC', 'AD'];
+    examWeightCells.forEach((c, i) => {
+      W(c, 18, examShares[i]);
+      W(c, 15, `WS ${roleLabel(examRoles[i])}\n(${examShares[i] * 100}%)`);
+    });
+    W('AE', 18, weights[2] === 0 ? '' : 100);
     for (const kind of ['ww','pt','qa']) {
       rawColumns[kind].forEach((c, index) => {
         const value = period[kind + 'Hps'][index];
         if (!original) write(c,18,root.CSTRGrading.numberOrNull(value) ?? '');
         if (kind !== 'qa') { if (!original) writeDate(c,17,period[kind + 'Dates'][index] || '', 'm/d'); }
         else {
-          const role = period.activityMeta?.qa?.[index]?.role || root.CSTRGrading.defaultRole('qa',index,section.gradingCategory || section.subject);
-          write(c,15,[roleLabel(role) || `EX ${index+1}`, period.qaDates[index] || '', {st1:'Long Quiz / Unit Test / Chapter Test',st2:'Monthly Exam',te:payload.calendarMode==='trimester'?'Term Exam':'Quarterly Exam'}[role] || ''].filter(Boolean).join('\n'));
+          const role = componentRules.qa.roles[index];
+          const labels = {st1:'Long Quiz / Unit Test / Chapter Test',st2:'Monthly Exam',te:payload.calendarMode==='trimester'?'Term Exam':'Quarterly Exam'};
+          write(c,15,[weights[2] ? roleLabel(role) || `EX ${index+1}` : 'Not counted', period.qaDates[index] || '', weights[2] && labels[role]].filter(Boolean).join('\n'));
         }
       });
     }
@@ -229,8 +301,8 @@
       write(totalCols[kind],18, sumNumbers(period[kind+'Hps'].map(x => root.CSTRGrading.numberOrNull(x)||0)),hpsTotal);
     }
     const preset=root.CSTRGrading.SUBJECT_PRESETS.find(item=>item.name===(section.gradingCategory||section.subject));
-    const fixedWeights=preset ? [['N',weights[0]/100],['X',weights[1]/100],['AF',weights[2]/100]] : [];
-    fixedWeights.push(['AB',teOnly?0:.3],['AC',teOnly?0:.3],['AD',teOnly?1:.4]);
+    const fixedWeights = preset ? weightCells.map((c, i) => [c, preset.weights[i] / 100]) : [];
+    fixedWeights.push(...examWeightCells.map((c, i) => [c, examShares[i]]));
     const subjectWeightGuard=fixedWeights.map(([c,value])=>`ABS(${col(mapCol(colIndex(c)))}$18-${value})>0.0000000001`);
     const comparisonGrade = ref => `ROUND(${ref},${root.CSTRGrading.GRADE_COMPARISON_DECIMALS})`;
     const tierFormula = ref => root.CSTRGrading.TRANSMUTATION_TABLE.slice(0,-1).reduceRight((tail,tier) => `IF(${comparisonGrade(ref)}>=${tier.min},${tier.grade},${tail})`,'60');
@@ -266,11 +338,11 @@
       }
       const qaGroups=componentRules.qa.groups.map(({id: role})=>({role,...groupTerms(rawColumns.qa,r,roleRow,role)}));
       const qaCellRefs=[];
-      for(const [i,role] of ['st1','st2','te'].entries()) {
+      for(const [i,role] of examRoles.entries()) {
         const c=mapCol(27+i),g=qaGroups.find(g=>g.role===role),weight=`${col(c)}$18`,ref=`${col(c)}${r}`;
         qaCellRefs.push(ref);
         let cache='';
-        if(g&&weights[2]>0){const item=result.qa.groups?.find(g=>g.id===role);if(item?.percentage!=null)cache=item.percentage*(teOnly?1:[.3,.3,.4][i]);}
+        if(g&&weights[2]>0){const item=result.qa.groups?.find(g=>g.id===role);if(item?.percentage!=null)cache=item.percentage*examShares[i];}
         setFormula(c,`IF($B${r}="","",IF(${col(wsCols.qa)}$18=0,"",${g?`IF(${g.denominator}=0,"",${g.numerator}/${g.denominator}*100*${weight})`:'""'}))`,cache);
       }
       const activeShare=sum(qaCellRefs.map((ref,i)=>`IF(ISNUMBER(${ref}),${col(mapCol(27+i))}$18,0)`));
@@ -289,35 +361,53 @@
       const descriptor = `IF(${grade}>=90,"Advancing",IF(${grade}>=80,"Benchmarking",IF(${grade}>=75,"Connecting",IF(${grade}>=65,"Developing","Emerging"))))`;
       setFormula(mapCol(34),`IF($B${r}="","",IF(ISERROR(${ig}),"Check inputs",IF(ISNUMBER(${grade}),${descriptor}&IF(${pending}>0," (pending)",""),"Incomplete")))`,result.initial.transmuted === null ? 'Incomplete' : result.initial.descriptor + (hasPending ? ' (pending)' : ''));
     }
-    // Append wrapping variants; all original style IDs remain unchanged.
-    const wrappedStyles=new Map();
-    function wrapCell(c,r) {
-      const node=cell(c,r),baseStyle=Number(node.getAttribute('s')||0);
-      if(!wrappedStyles.has(baseStyle)){
+    // Append alignment variants without changing the template's style IDs.
+    const alignmentStyles=new Map();
+    function fitCell(c,r,wrap = true) {
+      const node=cell(c,r),baseStyle=Number(node.getAttribute('s')||0),key=`${baseStyle}:${wrap}`;
+      if(!alignmentStyles.has(key)){
         const clone=cellXfs.children[baseStyle].cloneNode(true);let alignment=clone.getElementsByTagNameNS(NS,'alignment')[0];
-        if(!alignment){alignment=el(stylesDoc,'alignment');clone.appendChild(alignment);}
-        alignment.setAttribute('wrapText','1');clone.setAttribute('applyAlignment','1');
-        wrappedStyles.set(baseStyle,cellXfs.children.length);cellXfs.appendChild(clone);
+        if(!alignment){alignment=el(stylesDoc,'alignment');clone.insertBefore(alignment,clone.firstChild);}
+        alignment.setAttribute('wrapText',wrap ? '1' : '0');
+        alignment.setAttribute('shrinkToFit',wrap ? '0' : '1');
+        clone.setAttribute('applyAlignment','1');
+        alignmentStyles.set(key,cellXfs.children.length);cellXfs.appendChild(clone);
       }
-      node.setAttribute('s',wrappedStyles.get(baseStyle));
+      node.setAttribute('s',alignmentStyles.get(key));
     }
+    weightCells.forEach(c => fitCell(mapCol(colIndex(c)), 18, false));
     if(!original){
       for(let r=19;r<=lastLearnerRow;r++){
         const learner=period.roster[r-19];if(!learner)continue;
-        wrapCell(1,r);
+        fitCell(1,r);
         const lines=String(learner.name||'').split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil(line.length/29)),0);
         if(lines>1){ensureRow(r).setAttribute('ht',Math.max(16.2,lines*14));ensureRow(r).setAttribute('customHeight','1');}
       }
-      for(const c of ['H','O','AG'].map(c=>mapCol(colIndex(c))))wrapCell(c,13);
+      for(const c of ['H','O','AG'].map(c=>mapCol(colIndex(c))))fitCell(c,13);
       const headerLines=Math.max(1,Math.ceil(String(section.subject||'').length/38),Math.ceil(String(metadata.teacherName||'').length/50),Math.ceil(String(section.level+' '+section.section).length/25));
       if(headerLines>1){ensureRow(13).setAttribute('ht',Math.max(28.5,headerLines*14+3));ensureRow(13).setAttribute('customHeight','1');}
-      for(const c of ['B','C','O','Y'].map(c=>mapCol(colIndex(c))))wrapCell(c,mapRow(68));
-      const signatureLines=Math.max(1,Math.ceil(String(metadata.teacherName||'').length/29),...['checkerName','reviewerName','principalName'].map(k=>Math.ceil(String(metadata[k]||'').length/45)));
-      if(signatureLines>1){ensureRow(mapRow(68)).setAttribute('ht',signatureLines*14);ensureRow(mapRow(68)).setAttribute('customHeight','1');}
     }
-    // Preserve the native merges, extending only for extra score/learner columns.
+    // Keep the school layout, reserving a continuous single-line lane for each signatory.
     const merges=sheet.getElementsByTagNameNS(NS,'mergeCells')[0];
-    const mergeRefs=oldMerges.map(mapRef);
+    const signatureRows = [66, 68, 69];
+    const mergeRefs=oldMerges.filter(ref => original || !signatureRows.includes(address(ref.split(':')[0]).r)).map(mapRef);
+    if (!original) {
+      for (const c of ['C', 'O', 'Y']) for (const r of signatureRows) W(c, r, '');
+      for (const [start, end, source, caption, name, role] of signatures) {
+        [caption, String(name || '').replace(/\s+/gu, ' ').trim(), role].forEach((value, i) => {
+          const oldRow = signatureRows[i], r = mapRow(oldRow), c = mapCol(colIndex(start));
+          write(c, r, value);
+          cell(c, r).setAttribute('s', originalStyles.get(`${source}${oldRow}`) || '0');
+          fitCell(c, r, false);
+          mergeRefs.push(mapRef(`${start}${oldRow}:${end}${oldRow}`));
+        });
+      }
+      for (const oldRow of [64, 65, 70, 72, 74]) {
+        const spacer = ensureRow(mapRow(oldRow));
+        spacer.setAttribute('ht', '6');
+        spacer.setAttribute('customHeight', '1');
+      }
+    }
     for(let i=3;i<rawColumns.qa.length;i++)mergeRefs.push(`${col(rawColumns.qa[i])}15:${col(rawColumns.qa[i])}17`);
     const register={};
     for(const kind of ['ww','pt','qa'])register[kind]=period[kind+'Hps'].flatMap((hps,index)=>{
@@ -334,6 +424,7 @@
       for(let i=mergeRefs.length-1;i>=0;i--)if(address(mergeRefs[i].split(':')[0]).r>=mapRow(76))mergeRefs.splice(i,1);
       for(let i=0;i<summaryLength;i++){
         const r=mapRow(76)+i; ensureRow(r,76);
+        if (i > 0 && !Object.values(register).some(entries => entries[i])) ensureRow(r).setAttribute('hidden', '1');
         for(let c=2;c<=lastCol;c++)write(c,r,'');
         for(const [kind,start,dateEnd,titleStart,titleEnd,topicStart,topicEnd] of [['ww',2,3,4,9,10,14],['pt',15,16,17,22,23,24],['qa',25,26,27,32,33,34]]){
           const entry=register[kind][i];
@@ -343,7 +434,7 @@
         }
         const maxLines=Math.max(1,...['ww','pt','qa'].map(k=>{const e=register[k][i];return e?Math.max(Math.ceil((e.title.length+5)/26),e.topic.split('\n').reduce((n,x)=>n+Math.max(1,Math.ceil(x.length/30)),0)):1;}));
         ensureRow(r).setAttribute('ht',Math.max(15,14*maxLines+3)); ensureRow(r).setAttribute('customHeight','1');
-        for(const c of [4,10,17,23,27,33].map(mapCol)){const node=cell(c,r); node.setAttribute('s',originalStyles.get('E76')||'0');wrapCell(c,r);}
+        for(const c of [4,10,17,23,27,33].map(mapCol)){const node=cell(c,r); node.setAttribute('s',originalStyles.get('E76')||'0');fitCell(c,r);}
       }
       W('Z',73,'C. Assessments');W('Z',75,'Date');W('AB',75,'Activities');W('AH',75,'Topics');W('AG',75,'');W('AI',75,'');
     }
@@ -359,21 +450,19 @@
       for(let i=0;i<added[kind];i++){const clone=style.cloneNode(true),c=mapCol(threshold)-added[kind]+i+1;clone.setAttribute('min',c);clone.setAttribute('max',c);newCols.push(clone);}
     }
     cols.replaceChildren(...newCols.sort((a,b)=>Number(a.getAttribute('min'))-Number(b.getAttribute('min'))));
-    // Grade colors remain live after edits and extend through every learner.
-    // Blank grades must not be treated as numeric zero by the failure rule.
+    // Keep the failing-grade fill, with the same black number as every other grade.
     for(const formatting of [...sheet.getElementsByTagNameNS(NS,'conditionalFormatting')]){
       const start=formatting.getAttribute('sqref').split(':')[0];
       const gradeStart=`${col(mapCol(33))}19`,descriptorStart=`${col(mapCol(34))}19`;
       if(start===gradeStart){
         formatting.setAttribute('sqref',`${gradeStart}:${col(mapCol(33))}${lastLearnerRow}`);
         for(const rule of [...formatting.getElementsByTagNameNS(NS,'cfRule')]){
+          const dxf = stylesDoc.getElementsByTagNameNS(NS, 'dxfs')[0]?.children[Number(rule.getAttribute('dxfId'))];
+          dxf?.getElementsByTagNameNS(NS, 'font')[0]?.remove();
           rule.setAttribute('type','expression');rule.removeAttribute('operator');
           const formula=rule.getElementsByTagNameNS(NS,'formula')[0];formula.textContent=`AND(ISNUMBER(${gradeStart}),${gradeStart}<75)`;
         }
-      }else if(start===descriptorStart){
-        formatting.setAttribute('sqref',`${descriptorStart}:${col(mapCol(34))}${lastLearnerRow}`);
-        for(const formula of [...formatting.getElementsByTagNameNS(NS,'formula')])formula.textContent=mapRef(formula.textContent);
-      }
+      }else if(start===descriptorStart) formatting.remove(); // The native descriptor rule only changed text to red.
     }
     for(const node of [...sheet.getElementsByTagNameNS(NS,'dataValidations')])node.remove();
     const validations=el(doc,'dataValidations');
@@ -391,10 +480,16 @@
     }
     validations.setAttribute('count',validations.children.length);
     const before=[...sheet.children].find(n=>['hyperlinks','printOptions','pageMargins','pageSetup','headerFooter','rowBreaks','colBreaks','drawing'].includes(n.localName));sheet.insertBefore(validations,before||null);
-    // Native page scale (54%) is preserved. Fit width only; never shrink a large
-    // roster and its activity summary onto a single unreadable page.
     const pageSetup=sheet.getElementsByTagNameNS(NS,'pageSetup')[0];
-    if(pageSetup){const expanded=Object.values(added).some(n=>n>0);pageSetup.setAttribute('orientation','landscape');pageSetup.setAttribute('fitToWidth',expanded?'0':'1');pageSetup.setAttribute('fitToHeight','0');const fit=sheet.getElementsByTagNameNS(NS,'pageSetUpPr')[0];if(fit)fit.setAttribute('fitToPage',expanded?'0':'1');}
+    const pageMargins=sheet.getElementsByTagNameNS(NS,'pageMargins')[0];
+    const printOptions=el(doc,'printOptions',{horizontalCentered:1});
+    sheet.insertBefore(printOptions,pageMargins);
+    for (const [key, value] of Object.entries({left:.25,right:.25,top:.75,bottom:.75,header:.3,footer:.3})) pageMargins.setAttribute(key,value);
+    // Excel's Folio code is 8.5 x 13 inches. Fit the full print area in landscape.
+    pageSetup.removeAttribute('scale');
+    for (const [key,value] of Object.entries({paperSize:14,orientation:'landscape',fitToWidth:1,fitToHeight:1})) pageSetup.setAttribute(key,value);
+    sheet.getElementsByTagNameNS(NS,'pageSetUpPr')[0].setAttribute('fitToPage','1');
+    for (const node of sheet.querySelectorAll('rowBreaks,colBreaks')) node.remove();
     const dimension=sheet.getElementsByTagNameNS(NS,'dimension')[0];dimension.setAttribute('ref',`A1:${col(lastCol)}${roleRow}`);
     for(const view of [...sheet.getElementsByTagNameNS(NS,'sheetView')]){view.setAttribute('topLeftCell','A1');for(const selection of [...view.getElementsByTagNameNS(NS,'selection')])selection.remove();view.appendChild(el(doc,'selection',{activeCell:'B19',sqref:'B19'}));}
     for(const row of rows.values()){
@@ -404,7 +499,8 @@
     cellXfs.setAttribute('count',cellXfs.children.length);zip.file('xl/styles.xml',serialize(stylesDoc));
     zip.file('xl/worksheets/sheet1.xml',serialize(doc));
     const wb=parse(await zip.file('xl/workbook.xml').async('string'));
-    const safeSheet=String(section.subject||'Class Record').replace(/[\\/?*\[\]:()]/g,' ').replace(/\s+/g,' ').trim().slice(0,31).trim()||'Class Record';
+    const subjectSheet=String(section.subject||'').replace(/[\\/?*\[\]:()\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,31).replace(/^[\s']+|[\s']+$/g,'');
+    const safeSheet = !subjectSheet || /^history$/i.test(subjectSheet) ? 'Class Record' : subjectSheet;
     wb.getElementsByTagNameNS(NS,'sheet')[0].setAttribute('name',safeSheet);
     let names=wb.getElementsByTagNameNS(NS,'definedNames')[0];if(!names){names=el(wb,'definedNames');wb.documentElement.appendChild(names);}
     [...names.children].filter(n=>['_xlnm.Print_Area','_xlnm.Print_Titles'].includes(n.getAttribute('name'))).forEach(n=>n.remove());

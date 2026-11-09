@@ -20,4 +20,40 @@ test('Reversal under reduced HPS still permits raw-score recovery',()=>{const p=
 test('JSON and normalization retain active and historical adjustments',()=>{const p=sample();record.addPoints(p,'ww',0,0,2,'First reason');record.removePoints(p,'ww',0,0,'Recheck');record.addPoints(p,'ww',0,0,3,'Second reason');const l=JSON.parse(JSON.stringify(p.roster[0]));assert.deepEqual(record.normalizeAdjustments(l,{ww:1,pt:1,qa:1}),l.scoreAdjustments);});
 test('Removed-column provenance is not reassigned to a new activity',()=>{const p=sample();record.addPoints(p,'ww',0,0,2,'Reason');assert.deepEqual(record.normalizeAdjustments(p.roster[0],{ww:0,pt:1,qa:1}),{});});
 test('Learner reordering keeps points attached to their learner object',()=>{const p=sample();p.roster.push({name:'Other, Learner',ww:['7'],pt:['10'],qa:['12']});record.addPoints(p,'ww',0,0,2,'Reason');p.roster.reverse();assert.equal(p.roster[1].scoreAdjustments.ww[0].raw,'8');assert.equal(p.roster[0].scoreAdjustments,undefined);});
+test('Bulk points preview and apply the full addition only to eligible scores', () => {
+  const p = sample();
+  record.addPoints(p, 'ww', 0, 0, 1, 'Earlier adjustment');
+  p.roster.push(...['0', '19', 'A', 'M', 'E', 'L', '', '1e1'].map((score, i) => ({ name: `Learner ${i}`, ww: [score] })));
+  p.roster.push({ name: 'BOYS', ww: ['7'] }, { name: '', ww: ['8'] });
+  const before = JSON.stringify(p);
+  const expected = { count: 2, skipped: { noNumericScore: 6, aboveHps: 1, precision: 0 } };
+  assert.deepEqual(record.previewBulkPoints(p, 'ww', 0, '1.5'), expected);
+  assert.equal(JSON.stringify(p), before);
+  assert.deepEqual(record.addBulkPoints(p, 'ww', 0, '1.5', '  Same reason  ', 'teacher@example.test'), expected);
+  assert.deepEqual(p.roster.map(learner => learner.ww[0]), ['10.5', '1.5', '19', 'A', 'M', 'E', 'L', '', '1e1', '7', '8']);
+  const [first, second] = p.roster.map(learner => learner.scoreAdjustments?.ww[0]);
+  assert.equal(first.raw, '8');
+  assert.equal(second.raw, '0');
+  assert.deepEqual(first.entries.at(-1), second.entries[0]);
+  assert.equal(second.entries[0].reason, 'Same reason');
+  assert.equal(second.entries[0].actor, 'teacher@example.test');
+  assert.deepEqual(p.roster.slice(2), JSON.parse(before).roster.slice(2));
+  assert.deepEqual(p.roster[0].pt, ['12']);
+  record.removePoints(p, 'ww', 0, 0, 'Rechecked');
+  assert.equal(p.roster[0].ww[0], '8');
+  assert.equal(p.roster[1].ww[0], '1.5');
+});
+test('Bulk points reject invalid operations before changing any learner', () => {
+  const p = sample();
+  for (const [amount, reason] of [[0, 'Reason'], [1, ' '], [100, 'Reason']]) {
+    const before = JSON.stringify(p);
+    assert.throws(() => record.addBulkPoints(p, 'ww', 0, amount, reason));
+    assert.equal(JSON.stringify(p), before);
+  }
+  p.wwHps[0] = '';
+  assert.throws(() => record.addBulkPoints(p, 'ww', 0, 1, 'Reason'), /HPS/);
+  p.locked = true;
+  assert.throws(() => record.addBulkPoints(p, 'ww', 0, 1, 'Reason'), /Unlock/);
+  assert.equal(p.roster[0].ww[0], '8');
+});
 console.log(`${passed} score-adjustment checks passed.`);

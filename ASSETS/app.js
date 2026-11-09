@@ -808,14 +808,18 @@
     const table = document.querySelector(".table-wrap:not([hidden]) .record-table");
     if (!table) return;
     const fonts = new Map();
-    const inputs = table.querySelectorAll("input[data-name-row]");
+    const inputs = [...table.querySelectorAll("textarea[data-name-row]")];
     const mobile = matchMedia("(max-width: 760px)").matches;
-    let width = mobile ? 144 : 164;
-    inputs.forEach(input => { width = Math.max(width, sheetTextWidth(input, fonts) + 42); });
-    width = Math.min(width, mobile ? 208 : 264);
+    const minimum = mobile ? 144 : 164;
+    let width = minimum;
+    const controlsWidth = (table.querySelector('.row-delete-btn')?.offsetWidth || 0) + 28;
+    inputs.forEach(input => { width = Math.max(width, sheetTextWidth(input, fonts) + controlsWidth); });
+    const maximum = Math.max(minimum, Math.floor(table.parentElement.clientWidth * (mobile ? .6 : .45)));
+    width = Math.min(width, maximum);
     adjustEntryColumnWidths(table, fonts);
     const nameWidth = `${width}px`;
     if (table.style.getPropertyValue("--name-col-width") !== nameWidth) table.style.setProperty("--name-col-width", nameWidth);
+    if (!window.CSS?.supports('field-sizing', 'content')) inputs.forEach(sizeActivityTextarea);
   }
   function adjustEntryColumnWidths(table, fonts) {
     const columns = new Map();
@@ -838,6 +842,8 @@
     cancelAnimationFrame(sheetFitFrame);
     sheetFitFrame = requestAnimationFrame(adjustNameColumnWidth);
   }
+  window.addEventListener('resize', scheduleSheetFit, { passive: true });
+  document.fonts?.ready.then(scheduleSheetFit);
   app.addEventListener("input", event => {
     if (event.target.closest(".record-table")) scheduleSheetFit();
   });
@@ -953,7 +959,7 @@
         const student = row === undefined ? '' : `${period.roster[row].name.trim() || 'Unnamed learner'} (row ${row + 1})`;
         const activity = kind ? `${kind.toUpperCase()}${index === undefined ? '' : ` ${index + 1}`}` : '';
         const target = [student, activity, group?.toUpperCase()].filter(Boolean).join(' · ');
-        const field = type === 'unnamed' ? `input[data-name-row="${row}"]`
+        const field = type === 'unnamed' ? `[data-name-row="${row}"]`
           : type === 'invalidHps' || type === 'missingHps' ? `input[data-hps="${kind}"][data-index="${index}"]`
           : row !== undefined ? `input[data-score="${kind}"][data-index="${index}"][data-row="${row}"]` : '';
         return `<li>${field && !period.locked
@@ -1904,7 +1910,7 @@
       <details class="phone-assessment-details"><summary>Activity details · HPS <span data-mobile-hps-label>${escapeHtml(period[kind+"Hps"][index]||"—")}</span></summary><label>Activity title<textarea rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" aria-label="${slot} title" ${disabled}>${safeValue(info.title)}</textarea></label>
       <div class="phone-assessment-meta"><label>Date<input type="date" data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(dates[index]))}" aria-label="${slot} date" ${disabled}></label><label>HPS<input type="text" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(period[kind+'Hps'][index])}" aria-label="${slot} highest possible score" ${hpsInputState(period[kind+'Hps'][index])} ${disabled}></label></div>
       ${renderActivityRole(section,period,kind,index)}<details class="phone-activity-details"><summary>Competency and topic</summary>${[['competency','Learning competency'],['topic','Topic']].map(([field,label])=>`<label>${label}<textarea rows="2" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="${field}" ${disabled}>${safeValue(info[field])}</textarea></label>`).join('')}</details>
-      </details><p class="phone-entry-legend" id="phoneScoreLegend">A absent · M missing = zero. E excused · L late = excluded.</p></div>
+      </details>${bulkPointsButton(kind, index, period.locked, true)}<p class="phone-entry-legend" id="phoneScoreLegend">A absent · M missing = zero. E excused · L late = excluded.</p></div>
       <div class="phone-roster-heading"><h3>Enter scores</h3><p data-mobile-entry-count role="status"></p></div><label class="phone-learner-filter">Find in this roster<input type="search" data-mobile-filter value="${safeValue(mobileFilter)}" autocomplete="off" placeholder="Learner name"></label>
       <ol class="phone-score-list">${rows.map(({learner,index:row})=>`<li class="phone-score-row" data-mobile-row="${row}" data-filter-name="${safeValue(learner.name.toLocaleLowerCase())}"><div class="phone-learner-name"><span>${number[row] || row+1}</span>${learner.name.trim()?`<strong class="phone-learner-title">${escapeHtml(learner.name)}</strong>`:`<label><span class="sr-only">Unnamed learner</span><input class="phone-roster-name" data-name-row="${row}" value="" aria-label="Learner row ${row+1} name" placeholder="Enter learner name" ${disabled}></label>`}<small data-mobile-grade="${row}"></small></div><div class="phone-score-control"><label class="sr-only" for="phone-score-${row}">${slot} score for ${escapeHtml(learner.name.trim()||`learner row ${row+1}`)}</label><input id="phone-score-${row}" type="text" inputmode="decimal" enterkeyhint="next" autocomplete="off" data-score="${kind}" data-row="${row}" data-index="${index}" value="${safeValue(learner[kind][index])}" aria-describedby="phoneScoreLegend phone-error-${row}" ${disabled}><small id="phone-error-${row}" class="phone-score-error"></small>${scoreAdjustmentControl(learner,kind,row,index,period.locked)}</div></li>`).join('')}</ol><p class="phone-no-matches" hidden>No learners match. Clear the roster search to see every row.</p>
       ${period.locked?'<p>Unlock this period in Period options to edit.</p>':'<div class="phone-code-tools" role="group" aria-label="Attendance code for selected score"><span>Selected score</span>'+['A','M','E','L',''].map(code=>`<button type="button" data-mobile-code="${code}" aria-label="${code?'Set '+code+' attendance code':'Clear selected score'}">${code||'Clear'}</button>`).join('')+'</div>'}
@@ -2051,6 +2057,75 @@
     return `<span class="score-adjustment"><button type="button" class="score-plus" data-action="add-score-points" data-kind="${kind}" data-row="${row}" data-index="${index}" ${locked ? 'disabled' : ''} aria-label="${escapeHtml(label)}" title="${escapeHtml(title)}"><span aria-hidden="true">+</span></button>${total ? `<small class="score-plus-note" title="${escapeHtml(reason)}" aria-label="${escapeHtml('Added ' + formatScore(total) + ' points. ' + reason)}">+${formatScore(total)}*</small>` : ''}</span>`;
   }
 
+  function bulkPointsButton(kind, index, locked, showLabel = false) {
+    const label = `Add points in bulk for ${kind.toUpperCase()} ${index + 1}`;
+    return `<button type="button" class="${showLabel ? 'button button-secondary' : 'col-btn'} bulk-points-button" data-action="add-bulk-points" data-kind="${kind}" data-index="${index}" aria-label="${label}" title="${label}" ${locked ? 'disabled' : ''}>${showLabel ? '+ Add points in bulk' : '+ Points'}</button>`;
+  }
+
+  function openBulkPoints(trigger) {
+    commitActiveFieldEdit();
+    const period = currentPeriod(), { kind } = trigger.dataset, index = Number(trigger.dataset.index);
+    if (!period || period.locked) return;
+    const title = period.activityMeta[kind][index].title;
+    const hps = period[kind + 'Hps'][index];
+    const hasHps = window.CSTRGrading.numberOrNull(hps) > 0;
+    const dialog = document.createElement('dialog');
+    dialog.className = 'modal points-dialog';
+    dialog.setAttribute('aria-labelledby', 'bulkPointsTitle');
+    dialog.innerHTML = `<form novalidate>
+      <h2 id="bulkPointsTitle">Add points in bulk</h2>
+      <p><strong>${kind.toUpperCase()} ${index + 1}${title ? ' · ' + escapeHtml(title) : ''}</strong> · HPS ${hasHps ? escapeHtml(String(hps)) : '—'}</p>
+      <p>Apply the same points and reason to eligible scores across the entire roster.</p>
+      <label>Points per learner<input name="points" type="text" inputmode="decimal" required ${hasHps ? '' : 'disabled'}></label>
+      <label>Reason<textarea name="reason" rows="3" maxlength="500" required ${hasHps ? '' : 'disabled'}></textarea></label>
+      <p class="bulk-points-preview" role="status"></p><p class="points-error" role="alert"></p>
+      <div class="stack-actions"><button type="button" class="button" data-points-cancel>Close</button><button type="submit" class="button button-primary" disabled>Apply points</button></div>
+    </form>`;
+    const form = dialog.querySelector('form');
+    const { points, reason } = form.elements;
+    const apply = form.querySelector('[type="submit"]');
+    const preview = form.querySelector('.bulk-points-preview'), error = form.querySelector('.points-error');
+    const close = form.querySelector('[data-points-cancel]');
+    const tools = window.CSTRRecordTools;
+    const refresh = () => {
+      apply.disabled = true;
+      preview.textContent = '';
+      error.textContent = hasHps ? '' : 'Set a positive HPS for this activity first.';
+      if (!hasHps || !points.value.trim()) return;
+      try {
+        const { count, skipped } = tools.previewBulkPoints(period, kind, index, points.value);
+        const notes = [
+          skipped.noNumericScore && `${skipped.noNumericScore} without a valid numeric score`,
+          skipped.aboveHps && `${skipped.aboveHps} would exceed HPS`,
+          skipped.precision && `${skipped.precision} would exceed Excel’s score precision`
+        ].filter(Boolean);
+        preview.textContent = `${count} learner${count === 1 ? '' : 's'} eligible.${notes.length ? ' Skipped: ' + notes.join(', ') + '.' : ''}`;
+        apply.textContent = count ? `Apply to ${count} learner${count === 1 ? '' : 's'}` : 'Apply points';
+        apply.disabled = !count || !reason.value.trim();
+      } catch (e) { error.textContent = e.message; }
+    };
+    form.addEventListener('input', refresh);
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if (apply.disabled) return;
+      try {
+        if (period !== currentPeriod()) throw new Error('The selected period changed. Reopen this dialog.');
+        const { count } = tools.addBulkPoints(period, kind, index, points.value, reason.value, currentUserEmail());
+        markStateDirty();
+        dialog.close();
+        render();
+        showSaveToast(`Points added to ${count} learner${count === 1 ? '' : 's'} with the recorded reason.`);
+      } catch (e) { error.textContent = e.message; }
+    });
+    close.onclick = () => dialog.close();
+    for (const type of ['keydown', 'copy', 'cut', 'paste']) dialog.addEventListener(type, event => event.stopPropagation());
+    dialog.addEventListener('close', () => { dialog.remove(); trigger.focus({ preventScroll: true }); });
+    refresh();
+    document.body.append(dialog);
+    dialog.showModal();
+    (hasHps ? points : close).focus();
+  }
+
   function openScoreAdjustment(trigger, cancelMode = false) {
     commitActiveFieldEdit();
     const period = currentPeriod(), kind = trigger.dataset.kind, row = Number(trigger.dataset.row), index = Number(trigger.dataset.index);
@@ -2174,32 +2249,27 @@
       </thead><tbody>${rows}</tbody></table></div>`;
   }
 
-  function renderActivityRole(section, period, kind, index) {
+  function renderActivityRole(section, period, kind, index, compact = false) {
     const options = window.CSTRGrading.componentOptions(section, period, kind);
-    if (section.weights[["ww","pt","qa"].indexOf(kind)] === 0) return "<small>No exam component</small>";
+    if (section.weights[["ww","pt","qa"].indexOf(kind)] === 0) return compact ? "" : "<small>Not counted in the grade</small>";
     if (!options.groups) return "";
     const current = options.roles[index];
-    return `<label>Assessment group<select data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="role" aria-label="${kind.toUpperCase()} ${index+1} assessment group" ${period.locked ? "disabled" : ""}><option value="">Choose group</option>${options.groups.map(group=>`<option value="${group.id}" ${current===group.id?"selected":""}>${escapeHtml(group.id.toUpperCase())} (${Math.round(group.share*100)}%)</option>`).join("")}</select></label>`;
+    return `<label><span${compact ? ' class="sr-only"' : ''}>Assessment group</span><select data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="role" aria-label="${kind.toUpperCase()} ${index+1} assessment group" ${period.locked ? "disabled" : ""}><option value="">Choose group</option>${options.groups.map(group=>`<option value="${group.id}" ${current===group.id?"selected":""}>${escapeHtml(group.id.toUpperCase())} (${Math.round(group.share*100)}%)</option>`).join("")}</select></label>`;
   }
 
   function renderActivityRegister(section, period) {
-    const kinds = [
-      ["ww", "Written Works"],
-      ["pt", "Performance Tasks"],
-      ["qa", state.calendarMode === "trimester" ? "Term Assessment" : "Quarterly Assessment"]
-    ];
-    const rows = kinds.flatMap(([kind, label]) => period[`${kind}Hps`].map((hps, index) => {
+    const rows = ['ww', 'pt', 'qa'].flatMap(kind => period[`${kind}Hps`].map((hps, index) => {
       const info = period.activityMeta[kind][index];
       const number = `${kind.toUpperCase()} ${index + 1}`;
       const disabled = period.locked ? "disabled" : "";
-      return `<tr><th scope="row"><span class="activity-kind">${escapeHtml(label)}</span><strong>${number}</strong>${renderActivityRole(section,period,kind,index)}</th>
+      return `<tr><th scope="row" class="register-score-column"><div class="register-score-slot"><strong>${number}</strong>${bulkPointsButton(kind, index, period.locked)}</div>${renderActivityRole(section, period, kind, index, true)}</th>
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" placeholder="Activity title" aria-label="${number} title" ${disabled}>${safeValue(info.title)}</textarea></td>
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="competency" placeholder="Learning competency" aria-label="${number} competency" ${disabled}>${safeValue(info.competency)}</textarea></td>
         <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="topic" placeholder="Topic" aria-label="${number} topic" ${disabled}>${safeValue(info.topic)}</textarea></td>
         <td>${period[`${kind}Dates`][index] && !calendarDate(period[`${kind}Dates`][index]) ? `<small class="legacy-date">${safeValue(period[`${kind}Dates`][index])}</small>` : ""}<input type="date" data-calendar-date data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(period[`${kind}Dates`][index]))}" aria-label="${number} date" ${disabled}></td>
         <td><input type="text" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(hps)}" aria-label="${number} highest possible score" ${hpsInputState(hps)} ${disabled}></td></tr>`;
     })).join("");
-    return `<section class="activity-register" aria-labelledby="activityRegisterTitle"><div class="activity-register-heading"><div><p class="eyebrow">Assessment transparency</p><h3 id="activityRegisterTitle">${state.calendarMode === "trimester" ? "Term" : "Quarter"} activity register</h3></div></div><div class="activity-register-scroll"><table><caption class="sr-only">Activity title, competency, topic, date, and HPS for ${escapeHtml(section.subject)} ${escapeHtml(period.name)}</caption><thead><tr><th scope="col">Score column</th><th scope="col">Activity title</th><th scope="col">Learning competency</th><th scope="col">Topic</th><th scope="col">Date</th><th scope="col">HPS</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    return `<section class="activity-register" aria-labelledby="activityRegisterTitle"><div class="activity-register-heading"><h3 id="activityRegisterTitle">${state.calendarMode === "trimester" ? "Term" : "Quarter"} activity register</h3></div><div class="activity-register-scroll"><table><caption class="sr-only">Activity title, competency, topic, date, and HPS for ${escapeHtml(section.subject)} ${escapeHtml(period.name)}</caption><thead><tr><th scope="col" class="register-score-column">Score column</th><th scope="col">Activity title</th><th scope="col">Learning competency</th><th scope="col">Topic</th><th scope="col">Date</th><th scope="col">HPS</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
 
   function renderLearnerRow(learner, rowIndex, period, section, numDisplay, periodLocked) {
@@ -2223,7 +2293,7 @@
       qa: learner.qa.map(() => "")
     } : learner, period, section);
     const deleteRowBtn = cat ? "" : `<button type="button" class="row-delete-btn" data-action="delete-roster-row" data-row="${rowIndex}" title="${periodLocked ? "Unlock this grading period to delete rows" : "Remove this learner row from this grading period only"}" aria-label="Delete learner ${rowIndex + 1} row" ${periodLocked ? "disabled" : ""}>${icon("trash")}</button>`;
-    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell"><div class="name-cell-inner"><input class="text-input" data-name-row="${rowIndex}" value="${safeValue(learner.name)}" title="${learnerLabel}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td><td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td><td class="summary-cell descriptor-cell summary-descriptor">${renderSheetGradeStatus(learner, result)}</td></tr>`;
+    return `<tr class="${catClass}" data-learner-row="${rowIndex}"><th class="number-cell" scope="row">${numDisplay !== undefined ? numDisplay : ""}</th><td class="name-cell"><div class="name-cell-inner"><textarea class="text-input" rows="1" data-name-row="${rowIndex}" title="${learnerLabel}" aria-label="${learnerLabel} name" ${period.locked ? "disabled" : ""}>${safeValue(learner.name)}</textarea>${deleteRowBtn}</div></td>${scoreInputs("ww", learner.ww, period.wwHps)}${summaryCells(result, "ww")}${scoreInputs("pt", learner.pt, period.ptHps)}${summaryCells(result, "pt")}${scoreInputs("qa", learner.qa, period.qaHps)}${summaryCells(result, "qa")}<td class="summary-cell initial-cell summary-initial">${format(result.initial.rounded, 3)}</td><td class="summary-cell transmuted-cell summary-transmuted">${format(result.initial.transmuted, 0)}</td><td class="summary-cell descriptor-cell summary-descriptor">${renderSheetGradeStatus(learner, result)}</td></tr>`;
   }
 
   function learnerResult(learner, period, section) {
@@ -2504,7 +2574,7 @@
       ["reviewerName", section.group === "SHS" ? "SHS coordinator" : "JHS coordinator", settings.reviewerName || ""],
       ["principalName", "Principal", settings.principalName || ""]
     ];
-    modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="excelExportTitle"><div class="section-heading"><h2 id="excelExportTitle">Export school Excel record</h2>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div><p>${escapeHtml(section.subject)} · ${escapeHtml(currentPeriod().name)} · WW ${section.weights[0]}% / PT ${section.weights[1]}% / EX ${section.weights[2]}%</p><p>Scores and HPS remain editable. Excel recalculates the grades using the selected subject’s required weights. Unentered marks count as zero against configured HPS; A/M count as zero; E/L exclude that activity for that learner. A completely unused column has no HPS and does not count.</p><div class="settings-grid">${fields.map(([key,label,value])=>`<label>${label}<input data-excel-meta="${key}" value="${safeValue(value)}"></label>`).join("")}</div><p>Leave unavailable signatories blank. Review provisional grades before submission.</p><p id="excelExportMessage" role="status"></p><div class="stack-actions"><button type="button" class="button button-primary" data-action="download-school-excel">Save Excel (.xlsx)</button></div></section>`;
+    modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="excelExportTitle"><div class="section-heading"><h2 id="excelExportTitle">Export school Excel record</h2>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div><p>${escapeHtml(section.subject)} · ${escapeHtml(currentPeriod().name)} · WW ${section.weights[0]}% / PT ${section.weights[1]}% / EX ${section.weights[2]}%</p><p>Scores and HPS remain editable. Excel recalculates the grades using the selected subject’s required weights. Unentered marks count as zero against configured HPS; A/M count as zero; E/L exclude that activity for that learner. A completely unused column has no HPS and does not count.</p><div class="settings-grid">${fields.map(([key,label,value])=>`<label>${label}<input data-excel-meta="${key}" value="${safeValue(value)}"></label>`).join("")}</div><p>Print layout uses 8.5 × 13 in (Folio), landscape, and Narrow margins. Leave unavailable signatories blank.</p><p id="excelExportMessage" role="status"></p><div class="stack-actions"><button type="button" class="button button-primary" data-action="download-school-excel">Save Excel (.xlsx)</button></div></section>`;
     document.body.appendChild(modal);
   }
 
@@ -2523,7 +2593,7 @@
       await window.CSTRSchoolExcel.download(payload);
       if (activeRegistry().includes(section)) { section.excelSettings = metadata; markStateDirty(); }
       message?.closest(".modal-backdrop")?.remove();
-      setStatus("School Excel record created with live subject-specific formulas. Print the class-record sheet in landscape; headings repeat on continuation pages.");
+      setStatus("School Excel record created with live subject-specific formulas and one-page Folio print settings.");
     } catch (error) {
       if (message) message.textContent = error.message;
       setStatus(`Excel export failed: ${error.message}`, "error");
@@ -4097,7 +4167,7 @@
 
   function highlightSelection() {
     const bounds = getSelectionBounds();
-    document.querySelectorAll(".record-table tbody input").forEach((input) => {
+    document.querySelectorAll(".record-table tbody :is(input, textarea[data-name-row])").forEach((input) => {
       const coords = getCellCoords(input);
       if (!coords || !bounds) { input.classList.remove("cell-selected"); return; }
       const isSelected = coords.row >= bounds.minRow && coords.row <= bounds.maxRow &&
@@ -4217,7 +4287,7 @@
     // whether it starts a fresh selection elsewhere or clicks a button — so
     // the previous selection's typed value is never silently dropped.
     commitPendingBulkFill();
-    const input = event.target.closest(".record-table tbody input");
+    const input = event.target.closest(".record-table tbody :is(input, textarea[data-name-row])");
     if (!input || event.button !== 0) { if (!event.target.closest(".record-table tbody")) clearSelection(); return; }
     // A locked period's cells are all `disabled`, but this guards multi-cell
     // select/fill/paste/cut/copy too, since they all key off this selection.
@@ -4233,7 +4303,7 @@
 
   app.addEventListener("mouseover", (event) => {
     if (!selectionState.active || event.buttons !== 1) return;
-    const input = event.target.closest(".record-table tbody input");
+    const input = event.target.closest(".record-table tbody :is(input, textarea[data-name-row])");
     if (!input) return;
     const coords = getCellCoords(input);
     if (!coords) return;
@@ -4509,6 +4579,7 @@
     }
     if (target.closest('.mobile-menu') && !['close-modal'].includes(action)) target.closest('.modal-backdrop').remove();
     if (action === "add-score-points") { openScoreAdjustment(target); return; }
+    if (action === "add-bulk-points") { openBulkPoints(target); return; }
     if (action === "cancel-score-points") { openScoreAdjustment(target, true); return; }
     if (action === "report-period") { selectReportPeriod(target); return; }
     if (action === "toggle-sidebar" || action === "expand-search") {
@@ -4822,10 +4893,11 @@
       // Pressing Enter right after typing into a multi-cell selection's
       // anchor cell commits the bulk fill immediately, without needing to
       // click away or Tab out first.
-      if (fillArmed && event.target && isMultiSelectAnchor(event.target)) {
+      if (!event.isComposing && fillArmed && event.target && isMultiSelectAnchor(event.target)) {
         event.preventDefault();
         commitPendingBulkFill();
       }
+      if (!event.isComposing && event.target.matches?.('.record-table textarea[data-name-row]')) event.preventDefault();
     }
   });
 
