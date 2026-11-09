@@ -264,7 +264,8 @@
       const ref = `${col(mapCol(colIndex(weightCells[i])))}$18`;
       W(c, 14, `${title} (${weights[i]}%)`, `"${title} ("&${percentText(ref)}&")"`);
       if (subtitle) {
-        const groupText = weights[i] > 0 ? componentRules[kind].groups?.map(({id, share}) => `${roleLabel(id)} ${share * 100}%`).join(' / ') : '';
+        const groups = weights[i] > 0 ? componentRules[kind].groups : null;
+        const groupText = groups ? `Grade shares (${groups.map(({id, share}) => `${roleLabel(id)} ${weights[i] * share}%`).join(' / ')})` : '';
         W(c, 15, [subtitle, `${weights[i]}%`, groupText].filter(Boolean).join('\n'),
           `"${subtitle}"&CHAR(10)&${percentText(ref)}${groupText ? `&CHAR(10)&"${groupText}"` : ''}`);
       }

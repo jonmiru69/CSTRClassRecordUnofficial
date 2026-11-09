@@ -100,7 +100,7 @@ async function main() {
           blankRowsHidden: doc.querySelector('row[r="20"]').getAttribute('hidden') === '1',
           componentWeights: expanded ? [] : ['N18', 'X18', 'AF18'].map(ref => Number(value(ref))),
           examWeights: expanded ? [] : ['AB18', 'AC18', 'AD18'].map(ref => Number(value(ref))),
-          headings: ['C14', 'C15'].map(value),
+          headings: ['C14', 'C15', expanded ? '' : 'O15'].map(value),
           rawExam: expanded ? null : [value('Y19'), readCellStyle('Y19').getAttribute('numFmtId')],
           signatures: expanded ? [] : ['B', 'K', 'U', 'AD'].map(c => {
             const ref = `${c}${68 + offset}`, style = readCellStyle(ref).querySelector('alignment');
@@ -129,7 +129,10 @@ async function main() {
         assert.match(info.headings[0], /20\.125%/);
         assert.deepEqual(info.rawExam, ['6.125', '0']);
       }
-      if (label === 'preset-5') assert.match(info.headings[1], /Cognitive 50% \/ Affective 50%/);
+      if (label === 'preset-5') {
+        assert.match(info.headings[1], /Grade shares \(Cognitive 10% \/ Affective 10%\)/);
+        assert.match(info.headings[2], /Grade shares \(Cognitive 10% \/ Affective 10% \/ Behavioral 30%\)/);
+      }
       assert(Math.abs(Number(info.values[0][1]) - expected.initial.precise) < 1e-10, label);
       assert.equal(Number(info.values[1][1]), expected.initial.transmuted, label);
       const descriptor = expected.initial.descriptor + (label === 'pending-and-attendance' ? ' (pending)' : '');
