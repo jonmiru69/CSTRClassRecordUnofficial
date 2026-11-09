@@ -62,27 +62,74 @@
     return `${text.slice(0, -places)}.${text.slice(-places)}`.replace(/\.?0+$/, '');
   }
 
-  function addPoints(period, kind, row, index, amount, reason, actor = '') {
+  function pointActivity(period, kind, index) {
     if (period.locked) throw new Error('Unlock this period before adding points.');
     if (!kinds.includes(kind) || !Number.isInteger(index) || index < 0 || index >= period[kind + 'Hps'].length) throw new Error('Unknown activity.');
-    const learner = period.roster[row], maximum = period[kind + 'Hps'][index];
-    if (!learner || !learner.name.trim() || category(learner.name)) throw new Error('Enter a learner name first.');
-    if (!numeric(learner[kind][index])) throw new Error('Enter a numeric raw score first. A, L, M, E and blank marks remain unchanged.');
+    const maximum = period[kind + 'Hps'][index];
     if (!numeric(maximum) || Number(maximum) <= 0) throw new Error('Set a valid HPS first.');
-    const points = grading.numberOrNull(amount), explanation = String(reason || '').trim();
+    return Number(maximum);
+  }
+
+  function pointAmount(amount) {
+    const points = grading.numberOrNull(amount);
     if (!(points >= 1e-8)) throw new Error('Enter at least 0.00000001 points as a decimal.');
+    return points;
+  }
+
+  function pointEntry(points, reason, actor) {
+    const explanation = String(reason || '').trim();
     if (!explanation || explanation.length > 500) throw new Error('A reason of 1–500 characters is required.');
-    const adjusted = sumDecimals(learner[kind][index], amount);
-    const result = grading.numberOrNull(adjusted);
-    if (result === null) throw new Error('The resulting score exceeds Excel’s 15 significant digits.');
-    if (result > Number(maximum)) throw new Error('The resulting score cannot exceed HPS.');
+    return { points, reason: explanation, at: new Date().toISOString(), actor: String(actor).slice(0, 200) };
+  }
+
+  function applyPointEntry(learner, kind, index, adjusted, entry) {
     learner.scoreAdjustments ||= {};
     learner.scoreAdjustments[kind] ||= {};
     const ledger = learner.scoreAdjustments[kind][index] ||= { raw: learner[kind][index], entries: [], history: [] };
-    ledger.entries.push({ points, reason: explanation, at: new Date().toISOString(), actor: String(actor).slice(0, 200) });
+    ledger.entries.push({ ...entry });
     learner[kind][index] = adjusted;
     if (learner.hpsOriginals?.[kind]) delete learner.hpsOriginals[kind][index];
+  }
+
+  function addPoints(period, kind, row, index, amount, reason, actor = '') {
+    const maximum = pointActivity(period, kind, index), learner = period.roster[row];
+    if (!learner || !learner.name.trim() || category(learner.name)) throw new Error('Enter a learner name first.');
+    const raw = learner[kind][index];
+    if (!numeric(raw)) throw new Error('Enter a numeric raw score first. A, L, M, E and blank marks remain unchanged.');
+    const entry = pointEntry(pointAmount(amount), reason, actor);
+    const adjusted = sumDecimals(raw, amount), result = grading.numberOrNull(adjusted);
+    if (result === null) throw new Error('The resulting score exceeds Excel’s 15 significant digits.');
+    if (result > maximum) throw new Error('The resulting score cannot exceed HPS.');
+    applyPointEntry(learner, kind, index, adjusted, entry);
     return result;
+  }
+
+  function planBulkPoints(period, kind, index, amount) {
+    const maximum = pointActivity(period, kind, index), points = pointAmount(amount);
+    const updates = [], skipped = { noNumericScore: 0, aboveHps: 0, precision: 0 };
+    for (const learner of period.roster) {
+      if (!learner.name.trim() || getRowCategory(learner)) continue;
+      const raw = learner[kind][index];
+      if (!numeric(raw)) { skipped.noNumericScore++; continue; }
+      const adjusted = sumDecimals(raw, amount), result = grading.numberOrNull(adjusted);
+      if (result === null) skipped.precision++;
+      else if (result > maximum) skipped.aboveHps++;
+      else updates.push({ learner, adjusted });
+    }
+    return { updates, skipped, points };
+  }
+
+  function previewBulkPoints(period, kind, index, amount) {
+    const { updates, skipped } = planBulkPoints(period, kind, index, amount);
+    return { count: updates.length, skipped };
+  }
+
+  function addBulkPoints(period, kind, index, amount, reason, actor = '') {
+    const { updates, skipped, points } = planBulkPoints(period, kind, index, amount);
+    const entry = pointEntry(points, reason, actor);
+    if (!updates.length) throw new Error('No scores can receive that many points. Check the recorded scores and HPS.');
+    for (const { learner, adjusted } of updates) applyPointEntry(learner, kind, index, adjusted, entry);
+    return { count: updates.length, skipped };
   }
 
   function removePoints(period, kind, row, index, reason) {
@@ -198,5 +245,5 @@
     const quarter = period.quarter || index % 2 + 1;
     return `${period.name || 'Period'} · Quarter ${quarter}, Semester ${semester}`;
   }
-  return { getLearnerCategory, getRowCategory, setScore, addPoints, removePoints, normalizeAdjustments, adjustHps, normalizeOrigins, completion, periodLabel };
+  return { getLearnerCategory, getRowCategory, setScore, addPoints, previewBulkPoints, addBulkPoints, removePoints, normalizeAdjustments, adjustHps, normalizeOrigins, completion, periodLabel };
 });

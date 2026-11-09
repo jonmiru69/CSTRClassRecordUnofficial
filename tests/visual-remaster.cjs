@@ -185,7 +185,7 @@ async function run(){
         const entry=page.locator('.record-table tbody tr[data-learner-row]:not(.row-category) td.name-cell').first();
         check(label+' ordinary grade-sheet cells use the active palette',await entry.evaluate(cell=>getComputedStyle(cell).backgroundColor)===
           (oppositeTheme==='dark'?'rgb(25, 46, 60)':'rgb(255, 255, 255)'));
-        await contrast(page,'.record-table tbody tr[data-learner-row]:not(.row-category) input[data-name-row]',label+' learner name');
+        await contrast(page,'.record-table tbody tr[data-learner-row]:not(.row-category) [data-name-row]',label+' learner name');
       }
       check(label+' grade-sheet theme switch preserves Tommy’s open review',await sheetTommy.getByRole('heading',{name:/Blank scores/}).isVisible());
       await page.evaluate(()=>window.__visualRefresh());

@@ -335,7 +335,7 @@
   :root body .settings-account-card {background:var(--surface-subtle);border:0;border-radius:6px;box-shadow:none}
   :root body .settings-account-provider-badge {font-size:13px;text-transform:none;letter-spacing:0;border:0;background:var(--surface);color:var(--text)}
   :root body .welcome-story h2 br {display:block!important}
-  :root body .record-section input.cell-selected {outline:2px solid var(--focus)!important;outline-offset:-2px}
+  :root body .record-section :is(input,textarea[data-name-row]).cell-selected {outline:2px solid var(--focus)!important;outline-offset:-2px}
 
   @media(min-width:1600px) { :root body .app-shell {padding:40px 48px} }
   @media(max-width:1150px) {
@@ -447,8 +447,6 @@
     :root body .entry-focus-controls select {width:100%;min-width:0;font-size:16px}
     :root body .record-section .table-wrap {height:auto!important;max-height:none;min-height:0}
     :root body .record-section .record-table input:is([data-score],[data-hps],[data-name-row]) {min-height:44px}
-    :root body .record-section .record-table .name-cell {width:150px!important;min-width:150px!important;max-width:150px!important}
-    :root body .record-section .record-table .name-cell input {min-width:0!important;width:100%!important}
     :root body .activity-register {padding:18px 14px}
     :root body .activity-register-heading {display:block}
     :root body .activity-register-heading h3 {font-size:22px;margin-bottom:12px}
@@ -468,8 +466,6 @@
   :root body .record-section .record-table {min-width:100%;width:max-content}
   :root body .record-section .record-table :is(th,td) {padding-inline:3px}
   :root body .record-section .record-table .number-cell {min-width:28px;width:28px}
-  :root body .record-section .record-table .name-cell {width:200px;min-width:200px;max-width:200px}
-  :root body .record-section .record-table .name-cell input {min-width:0;width:100%;font-size:13px!important}
   :root body .record-section .record-table .activity-date-cell {min-width:54px;width:54px;max-width:54px;white-space:normal;overflow-wrap:break-word}
   :root body .record-section .record-table .activity-date {box-sizing:border-box;width:54px;min-width:0;max-width:100%;padding-inline:2px;font-size:12px!important}
   :root body .record-section .record-table input:is([data-score],[data-hps]) {width:54px;min-width:54px;max-width:54px;padding-inline:2px;font-size:13px!important}
@@ -499,6 +495,51 @@
   :root body .record-section .record-table .activity-date-cell {min-width:44px;width:auto;max-width:none}
   :root body .record-section .record-table input:is([data-date],[data-score],[data-hps]) {width:var(--entry-width,44px);min-width:var(--entry-width,44px);max-width:none}
   :root body .record-section .record-table .name-cell {width:var(--name-col-width,190px)!important;min-width:var(--name-col-width,190px)!important;max-width:var(--name-col-width,190px)!important}
+}
+
+:root body #app .record-table .name-cell textarea {
+  box-sizing: border-box;
+  field-sizing: content;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 8px 5px;
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: left !important;
+  font-family: inherit;
+  line-height: 1.4;
+  color: inherit;
+  background: transparent;
+}
+:root body #app .record-table .name-cell .row-delete-btn { flex-shrink: 0; }
+:root body #app .activity-register .register-score-column {
+  width: 144px;
+  text-align: left !important;
+}
+.register-score-slot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+:root body #app .activity-register .register-score-slot strong { margin: 0; white-space: nowrap; }
+:root body #app .activity-register .register-score-column select {
+  width: 100%;
+  min-height: 32px;
+  margin-top: 4px;
+  font-size: .8125rem;
+  font-weight: 400;
+}
+:root body #app .activity-register .bulk-points-button {
+  width: auto;
+  min-height: 32px;
+  padding-inline: 6px;
+  white-space: nowrap;
+  color: inherit;
+}
+.phone-assessment > .bulk-points-button { margin-block: 8px; }
+.bulk-points-preview { font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  :root body #app .activity-register .register-score-column select { min-height: 44px; font-size: 1rem; }
+  :root body #app .activity-register .bulk-points-button { min-width: 44px; min-height: 44px; }
 }
 @media screen {
   :root body .sheet-layout .sidebar-link>span {white-space:normal;overflow:visible;text-overflow:clip}
