@@ -480,18 +480,161 @@
     }
     validations.setAttribute('count',validations.children.length);
     const before=[...sheet.children].find(n=>['hyperlinks','printOptions','pageMargins','pageSetup','headerFooter','rowBreaks','colBreaks','drawing'].includes(n.localName));sheet.insertBefore(validations,before||null);
+    // Keep every native cell, label, merge and formula. Only size and style the
+    // existing layout; separate print areas put its existing register on page 2.
+    const sharedDoc=zip.file('xl/sharedStrings.xml')?parse(await zip.file('xl/sharedStrings.xml').async('string')):null;
+    const shared=[...(sharedDoc?.getElementsByTagNameNS(NS,'si')||[])].map(n=>n.textContent);
+    const canvas=document.createElement('canvas'),measure=canvas.getContext('2d');
+    const fontVariants=new Map(),printStyles=new Map(),borderVariants=new Map();
+    const borders=stylesDoc.getElementsByTagNameNS(NS,'borders')[0];
+    const columnNodes=[...cols.children],columnWidths=new Map();
+    // Arial-11 remains the workbook's Normal style; clones change cell fonts only.
+    // Points per column-width unit include Excel's printer-metric allowance.
+    const pointsPerWidth=5.55,sidePadding=4,lineLeading=1.08;
+    const uniformDateWidth=Math.max(7.5,...[...rawColumns.ww,...rawColumns.pt].map(c=>{
+      const node=columnNodes.find(n=>Number(n.getAttribute('min'))===c+1);
+      return Number(node.getAttribute('width'))+1;
+    }));
+    for(const node of columnNodes){
+      const c=Number(node.getAttribute('min'))-1;
+      let width=rawColumns.ww.includes(c)||rawColumns.pt.includes(c)?uniformDateWidth:Number(node.getAttribute('width'))+1;
+      if([13,23,31].map(mapCol).includes(c))width=Math.max(width,12); // Teacher label and precise component weights.
+      if(rawColumns.qa.includes(c))width=Math.max(width,13); // Keep exam words intact.
+      node.setAttribute('width',width);node.setAttribute('customWidth','1');columnWidths.set(c,width);
+    }
+    function printStyle(node,r,c){
+      const base=Number(node.getAttribute('s')||0),grid=r>=14&&r<=lastLearnerRow;
+      const size=r>=19&&r<=lastLearnerRow||r===mapRow(68)?15:14;
+      const source=cellXfs.children[base],sourceFont=Number(source.getAttribute('fontId')||0);
+      const font=fonts.children[sourceFont],nativeSize=Number(font.getElementsByTagNameNS(NS,'sz')[0]?.getAttribute('val')||11);
+      const finalSize=nativeSize>=15?15:size,date=r===17&&([...rawColumns.ww,...rawColumns.pt].includes(c));
+      const noWrap=date||r===10||r===11||[mapRow(71),mapRow(73),mapRow(75)].includes(r)||r===13&&c===mapCol(13);
+      const key=[base,finalSize,grid,noWrap].join('|');
+      if(!printStyles.has(key)){
+        const clone=source.cloneNode(true),fontKey=[sourceFont,finalSize].join('|');
+        if(!fontVariants.has(fontKey)){
+          const f=font.cloneNode(true);f.getElementsByTagNameNS(NS,'sz')[0].setAttribute('val',finalSize);
+          fontVariants.set(fontKey,fonts.children.length);fonts.appendChild(f);
+        }
+        clone.setAttribute('fontId',fontVariants.get(fontKey));clone.setAttribute('applyFont','1');
+        let alignment=clone.getElementsByTagNameNS(NS,'alignment')[0];
+        if(!alignment){alignment=el(stylesDoc,'alignment');clone.appendChild(alignment);}
+        alignment.setAttribute('wrapText',noWrap?'0':'1');alignment.setAttribute('shrinkToFit','0');alignment.setAttribute('vertical','center');
+        clone.setAttribute('applyAlignment','1');
+        if(grid){
+          const oldBorder=Number(source.getAttribute('borderId')||0);
+          if(!borderVariants.has(oldBorder)){
+            const border=borders.children[oldBorder].cloneNode(true);
+            for(const side of ['left','right','top','bottom']){
+              let edge=border.getElementsByTagNameNS(NS,side)[0];
+              if(!edge){edge=el(stylesDoc,side);const order=['left','right','top','bottom','diagonal'];border.insertBefore(edge,[...border.children].find(n=>order.indexOf(n.localName)>order.indexOf(side))||null);}
+              if(!edge.getAttribute('style')){edge.setAttribute('style','thin');edge.replaceChildren(el(stylesDoc,'color',{rgb:'FF000000'}));}
+            }
+            borderVariants.set(oldBorder,borders.children.length);borders.appendChild(border);
+          }
+          clone.setAttribute('borderId',borderVariants.get(oldBorder));clone.setAttribute('applyBorder','1');
+        }
+        printStyles.set(key,cellXfs.children.length);cellXfs.appendChild(clone);
+      }
+      node.setAttribute('s',printStyles.get(key));
+    }
+    for(let r=14;r<=lastLearnerRow;r++)for(let c=0;c<=lastCol;c++)cell(c,r);
+    for(const [r,row] of rows)if(r<=endRow)for(const node of row.children)printStyle(node,r,address(node.getAttribute('r')).c);
+    function setHeight(r,height){const row=ensureRow(r);row.setAttribute('ht',Math.min(409,height));row.setAttribute('customHeight','1');row.removeAttribute('thickBot');}
+    for(const r of [6,9,12])setHeight(r,4);
+    for(let r=19;r<=lastLearnerRow;r++)setHeight(r,20.5);
+    for(const r of [64,65])setHeight(mapRow(r),6);
+    const mergeStarts=new Map(),covered=new Set();
+    for(const ref of mergeRefs){
+      const [first,last]=ref.split(':').map(address);mergeStarts.set(ref.split(':')[0],{first,last});
+      for(let r=first.r;r<=last.r;r++)for(let c=first.c;c<=last.c;c++)if(r!==first.r||c!==first.c)covered.add(`${col(c)}${r}`);
+    }
+    function shown(node){
+      const t=node.getAttribute('t'),v=node.getElementsByTagNameNS(NS,'v')[0]?.textContent||'';
+      if(t==='s')return shared[Number(v)]||'';
+      if(t==='inlineStr')return node.getElementsByTagNameNS(NS,'is')[0]?.textContent||'';
+      if(t==='str'||!v)return v;
+      const xf=cellXfs.children[Number(node.getAttribute('s')||0)],id=Number(xf.getAttribute('numFmtId')||0);
+      const format=[...numFmts.children].find(n=>Number(n.getAttribute('numFmtId'))===id)?.getAttribute('formatCode')||({1:'0',2:'0.00',9:'0%',10:'0.00%',14:'mm/dd/yy'}[id]||'General');
+      if(/[md]/i.test(format)&&/d/i.test(format)){
+        const d=new Date(Date.UTC(1899,11,30)+Number(v)*86400000);
+        return format==='m/d'?`${d.getUTCMonth()+1}/${d.getUTCDate()}`:`${String(d.getUTCMonth()+1).padStart(2,'0')}/${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCFullYear()).slice(-2)}`;
+      }
+      const decimals=/0\.(0+)/.exec(format)?.[1].length||0;
+      return format.includes('%')?(Number(v)*100).toFixed(decimals)+'%':format==='General'?v:Number(v).toFixed(decimals);
+    }
+    function linesFor(text,width){
+      let count=0;
+      for(const paragraph of String(text).split('\n')){
+        let line='';count++;
+        for(const word of paragraph.split(/\s+/u)){
+          const candidate=line?line+' '+word:word;
+          if(measure.measureText(candidate).width*.75<=width){line=candidate;continue;}
+          if(line){count++;line='';}
+          for(const ch of word){if(line&&measure.measureText(line+ch).width*.75>width){count++;line='';}line+=ch;}
+        }
+      }
+      return count;
+    }
+    for(const [r,row] of rows){
+      if(r>endRow||row.getAttribute('hidden')==='1')continue;
+      for(const node of row.children){
+        const ref=node.getAttribute('r');if(covered.has(ref))continue;
+        const text=shown(node);if(!present(text))continue;
+        const pos=address(ref),merge=mergeStarts.get(ref)||{first:pos,last:pos};
+        let width=0,height=0;for(let c=merge.first.c;c<=merge.last.c;c++)width+=columnWidths.get(c)*pointsPerWidth;
+        for(let rr=merge.first.r;rr<=merge.last.r;rr++)height+=Number(rows.get(rr)?.getAttribute('ht')||15);
+        const xf=cellXfs.children[Number(node.getAttribute('s')||0)],font=fonts.children[Number(xf.getAttribute('fontId')||0)];
+        const size=Number(font.getElementsByTagNameNS(NS,'sz')[0].getAttribute('val')),name=font.getElementsByTagNameNS(NS,'name')[0]?.getAttribute('val')||'Arial';
+        measure.font=`${font.getElementsByTagNameNS(NS,'b').length?'bold ':''}${size}pt "${name}"`;
+        const wraps=xf.getElementsByTagNameNS(NS,'alignment')[0]?.getAttribute('wrapText')==='1';
+        const required=(wraps?linesFor(text,Math.max(6,width-sidePadding)):1)*size*lineLeading+sidePadding;
+        if(required>height){const target=Math.floor((merge.first.r+merge.last.r)/2);setHeight(target,Number(rows.get(target)?.getAttribute('ht')||15)+required-height);}
+      }
+    }
+    const mainEnd=mapRow(69),margin=.25,printWidth=(13-2*margin)*72,printHeight=(8.5-2*margin)*72;
+    const visibleLearners=[...rows.keys()].filter(r=>r>=19&&r<=lastLearnerRow&&rows.get(r).getAttribute('hidden')!=='1');
+    const signatureGap=mapRow(67),mainRows=[...rows.keys()].filter(r=>r<=mainEnd&&r!==signatureGap&&rows.get(r).getAttribute('hidden')!=='1');
+    const otherHeight=sumNumbers(mainRows.map(r=>Number(rows.get(r).getAttribute('ht')||15)));
+    const nativeWidth=sumNumbers([...columnWidths.values()])*pointsPerWidth;
+    const signingSpace=28/printHeight,targetHeight=Math.max(otherHeight/(1-signingSpace),nativeWidth*printHeight/printWidth);
+    setHeight(signatureGap,targetHeight*signingSpace);
+    let spare=Math.max(0,targetHeight-otherHeight-targetHeight*signingSpace);
+    const extra=visibleLearners.length?Math.min(8,spare/visibleLearners.length):0;
+    for(const r of visibleLearners)setHeight(r,Number(rows.get(r).getAttribute('ht'))+extra);
+    spare-=extra*visibleLearners.length;
+    for(const r of [mapRow(64),mapRow(65),6,9,12]){
+      const old=Number(rows.get(r).getAttribute('ht')||15),add=Math.min(spare,409-old);setHeight(r,old+add);spare-=add;
+    }
+    const widthFactor=targetHeight*printWidth/printHeight/nativeWidth;
+    for(const node of columnNodes)node.setAttribute('width',Math.min(255,Number(node.getAttribute('width'))*widthFactor).toFixed(5));
+    // Native two-cell anchors stretch the logo when row/column sizes change.
+    // Retain its original position, picture data and native physical dimensions.
+    const drawing=parse(await zip.file('xl/drawings/drawing1.xml').async('string'));
+    const dns='http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',ans='http://schemas.openxmlformats.org/drawingml/2006/main';
+    for(const anchor of [...drawing.documentElement.children]){
+      if(anchor.localName!=='twoCellAnchor')continue;
+      const picture=anchor.getElementsByTagNameNS(dns,'pic')[0],from=anchor.getElementsByTagNameNS(dns,'from')[0];
+      const native=picture?.getElementsByTagNameNS(ans,'xfrm')[0]?.getElementsByTagNameNS(ans,'ext')[0];
+      if(!picture||!from||!native)continue;
+      const fixed=drawing.createElementNS(dns,'xdr:oneCellAnchor'),extent=drawing.createElementNS(dns,'xdr:ext');
+      extent.setAttribute('cx',native.getAttribute('cx'));extent.setAttribute('cy',native.getAttribute('cy'));
+      fixed.append(from,extent,picture,anchor.getElementsByTagNameNS(dns,'clientData')[0]||drawing.createElementNS(dns,'xdr:clientData'));anchor.replaceWith(fixed);
+    }
+    zip.file('xl/drawings/drawing1.xml',serialize(drawing));
+    fonts.setAttribute('count',fonts.children.length);borders.setAttribute('count',borders.children.length);
     const pageSetup=sheet.getElementsByTagNameNS(NS,'pageSetup')[0];
     const pageMargins=sheet.getElementsByTagNameNS(NS,'pageMargins')[0];
-    const printOptions=el(doc,'printOptions',{horizontalCentered:1});
+    const printOptions=el(doc,'printOptions',{horizontalCentered:1,verticalCentered:1});
     sheet.insertBefore(printOptions,pageMargins);
-    for (const [key, value] of Object.entries({left:.25,right:.25,top:.75,bottom:.75,header:.3,footer:.3})) pageMargins.setAttribute(key,value);
+    for (const [key, value] of Object.entries({left:.25,right:.25,top:.25,bottom:.25,header:.1,footer:.1})) pageMargins.setAttribute(key,value);
     // Excel's Folio code is 8.5 x 13 inches. Fit the full print area in landscape.
     pageSetup.removeAttribute('scale');
     for (const [key,value] of Object.entries({paperSize:14,orientation:'landscape',fitToWidth:1,fitToHeight:1})) pageSetup.setAttribute(key,value);
     sheet.getElementsByTagNameNS(NS,'pageSetUpPr')[0].setAttribute('fitToPage','1');
     for (const node of sheet.querySelectorAll('rowBreaks,colBreaks')) node.remove();
     const dimension=sheet.getElementsByTagNameNS(NS,'dimension')[0];dimension.setAttribute('ref',`A1:${col(lastCol)}${roleRow}`);
-    for(const view of [...sheet.getElementsByTagNameNS(NS,'sheetView')]){view.setAttribute('topLeftCell','A1');for(const selection of [...view.getElementsByTagNameNS(NS,'selection')])selection.remove();view.appendChild(el(doc,'selection',{activeCell:'B19',sqref:'B19'}));}
+    for(const view of [...sheet.getElementsByTagNameNS(NS,'sheetView')]){view.setAttribute('topLeftCell','A1');view.setAttribute('zoomScale','100');view.setAttribute('zoomScaleNormal','100');for(const selection of [...view.getElementsByTagNameNS(NS,'selection')])selection.remove();view.appendChild(el(doc,'selection',{activeCell:'B19',sqref:'B19'}));}
     for(const row of rows.values()){
       const sorted=[...row.children].sort((a,b)=>address(a.getAttribute('r')).c-address(b.getAttribute('r')).c);row.replaceChildren(...sorted);
     }
@@ -505,7 +648,8 @@
     let names=wb.getElementsByTagNameNS(NS,'definedNames')[0];if(!names){names=el(wb,'definedNames');wb.documentElement.appendChild(names);}
     [...names.children].filter(n=>['_xlnm.Print_Area','_xlnm.Print_Titles'].includes(n.getAttribute('name'))).forEach(n=>n.remove());
     const escaped=`'${safeSheet.replace(/'/g,"''")}'`;
-    for(const [name,value] of [['_xlnm.Print_Area',`${escaped}!$A$1:$${col(lastCol)}$${endRow}`],['_xlnm.Print_Titles',`${escaped}!$1:$18,${escaped}!$A:$B`]]){const n=el(wb,'definedName',{name,localSheetId:0});n.textContent=value;names.appendChild(n);}
+    const printArea=el(wb,'definedName',{name:'_xlnm.Print_Area',localSheetId:0});
+    printArea.textContent=`${escaped}!$A$1:$${col(lastCol)}$${mainEnd},${escaped}!$A$${mapRow(71)}:$${col(lastCol)}$${endRow}`;names.appendChild(printArea);
     let calc=wb.getElementsByTagNameNS(NS,'calcPr')[0];if(!calc){calc=el(wb,'calcPr');wb.documentElement.appendChild(calc);}calc.setAttribute('calcMode','auto');calc.setAttribute('fullCalcOnLoad','1');calc.setAttribute('forceFullCalc','1');
     zip.file('xl/workbook.xml',serialize(wb));
     // The original calc chain has stale references after layout/formula edits.
