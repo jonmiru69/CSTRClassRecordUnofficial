@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
   "available": true,
-  "version": "1.0.46",
-  "versionCode": 10046,
+  "version": "1.0.48",
+  "versionCode": 10048,
   "minimumSupportedVersionCode": 0,
-  "sha256": "27f7a3b08cd6283456972a9fd973354b14db615ef59d74622dc9438838458a47",
+  "sha256": "8ad6faedbfc32296b668835bace8377ac2720dd441bd27f2660b4abcb2f0a052",
   "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
-  "bytes": 6129182,
-  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.46.apk",
-  "publishedAt": "2026-11-20T03:10:03.487Z",
-  "notes": "Excel printing now fits the full class record and signatories on one centered 8.5 × 13-inch landscape page, with equal margins, readable dates, automatic text sizing and the original activity register on page 2."
+  "bytes": 6129586,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.48.apk",
+  "publishedAt": "2026-11-20T05:33:12.195Z",
+  "notes": "Individual grade report images now include the latest added scores and reasons from the selected class record."
 }
