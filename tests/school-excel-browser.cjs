@@ -3,12 +3,16 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { chromium } = require('playwright-core');
 const grading = require('../ASSETS/grading-engine.js');
 const { fixture } = require('./grade-policy.cjs');
 
 const assets = path.resolve(__dirname, '../ASSETS');
 const output = path.resolve(__dirname, '../.build-artifacts/school-excel');
+const snapshotsPath=path.join(__dirname,'fixtures/school-excel-content.json');
+const recordBaseline=Boolean(process.env.CSTR_EXPORT_BASELINE);
+const contentSnapshots=recordBaseline?{}:JSON.parse(fs.readFileSync(snapshotsPath,'utf8'));
 
 async function main() {
   fs.mkdirSync(output, { recursive: true });
@@ -17,7 +21,7 @@ async function main() {
   try {
     const page = await browser.newPage();
     for (const script of ['vendor/jszip.min.js', 'grading-engine.js', 'record-tools.js', 'school-excel.js']) {
-      await page.addScriptTag({ path: path.join(assets, script) });
+      await page.addScriptTag({ path: script==='school-excel.js'&&recordBaseline?path.resolve(process.env.CSTR_EXPORT_BASELINE):path.join(assets, script) });
     }
     const template = fs.readFileSync(path.join(assets, 'templates/cstr-class-record.xlsx')).toString('base64');
     const cases = grading.SUBJECT_PRESETS.map((_, index) => [`preset-${index}`, fixture(index)]);
@@ -58,13 +62,19 @@ async function main() {
     layout.period.qaDates[0] = '2026-12-31';
     layout.period.activityMeta.ww[0].title = 'Final print check';
     cases.push(['print-layout', layout]);
-    const thirty = fixture(0);
-    thirty.period.roster = Array.from({length:30},(_,i)=>({...structuredClone(thirty.period.roster[0]),name:`Synthetic, Learner ${i+1}`}));
+    const thirty=fixture(0);
+    thirty.metadata={schoolYear:'2026-2027',teacherName:'Synthetic Teacher',checkerName:'Synthetic Checker',reviewerName:'Synthetic Coordinator',principalName:'Synthetic Principal'};
+    thirty.period.roster=Array.from({length:30},(_,i)=>({...structuredClone(thirty.period.roster[0]),name:`Synthetic, Learner ${i+1}`}));
+    thirty.period.wwDates=['2026-12-31','2026-11-01'];
     cases.push(['thirty-learners',thirty]);
-    const longActivity = fixture(0);
-    longActivity.period.activityMeta.ww[0] = {title:'=Literal title — Synthetic activity',competency:'Learning competency '.repeat(24),topic:'Topic and discussion '.repeat(12)};
-    longActivity.period.wwDates[0] = '2026-12-31';
-    longActivity.period.roster[0].name = 'Villanueva de los Santos y Fernández, María Alexandra Gabriela';
+    const many=structuredClone(thirty);
+    many.period.roster=Array.from({length:65},(_,i)=>({...structuredClone(thirty.period.roster[0]),name:`Synthetic, Learner ${i+1}`}));
+    cases.push(['many-learners',many]);
+    const longActivity=fixture(0);
+    longActivity.metadata=structuredClone(thirty.metadata);
+    longActivity.period.roster[0].name='Villanueva de los Santos y Fernández, María Alexandra Gabriela';
+    longActivity.period.wwDates[0]='2026-12-31';
+    longActivity.period.activityMeta.ww[0]={title:'=Literal activity title — classroom discussion',topic:'Discuss and reflect on the evidence. '.repeat(6),competency:'Interpret and explain learning evidence. '.repeat(8)};
     cases.push(['long-activity',longActivity]);
     const pending = fixture(5);
     pending.period.roster[0].ww = ['E', ''];
@@ -79,7 +89,8 @@ async function main() {
     alternating.period.roster[0].ww = Array(count).fill(8);
     cases.push(['expanded-grouped-record', alternating]);
 
-    for (const [label, payload] of cases) {
+    const activeCases=process.env.CSTR_EXPORT_CASES?cases.filter(([label])=>process.env.CSTR_EXPORT_CASES.split('|').includes(label)):cases;
+    for (const [label, payload] of activeCases) {
       const expected = grading.calculateLearner(payload.period.roster[0], payload.period, payload.section);
       const info = await page.evaluate(async ({payload, template}) => {
         const templateBytes = Uint8Array.from(atob(template), c => c.charCodeAt(0));
@@ -95,23 +106,24 @@ async function main() {
         const attributes = selector => Object.fromEntries([...doc.querySelector(selector).attributes].map(({name, value}) => [name, value]));
         const offset = Math.max(0, payload.period.roster.length - 45);
         const expanded = payload.period.wwHps.length > 10;
-        const activityDoc = new DOMParser().parseFromString(await zip.file('xl/worksheets/sheet2.xml').async('string'),'application/xml');
-        const workbookDoc = new DOMParser().parseFromString(await zip.file('xl/workbook.xml').async('string'),'application/xml');
-        const hasBorders = node => {
-          const xf=styles.querySelector('cellXfs').children[Number(node.getAttribute('s')||0)];
+        const content=[...doc.querySelectorAll('sheetData c')].filter(c=>c.querySelector('f,v,is')?.textContent).map(c=>[c.getAttribute('r'),c.getAttribute('t')||'',...['f','v','is'].map(tag=>c.querySelector(tag)?.textContent||'')]);
+        const workbookDoc=new DOMParser().parseFromString(await zip.file('xl/workbook.xml').async('string'),'application/xml');
+        const grid=[...doc.querySelectorAll('sheetData row')].filter(r=>Number(r.getAttribute('r'))>=14&&Number(r.getAttribute('r'))<=63+offset).flatMap(r=>[...r.children]);
+        const borderFailures=grid.filter(c=>{
+          const xf=styles.querySelector('cellXfs').children[Number(c.getAttribute('s')||0)];
           const border=styles.querySelector('borders').children[Number(xf.getAttribute('borderId')||0)];
-          return ['left','right','top','bottom'].every(side=>border.querySelector(side)?.getAttribute('style'));
-        };
+          return !['left','right','top','bottom'].every(side=>border.querySelector(side)?.getAttribute('style'));
+        }).map(c=>c.getAttribute('r'));
+        const activeFontSizes=[...doc.querySelectorAll('sheetData row')].filter(r=>Number(r.getAttribute('r'))<=82+offset).flatMap(r=>[...r.children]).map(c=>{
+          const xf=styles.querySelector('cellXfs').children[Number(c.getAttribute('s')||0)];
+          return Number(styles.querySelector('fonts').children[Number(xf.getAttribute('fontId')||0)].querySelector('sz').getAttribute('val'));
+        });
         return {
-          sheets: [...workbookDoc.querySelectorAll('sheet')].map(s=>s.getAttribute('name')),
-          areas: [...workbookDoc.querySelectorAll('definedName[name="_xlnm.Print_Area"]')].map(n=>n.textContent),
-          borderFailures: [...doc.querySelectorAll('sheetData row')].filter(n=>Number(n.getAttribute('r'))>=14&&Number(n.getAttribute('r'))<=63+offset).flatMap(r=>[...r.children].filter(c=>!hasBorders(c)).map(c=>c.getAttribute('r'))),
-          registerBorders: [...activityDoc.querySelectorAll('sheetData row')].filter(r=>Number(r.getAttribute('r'))>=5).every(r=>[...r.children].every(hasBorders)),
-          registerRows: activityDoc.querySelectorAll('sheetData row').length,
-          registerText: activityDoc.documentElement.textContent,
-          dateRotation: readCellStyle('C17').querySelector('alignment').getAttribute('textRotation'),
-          rowBreakCount: Number(doc.querySelector('rowBreaks').getAttribute('count')),
-          colBreakCount: Number(doc.querySelector('colBreaks').getAttribute('count')),
+          borderFailures,maxFont:Math.max(...activeFontSizes),
+          content:JSON.stringify({cells:content,merges:[...doc.querySelectorAll('mergeCell')].map(n=>n.getAttribute('ref'))}),
+          sheetCount:workbookDoc.querySelectorAll('sheet').length,
+          area:workbookDoc.querySelector('definedName[name="_xlnm.Print_Area"]').textContent,
+          dateWidths:[...doc.querySelectorAll('col')].filter(c=>[...Array(10)].some((_,i)=>Number(c.getAttribute('min'))===i+3)||[...Array(8)].some((_,i)=>Number(c.getAttribute('min'))===i+15)).map(c=>Number(c.getAttribute('width'))),
           values,
           formulaLength: Math.max(...cells.map(cell => cell.querySelector('f').textContent.length)),
           validations: doc.querySelectorAll('dataValidation').length,
@@ -135,24 +147,22 @@ async function main() {
           })
         };
       }, { payload, template });
+      const fingerprint=crypto.createHash('sha256').update(info.content).digest('hex');
+      if(recordBaseline){contentSnapshots[label]=fingerprint;continue;}
+      assert.equal(fingerprint,contentSnapshots[label],`${label}: existing content, formulas, positions and merged table layout must be preserved`);
+      assert.equal(info.sheetCount,1,label);
+      assert.deepEqual(info.borderFailures,[],label);
+      assert(info.maxFont<=15,label);
+      assert.equal(info.area.match(/!\$A\$\d+:\$[A-Z]+\$\d+/g).length,2,label);
+      if(label!=='expanded-grouped-record') assert.equal(new Set(info.dateWidths).size,1,label);
       assert(info.formulaLength < 8192, label);
       assert(info.validations >= 42 && info.mergedRanges > 20, label);
-      assert.equal(info.pageSetup.scale, '100', `${label}: print at actual size, without shrinking the complete record and register onto one page`);
-      assert.deepEqual(info.pageSetup, { paperSize: '14', orientation: 'landscape', scale: '100' }, label);
-      assert.deepEqual(info.margins, { left: '0.25', right: '0.25', top: '0.3', bottom: '0.3', header: '0.1', footer: '0.1' }, label);
-      assert.equal(info.fitToPage, '0', label);
-      assert.equal(info.printOptions.horizontalCentered, '0', label);
-      assert.equal(info.manualBreaks, 2, label);
-      assert.equal(info.sheets.length, 2,label);
-      assert.equal(info.sheets[1], 'Activity register',label);
-      assert.match(info.areas[0],new RegExp(`\\$${69+Math.max(0,payload.period.roster.length-45)}$`),label);
-      assert.match(info.areas[1], /'Activity register'!\$A\$1:\$G\$/,label);
-      assert.deepEqual(info.borderFailures,[],label);
-      assert(info.registerBorders,label);
-      assert.equal(info.dateRotation,'90',label);
-      assert.equal(info.colBreakCount>0,label==='expanded-grouped-record',label);
-      if(label==='print-layout') assert(info.rowBreakCount>0,label);
-      if(label==='long-activity') { assert.match(info.registerText,/=Literal title/); assert.match(info.registerText,/Learning competency/); }
+      assert.deepEqual(info.pageSetup, { paperSize: '14', orientation: 'landscape', fitToWidth: '1', fitToHeight: '1' }, label);
+      assert.deepEqual(info.margins, { left: '0.25', right: '0.25', top: '0.25', bottom: '0.25', header: '0.1', footer: '0.1' }, label);
+      assert.equal(info.fitToPage, '1', label);
+      assert.equal(info.printOptions.horizontalCentered, '1', label);
+      assert.equal(info.printOptions.verticalCentered, '1', label);
+      assert.equal(info.manualBreaks, 0, label);
       assert(info.fonts.length && info.fonts.every(rgb => rgb === 'FF000000') && !info.gradeRuleFont, label);
       assert.equal(info.conditionalFormats, 1, label);
       if (label !== 'expanded-grouped-record') {
@@ -176,14 +186,13 @@ async function main() {
       const descriptor = expected.initial.descriptor + (label === 'pending-and-attendance' ? ' (pending)' : '');
       assert.equal(info.values[2][1], descriptor, label);
       fs.writeFileSync(path.join(output, `${label}.xlsx`), Buffer.from(info.workbook));
-      const changed = structuredClone(payload);
-      changed.period.roster[0].ww[0] = Number(changed.period.wwHps[0]);
-      const changedResult = grading.calculateLearner(changed.period.roster[0],changed.period,changed.section);
+      const changed=structuredClone(payload);changed.period.roster[0].ww[0]=Number(changed.period.wwHps[0]);
+      const changedResult=grading.calculateLearner(changed.period.roster[0],changed.period,changed.section);
       manifest.push({ label, cells: info.values.map(([address]) => address), initial: expected.initial.precise,
-        grade: expected.initial.transmuted, descriptor, changedScore:changed.period.roster[0].ww[0],
-        changedInitial:changedResult.initial.precise, changedGrade:changedResult.initial.transmuted });
+        grade: expected.initial.transmuted, descriptor, changedScore:changed.period.roster[0].ww[0],changedInitial:changedResult.initial.precise,changedGrade:changedResult.initial.transmuted });
     }
 
+    if(recordBaseline){fs.mkdirSync(path.dirname(snapshotsPath),{recursive:true});fs.writeFileSync(snapshotsPath,JSON.stringify(contentSnapshots,null,2)+'\n');console.log(`Recorded ${cases.length} original-export content fingerprints.`);return;}
     const invalid = fixture(0);
     invalid.period.roster[0].ww[0] = '1e2';
     const validate = payload => page.evaluate(payload => CSTRSchoolExcel.validate(payload), payload);
@@ -195,7 +204,7 @@ async function main() {
     invalid.period.roster[0].name = '';
     await assert.rejects(validate(invalid), /name the learner/i);
     fs.writeFileSync(path.join(output, 'manifest.json'), JSON.stringify(manifest, null, 2));
-    console.log(`PASS ${cases.length} native-template workbooks and 3 invalid export cases.`);
+    console.log(`PASS ${activeCases.length} native-template workbooks and 3 invalid export cases.`);
   } finally {
     await browser.close();
   }

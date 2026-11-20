@@ -54,220 +54,6 @@
   }
   const sumNumbers = list => list.reduce((total, value) => total + value, 0);
 
-  // Lay out in physical points at 100%. Excel's one-page fit mode ignores manual
-  // breaks and shrinks the whole roster whenever activities/learners are added.
-  async function layoutPrint({ zip, doc, stylesDoc, rows, cell, write, mapCol, mapRow,
-    lastCol, lastLearnerRow, roleRow, rawColumns, register, payload }) {
-    const sheet = doc.documentElement, { section, period, metadata = {} } = payload;
-    const xfs = stylesDoc.getElementsByTagNameNS(NS, 'cellXfs')[0];
-    const fonts = stylesDoc.getElementsByTagNameNS(NS, 'fonts')[0];
-    const borders = stylesDoc.getElementsByTagNameNS(NS, 'borders')[0];
-    const borderId = borders.children.length, border = el(stylesDoc, 'border');
-    for (const side of ['left', 'right', 'top', 'bottom']) {
-      const edge = el(stylesDoc, side, { style: 'thin' });
-      edge.appendChild(el(stylesDoc, 'color', { rgb: 'FF000000' })); border.appendChild(edge);
-    }
-    border.appendChild(el(stylesDoc, 'diagonal')); borders.appendChild(border);
-    borders.setAttribute('count', borders.children.length);
-    const fontCache = new Map(), styleCache = new Map();
-    function style(node, { size = 8, grid = false, wrap = true, rotate = 0, bold = false, clearBorder = false } = {}) {
-      const base = Number(node.getAttribute('s') || 0), key = [base, size, grid, wrap, rotate, bold, clearBorder].join('|');
-      if (!styleCache.has(key)) {
-        const xf = xfs.children[base].cloneNode(true), baseFont = Number(xf.getAttribute('fontId') || 0);
-        const fontKey = [baseFont, size, bold].join('|');
-        if (!fontCache.has(fontKey)) {
-          const font = fonts.children[baseFont].cloneNode(true);
-          let sz = font.getElementsByTagNameNS(NS, 'sz')[0];
-          if (!sz) { sz = el(stylesDoc, 'sz'); font.appendChild(sz); }
-          sz.setAttribute('val', size);
-          if (bold && !font.getElementsByTagNameNS(NS, 'b').length) font.appendChild(el(stylesDoc, 'b'));
-          fontCache.set(fontKey, fonts.children.length); fonts.appendChild(font);
-        }
-        xf.setAttribute('fontId', fontCache.get(fontKey)); xf.setAttribute('applyFont', '1');
-        if (grid) { xf.setAttribute('borderId', borderId); xf.setAttribute('applyBorder', '1'); }
-        if (clearBorder) { xf.setAttribute('borderId', '0'); xf.setAttribute('applyBorder', '1'); }
-        let alignment = xf.getElementsByTagNameNS(NS, 'alignment')[0];
-        if (!alignment) { alignment = el(stylesDoc, 'alignment'); xf.appendChild(alignment); }
-        for (const [name, value] of Object.entries({ wrapText: +wrap, shrinkToFit: 0, textRotation: rotate, vertical: 'center' })) alignment.setAttribute(name, value);
-        xf.setAttribute('applyAlignment', '1');
-        styleCache.set(key, xfs.children.length); xfs.appendChild(xf);
-      }
-      node.setAttribute('s', styleCache.get(key));
-      return Number(node.getAttribute('s'));
-    }
-    function height(r, points) {
-      const row = rows.get(r); if (!row) return;
-      row.setAttribute('ht', points); row.setAttribute('customHeight', '1'); row.removeAttribute('thickBot');
-    }
-    // Arial-11 column units differ slightly between screen and printer metrics.
-    // Calibrated in Excel's Folio PDF output, with allowance for column rounding.
-    const baseWidths = [16,101,...Array(10).fill(17),25,34,...Array(8).fill(17),25,34,23,23,23,26,26,26,30,34,35,40,71];
-    const widths = new Map(baseWidths.map((width, c) => [mapCol(c), width]));
-    for (const columns of Object.values(rawColumns)) for (const c of columns) if (!widths.has(c)) widths.set(c, 17);
-    const cols = sheet.getElementsByTagNameNS(NS, 'cols')[0];
-    cols.replaceChildren(...Array.from({ length: lastCol + 1 }, (_, c) =>
-      el(doc, 'col', { min: c + 1, max: c + 1, width: (widths.get(c) / 5.65).toFixed(5), customWidth: 1 })));
-    for (const [r, row] of rows) {
-      if (r >= mapRow(70) && r !== roleRow) { rows.delete(r); continue; }
-      for (const node of row.children) style(node, { size: r === 1 ? 12 : r === 7 ? 12 : 8 });
-    }
-    const metadataLines = Math.max(1, Math.ceil(String(section.subject || '').length / 75), Math.ceil(String(metadata.teacherName || '').length / 75), Math.ceil([period.name,section.level,section.section].join(' ').length/48));
-    const headerHeights = [17,10,10,10,10,2,14,2,2,12,2,2,metadataLines * 10 + 3,13,14,28,28,14];
-    headerHeights.forEach((points, i) => height(i + 1, points));
-    for (let r = 14; r <= lastLearnerRow; r++) {
-      for (let c = 0; c <= lastCol; c++) style(cell(c, r), { size: r <= 18 ? 7 : 8, grid: true });
-      if (r >= 19) {
-        const name = String(period.roster[r - 19]?.name || '');
-        const descriptor = cell(lastCol,r).getElementsByTagNameNS(NS,'v')[0]?.textContent || '';
-        const lines = Math.max(Math.ceil(descriptor.length/17),name.split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / 25)), 0));
-        height(r, Math.max(10, lines * 9 + 1));
-      }
-    }
-    for (const kind of ['ww', 'pt']) for (const c of rawColumns[kind]) style(cell(c, 17), { size: 8, grid: true, wrap: false, rotate: 90 });
-    // Short dates fit vertically; the register carries the complete calendar date.
-    rawColumns.qa.forEach((c, i) => {
-      const role = period.activityMeta?.qa?.[i]?.role || root.CSTRGrading.defaultRole('qa', i, section.gradingCategory || section.subject);
-      const date = String(period.qaDates[i] || '').replace(/^\d{4}-(\d{2})-(\d{2})$/, '$1/$2');
-      const label = { st1: 'Long quiz / Unit test', st2: 'Monthly exam', te: payload.calendarMode === 'trimester' ? 'Term exam' : 'Quarterly exam' }[role] || '';
-      write(c, 15, [section.weights[2] ? roleLabel(role) : 'Not counted', date, label].filter(Boolean).join('\n'));
-      style(cell(c, 15), { size: 7, grid: true });
-    });
-    const merges = sheet.getElementsByTagNameNS(NS, 'mergeCells')[0];
-    const kept = [...merges.children].filter(n => address(n.getAttribute('ref').split(':')[0]).r < mapRow(70));
-    merges.replaceChildren(...kept); merges.setAttribute('count', kept.length);
-    // Metadata labels originally occupied individual narrow score columns.
-    // Give them their own merged lanes, leaving the school's score table intact.
-    for (const r of [10,11,13]) {
-      for (const node of [...merges.children]) if (address(node.getAttribute('ref').split(':')[0]).r === r) node.remove();
-      for (let c = 0; c <= lastCol; c++) { write(c, r, ''); style(cell(c,r), { clearBorder: true }); }
-    }
-    const metadataLane = (r, start, end, value) => {
-      write(mapCol(start), r, value); style(cell(mapCol(start), r), { size: 8, clearBorder: true });
-      merges.appendChild(el(doc, 'mergeCell', { ref: `${col(mapCol(start))}${r}:${col(mapCol(end))}${r}` }));
-    };
-    metadataLane(10,0,10,'REGION VI · DIVISION OF SAN CARLOS');
-    metadataLane(10,11,23,'SCHOOL: COLEGIO DE STO. TOMAS-RECOLETOS, INC.');
-    metadataLane(10,24,34,`SCHOOL ID: 404207 · SCHOOL YEAR: ${metadata.schoolYear || ''}`);
-    metadataLane(13,0,6,`${period.name || ''} · ${section.level || ''} - ${section.section || ''}`);
-    metadataLane(13,7,23,`TEACHER: ${String(metadata.teacherName || '').replace(/\s+/gu,' ')}`);
-    metadataLane(13,24,34,`SUBJECT: ${section.subject || ''}`);
-    merges.setAttribute('count',merges.children.length);
-    // Signatories occupy the bottom of the final grade page, including short classes.
-    const nameLines = Math.max(1, ...['teacherName','checkerName','reviewerName','principalName'].map(k => Math.ceil(String(metadata[k] || '').length / 48)));
-    const signatureHeights = [0, 4, 11, 16, Math.max(12, nameLines * 10 + 2), 12];
-    signatureHeights.forEach((points, i) => height(mapRow(64 + i), points));
-    for (const r of [66,68,69]) for (const node of rows.get(mapRow(r)).children) style(node, { size: 8 });
-    const printableHeight = 8.5 * 72 - .6 * 72;
-    const headerHeight = sumNumbers(headerHeights), signatureHeight = sumNumbers(signatureHeights);
-    const bodyBudget = printableHeight - headerHeight - signatureHeight - 4;
-    const continuationBudget = printableHeight - headerHeight - 4;
-    let pageHeight = 0;
-    const breaks = [];
-    const visibleRows = [...rows.keys()].filter(r=>r>=19&&r<=lastLearnerRow&&rows.get(r).getAttribute('hidden')!=='1');
-    let remainingHeight = sumNumbers(visibleRows.map(r=>Number(rows.get(r).getAttribute('ht'))));
-    for (const [index,r] of visibleRows.entries()) {
-      const row = rows.get(r);
-      const rowHeight = Number(row.getAttribute('ht'));
-      const finalPage = pageHeight + remainingHeight <= bodyBudget;
-      const remainingRows = visibleRows.length - index;
-      // Keep a useful final group with its signatures rather than an orphan row.
-      const leaveFinalGroup = !finalPage && remainingRows <= 6 && remainingHeight <= bodyBudget;
-      if (pageHeight && (pageHeight + rowHeight > continuationBudget || leaveFinalGroup)) { breaks.push(r - 1); pageHeight = 0; }
-      pageHeight += rowHeight;
-      remainingHeight -= rowHeight;
-    }
-    height(mapRow(64), Math.max(4, printableHeight - headerHeight - signatureHeight - pageHeight - 4));
-    for (const node of sheet.querySelectorAll('printOptions,rowBreaks,colBreaks,headerFooter')) node.remove();
-    const margins = sheet.getElementsByTagNameNS(NS, 'pageMargins')[0], setup = sheet.getElementsByTagNameNS(NS, 'pageSetup')[0];
-    sheet.insertBefore(el(doc, 'printOptions', { horizontalCentered: 0, verticalCentered: 0, gridLines: 0, headings: 0 }), margins);
-    for (const [key, value] of Object.entries({ left: .25, right: .25, top: .3, bottom: .3, header: .1, footer: .1 })) margins.setAttribute(key, value);
-    for (const attr of ['fitToWidth','fitToHeight']) setup.removeAttribute(attr);
-    for (const [key, value] of Object.entries({ paperSize: 14, orientation: 'landscape', scale: 100 })) setup.setAttribute(key, value);
-    const printPr = sheet.getElementsByTagNameNS(NS, 'pageSetUpPr')[0];
-    printPr.setAttribute('fitToPage', '0'); printPr.setAttribute('autoPageBreaks', '0');
-    const footer = el(doc, 'headerFooter');
-    const oddFooter = el(doc, 'oddFooter'); oddFooter.textContent = '&R&"Arial"&8Page &P of &N'; footer.appendChild(oddFooter); setup.after(footer);
-    const rowBreaks = el(doc, 'rowBreaks', { count: breaks.length, manualBreakCount: breaks.length });
-    for (const id of breaks) rowBreaks.appendChild(el(doc, 'brk', { id, min: 0, max: 16383, man: 1 }));
-    footer.after(rowBreaks);
-    const columnBreaks = [];
-    let bandWidth = 0;
-    for (let c = 0; c <= lastCol; c++) {
-      if (bandWidth + widths.get(c) > 899 && c > 2) { columnBreaks.push(c); bandWidth = 124; }
-      bandWidth += widths.get(c);
-    }
-    const colBreaks = el(doc, 'colBreaks', { count: columnBreaks.length, manualBreakCount: columnBreaks.length });
-    for (const id of columnBreaks) colBreaks.appendChild(el(doc, 'brk', { id, min: 0, max: 1048575, man: 1 }));
-    rowBreaks.after(colBreaks);
-    sheet.getElementsByTagNameNS(NS, 'dimension')[0].setAttribute('ref', `A1:${col(lastCol)}${roleRow}`);
-    // Keep the logo at a fixed physical size after narrowing the native columns.
-    const drawing = parse(await zip.file('xl/drawings/drawing1.xml').async('string'));
-    const dns = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing';
-    for (const anchor of [...drawing.documentElement.children]) {
-      const picture = anchor.getElementsByTagNameNS(dns, 'pic')[0]; if (!picture) continue;
-      const fixed = drawing.createElementNS(dns, 'xdr:absoluteAnchor');
-      const pos = drawing.createElementNS(dns, 'xdr:pos'); pos.setAttribute('x', 35 * 12700); pos.setAttribute('y', 3 * 12700);
-      const ext = drawing.createElementNS(dns, 'xdr:ext'); ext.setAttribute('cx', 48 * 12700); ext.setAttribute('cy', 42 * 12700);
-      fixed.append(pos, ext, picture, drawing.createElementNS(dns, 'xdr:clientData')); anchor.replaceWith(fixed);
-    }
-    zip.file('xl/drawings/drawing1.xml', serialize(drawing));
-
-    // A separate print sheet prevents roster print titles and score widths from
-    // leaking onto the register. Every activity retains its full date and HPS.
-    const activityDoc = parse(`<worksheet xmlns="${NS}"/>`), activitySheet = activityDoc.documentElement;
-    const pr = el(activityDoc, 'sheetPr'); pr.appendChild(el(activityDoc, 'pageSetUpPr', { fitToPage: 0 })); activitySheet.appendChild(pr);
-    const entries = Object.entries(register).flatMap(([kind, list]) => list.map(entry => ({ kind, ...entry })));
-    activitySheet.appendChild(el(activityDoc, 'dimension', { ref: `A1:G${Math.max(6, entries.length + 5)}` }));
-    const views = el(activityDoc, 'sheetViews'), view = el(activityDoc, 'sheetView', { workbookViewId: 0 });
-    view.appendChild(el(activityDoc, 'pane', { ySplit: 5, topLeftCell: 'A6', activePane: 'bottomLeft', state: 'frozen' })); views.appendChild(view); activitySheet.appendChild(views);
-    activitySheet.appendChild(el(activityDoc, 'sheetFormatPr', { defaultRowHeight: 24 }));
-    const activityWidths = [55,80,210,240,190,72,51];
-    const activityCols = el(activityDoc, 'cols'); activityWidths.forEach((points, i) => activityCols.appendChild(el(activityDoc, 'col', { min: i + 1, max: i + 1, width: (points / 5.65).toFixed(5), customWidth: 1 }))); activitySheet.appendChild(activityCols);
-    const data = el(activityDoc, 'sheetData'); activitySheet.appendChild(data);
-    function activityRow(r, values, points, grid = false, size = 9, dateIndex = -1) {
-      const row = el(activityDoc, 'row', { r, ht: points, customHeight: 1 }); data.appendChild(row);
-      values.forEach((value, c) => {
-        const node = el(activityDoc, 'c', { r: `${col(c)}${r}` });
-        const source = cell(mapCol(c === dateIndex ? 2 : 4), mapRow(76));
-        node.setAttribute('s', source.getAttribute('s') || '0'); style(node, { size, grid, bold: r === 1 || r === 5 });
-        const dateTime = c === dateIndex ? Date.parse(value + 'T00:00:00Z') : NaN;
-        if (c === dateIndex && /^\d{4}-\d{2}-\d{2}$/.test(String(value)) && Number.isFinite(dateTime) && new Date(dateTime).toISOString().slice(0,10) === value) {
-          const v = el(activityDoc, 'v'); v.textContent = (Date.parse(value + 'T00:00:00Z') - Date.UTC(1899,11,30)) / 86400000; node.appendChild(v);
-          // Reuse the numeric date style generated for the old summary date.
-          const xf = xfs.children[Number(node.getAttribute('s'))].cloneNode(true);
-          const numFmts = stylesDoc.getElementsByTagNameNS(NS,'numFmts')[0];
-          let fmt = [...numFmts.children].find(n => n.getAttribute('formatCode') === 'mm/dd/yyyy');
-          if (!fmt) { fmt=el(stylesDoc,'numFmt',{numFmtId:Math.max(163,...[...numFmts.children].map(n=>Number(n.getAttribute('numFmtId'))))+1,formatCode:'mm/dd/yyyy'});numFmts.appendChild(fmt);numFmts.setAttribute('count',numFmts.children.length); }
-          xf.setAttribute('numFmtId', fmt.getAttribute('numFmtId')); xf.setAttribute('applyNumberFormat', '1'); node.setAttribute('s', xfs.children.length); xfs.appendChild(xf);
-        } else if (typeof value === 'number' && Number.isFinite(value)) { const v = el(activityDoc, 'v'); v.textContent = value; node.appendChild(v); }
-        else { node.setAttribute('t', 'inlineStr'); const inline = el(activityDoc, 'is'), text = el(activityDoc, 't'); text.setAttribute('xml:space', 'preserve'); text.textContent = value == null ? '' : String(value).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ''); inline.appendChild(text); node.appendChild(inline); }
-        row.appendChild(node);
-      });
-    }
-    activityRow(1, ['Activity register'], 22, false, 12);
-    activityRow(2, [section.subject || ''], 20);
-    activityRow(3, [[period.name, section.level, section.section, metadata.schoolYear].filter(Boolean).join(' · ')], 20);
-    activityRow(4, [metadata.teacherName || ''], 20);
-    activityRow(5, ['Component','Score column','Activity title / Assessment group','Learning competency','Topic','Date','HPS'], 25, true);
-    const registerBreaks = []; let registerHeight = 107;
-    entries.forEach((entry, i) => {
-      const values = [entry.kind.toUpperCase(), entry.column, entry.title, entry.competency, entry.topicOnly, entry.date, root.CSTRGrading.numberOrNull(entry.hps) ?? ''];
-      const lineCount = Math.max(1, ...values.map((v,c) => String(v || '').split('\n').reduce((n,line) => n + Math.max(1, Math.ceil(line.length / Math.max(5, Math.floor(activityWidths[c] / 4.8)))), 0)));
-      const points = Math.min(409, Math.max(25, lineCount * 11 + 5));
-      if (registerHeight + points > printableHeight - 4) { registerBreaks.push(i + 5); registerHeight = 107; }
-      activityRow(i + 6, values, points, true, 9, 5); registerHeight += points;
-    });
-    if (!entries.length) activityRow(6, ['No recorded activities.','','','','','',''], 25, true);
-    const activityMerges = el(activityDoc, 'mergeCells', { count: 4 });
-    for (const r of [1,2,3,4]) activityMerges.appendChild(el(activityDoc, 'mergeCell', { ref: `A${r}:G${r}` })); activitySheet.appendChild(activityMerges);
-    for (const tag of ['printOptions','pageMargins','pageSetup','headerFooter']) activitySheet.appendChild(sheet.getElementsByTagNameNS(NS, tag)[0].cloneNode(true));
-    const activityBreaks = el(activityDoc, 'rowBreaks', { count: registerBreaks.length, manualBreakCount: registerBreaks.length });
-    for (const id of registerBreaks) activityBreaks.appendChild(el(activityDoc, 'brk', { id, min: 0, max: 16383, man: 1 })); activitySheet.appendChild(activityBreaks);
-    zip.file('xl/worksheets/sheet2.xml', serialize(activityDoc));
-    fonts.setAttribute('count', fonts.children.length);
-    return { endRow: mapRow(69), registerEndRow: Math.max(6, entries.length + 5), style };
-  }
-
   // One contiguous range per component, with a hidden row for assessment roles.
   // Formula length is independent of how often the roles alternate.
   function groupTerms(columns, row, roleRow, role) {
@@ -601,7 +387,7 @@
       const headerLines=Math.max(1,Math.ceil(String(section.subject||'').length/38),Math.ceil(String(metadata.teacherName||'').length/50),Math.ceil(String(section.level+' '+section.section).length/25));
       if(headerLines>1){ensureRow(13).setAttribute('ht',Math.max(28.5,headerLines*14+3));ensureRow(13).setAttribute('customHeight','1');}
     }
-    // Keep the school's signatory lanes; the print layout wraps long names.
+    // Keep the school layout, reserving a continuous single-line lane for each signatory.
     const merges=sheet.getElementsByTagNameNS(NS,'mergeCells')[0];
     const signatureRows = [66, 68, 69];
     const mergeRefs=oldMerges.filter(ref => original || !signatureRows.includes(address(ref.split(':')[0]).r)).map(mapRef);
@@ -628,9 +414,42 @@
       const meta=period.activityMeta?.[kind]?.[index]||{},date=period[kind+'Dates'][index]||'';
       if(!present(hps)&&!present(date)&&!['title','topic','competency'].some(k=>present(meta[k])))return [];
       const role=meta.role||root.CSTRGrading.defaultRole(kind,index,section.gradingCategory || section.subject);
-      return [{column:`${col(rawColumns[kind][index])}`,date,title:[meta.title,roleLabel(role)].filter(Boolean).join(' - '),topic:[meta.topic,meta.competency].filter(Boolean).join('\n'),topicOnly:meta.topic||'',competency:meta.competency||'',hps}];
+      return [{column:`${col(rawColumns[kind][index])}`,date,title:[meta.title,roleLabel(role)].filter(Boolean).join(' - '),topic:[meta.topic,meta.competency].filter(Boolean).join('\n'),hps}];
     });
+    const summaryLength=original ? 7 : Math.max(7,...Object.values(register).map(items=>items.length));
+    const endRow=mapRow(75)+summaryLength;
+    if(!original){
+      // Normalize only the originally irregular summary merges. Everything above
+      // the activity table keeps the school's exact merges and native assets.
+      for(let i=mergeRefs.length-1;i>=0;i--)if(address(mergeRefs[i].split(':')[0]).r>=mapRow(76))mergeRefs.splice(i,1);
+      for(let i=0;i<summaryLength;i++){
+        const r=mapRow(76)+i; ensureRow(r,76);
+        if (i > 0 && !Object.values(register).some(entries => entries[i])) ensureRow(r).setAttribute('hidden', '1');
+        for(let c=2;c<=lastCol;c++)write(c,r,'');
+        for(const [kind,start,dateEnd,titleStart,titleEnd,topicStart,topicEnd] of [['ww',2,3,4,9,10,14],['pt',15,16,17,22,23,24],['qa',25,26,27,32,33,34]]){
+          const entry=register[kind][i];
+          for(const [a,b] of [[start,dateEnd],[titleStart,titleEnd],[topicStart,topicEnd]])mergeRefs.push(`${col(mapCol(a))}${r}:${col(mapCol(b))}${r}`);
+          cell(mapCol(start),r).setAttribute('s',originalStyles.get('C76')||'0');
+          writeDate(mapCol(start),r,entry?.date||'','mm/dd/yy');write(mapCol(titleStart),r,entry?`${entry.column}: ${entry.title}`:'');write(mapCol(topicStart),r,entry?.topic||'');
+        }
+        const maxLines=Math.max(1,...['ww','pt','qa'].map(k=>{const e=register[k][i];return e?Math.max(Math.ceil((e.title.length+5)/26),e.topic.split('\n').reduce((n,x)=>n+Math.max(1,Math.ceil(x.length/30)),0)):1;}));
+        ensureRow(r).setAttribute('ht',Math.max(15,14*maxLines+3)); ensureRow(r).setAttribute('customHeight','1');
+        for(const c of [4,10,17,23,27,33].map(mapCol)){const node=cell(c,r); node.setAttribute('s',originalStyles.get('E76')||'0');fitCell(c,r);}
+      }
+      W('Z',73,'C. Assessments');W('Z',75,'Date');W('AB',75,'Activities');W('AH',75,'Topics');W('AG',75,'');W('AI',75,'');
+    }
     merges.replaceChildren(...mergeRefs.map(ref=>el(doc,'mergeCell',{ref})));merges.setAttribute('count',mergeRefs.length);
+    // Clone native widths for added columns, preserving existing widths exactly.
+    const cols=sheet.getElementsByTagNameNS(NS,'cols')[0],newCols=[];
+    for(const node of [...cols.children]){
+      const min=Number(node.getAttribute('min'))-1,max=Math.min(34,Number(node.getAttribute('max'))-1);
+      for(let c=min;c<=max;c++){const clone=node.cloneNode(true);clone.setAttribute('min',mapCol(c)+1);clone.setAttribute('max',mapCol(c)+1);newCols.push(clone);}
+    }
+    for(const [kind,threshold,source] of [['ww',12,10],['pt',22,21],['qa',27,26]]){
+      const style=newCols.find(n=>Number(n.getAttribute('min'))===mapCol(source)+1);
+      for(let i=0;i<added[kind];i++){const clone=style.cloneNode(true),c=mapCol(threshold)-added[kind]+i+1;clone.setAttribute('min',c);clone.setAttribute('max',c);newCols.push(clone);}
+    }
+    cols.replaceChildren(...newCols.sort((a,b)=>Number(a.getAttribute('min'))-Number(b.getAttribute('min'))));
     // Keep the failing-grade fill, with the same black number as every other grade.
     for(const formatting of [...sheet.getElementsByTagNameNS(NS,'conditionalFormatting')]){
       const start=formatting.getAttribute('sqref').split(':')[0];
@@ -661,9 +480,161 @@
     }
     validations.setAttribute('count',validations.children.length);
     const before=[...sheet.children].find(n=>['hyperlinks','printOptions','pageMargins','pageSetup','headerFooter','rowBreaks','colBreaks','drawing'].includes(n.localName));sheet.insertBefore(validations,before||null);
+    // Keep every native cell, label, merge and formula. Only size and style the
+    // existing layout; separate print areas put its existing register on page 2.
+    const sharedDoc=zip.file('xl/sharedStrings.xml')?parse(await zip.file('xl/sharedStrings.xml').async('string')):null;
+    const shared=[...(sharedDoc?.getElementsByTagNameNS(NS,'si')||[])].map(n=>n.textContent);
+    const canvas=document.createElement('canvas'),measure=canvas.getContext('2d');
+    const fontVariants=new Map(),printStyles=new Map(),borderVariants=new Map();
+    const borders=stylesDoc.getElementsByTagNameNS(NS,'borders')[0];
+    const columnNodes=[...cols.children],columnWidths=new Map();
+    // Arial-11 remains the workbook's Normal style; clones change cell fonts only.
+    // Points per column-width unit include Excel's printer-metric allowance.
+    const pointsPerWidth=5.55,sidePadding=4,lineLeading=1.08;
+    const uniformDateWidth=Math.max(7.5,...[...rawColumns.ww,...rawColumns.pt].map(c=>{
+      const node=columnNodes.find(n=>Number(n.getAttribute('min'))===c+1);
+      return Number(node.getAttribute('width'))+1;
+    }));
+    for(const node of columnNodes){
+      const c=Number(node.getAttribute('min'))-1;
+      let width=rawColumns.ww.includes(c)||rawColumns.pt.includes(c)?uniformDateWidth:Number(node.getAttribute('width'))+1;
+      if([13,23,31].map(mapCol).includes(c))width=Math.max(width,12); // Teacher label and precise component weights.
+      if(rawColumns.qa.includes(c))width=Math.max(width,13); // Keep exam words intact.
+      node.setAttribute('width',width);node.setAttribute('customWidth','1');columnWidths.set(c,width);
+    }
+    function printStyle(node,r,c){
+      const base=Number(node.getAttribute('s')||0),grid=r>=14&&r<=lastLearnerRow;
+      const size=r>=19&&r<=lastLearnerRow||r===mapRow(68)?15:14;
+      const source=cellXfs.children[base],sourceFont=Number(source.getAttribute('fontId')||0);
+      const font=fonts.children[sourceFont],nativeSize=Number(font.getElementsByTagNameNS(NS,'sz')[0]?.getAttribute('val')||11);
+      const finalSize=nativeSize>=15?15:size,date=r===17&&([...rawColumns.ww,...rawColumns.pt].includes(c));
+      const noWrap=date||r===10||r===11||[mapRow(71),mapRow(73),mapRow(75)].includes(r)||r===13&&c===mapCol(13);
+      const key=[base,finalSize,grid,noWrap].join('|');
+      if(!printStyles.has(key)){
+        const clone=source.cloneNode(true),fontKey=[sourceFont,finalSize].join('|');
+        if(!fontVariants.has(fontKey)){
+          const f=font.cloneNode(true);f.getElementsByTagNameNS(NS,'sz')[0].setAttribute('val',finalSize);
+          fontVariants.set(fontKey,fonts.children.length);fonts.appendChild(f);
+        }
+        clone.setAttribute('fontId',fontVariants.get(fontKey));clone.setAttribute('applyFont','1');
+        let alignment=clone.getElementsByTagNameNS(NS,'alignment')[0];
+        if(!alignment){alignment=el(stylesDoc,'alignment');clone.appendChild(alignment);}
+        alignment.setAttribute('wrapText',noWrap?'0':'1');alignment.setAttribute('shrinkToFit','0');alignment.setAttribute('vertical','center');
+        clone.setAttribute('applyAlignment','1');
+        if(grid){
+          const oldBorder=Number(source.getAttribute('borderId')||0);
+          if(!borderVariants.has(oldBorder)){
+            const border=borders.children[oldBorder].cloneNode(true);
+            for(const side of ['left','right','top','bottom']){
+              let edge=border.getElementsByTagNameNS(NS,side)[0];
+              if(!edge){edge=el(stylesDoc,side);const order=['left','right','top','bottom','diagonal'];border.insertBefore(edge,[...border.children].find(n=>order.indexOf(n.localName)>order.indexOf(side))||null);}
+              if(!edge.getAttribute('style')){edge.setAttribute('style','thin');edge.replaceChildren(el(stylesDoc,'color',{rgb:'FF000000'}));}
+            }
+            borderVariants.set(oldBorder,borders.children.length);borders.appendChild(border);
+          }
+          clone.setAttribute('borderId',borderVariants.get(oldBorder));clone.setAttribute('applyBorder','1');
+        }
+        printStyles.set(key,cellXfs.children.length);cellXfs.appendChild(clone);
+      }
+      node.setAttribute('s',printStyles.get(key));
+    }
+    for(let r=14;r<=lastLearnerRow;r++)for(let c=0;c<=lastCol;c++)cell(c,r);
+    for(const [r,row] of rows)if(r<=endRow)for(const node of row.children)printStyle(node,r,address(node.getAttribute('r')).c);
+    function setHeight(r,height){const row=ensureRow(r);row.setAttribute('ht',Math.min(409,height));row.setAttribute('customHeight','1');row.removeAttribute('thickBot');}
+    for(const r of [6,9,12])setHeight(r,4);
+    for(let r=19;r<=lastLearnerRow;r++)setHeight(r,20.5);
+    for(const r of [64,65])setHeight(mapRow(r),6);
+    const mergeStarts=new Map(),covered=new Set();
+    for(const ref of mergeRefs){
+      const [first,last]=ref.split(':').map(address);mergeStarts.set(ref.split(':')[0],{first,last});
+      for(let r=first.r;r<=last.r;r++)for(let c=first.c;c<=last.c;c++)if(r!==first.r||c!==first.c)covered.add(`${col(c)}${r}`);
+    }
+    function shown(node){
+      const t=node.getAttribute('t'),v=node.getElementsByTagNameNS(NS,'v')[0]?.textContent||'';
+      if(t==='s')return shared[Number(v)]||'';
+      if(t==='inlineStr')return node.getElementsByTagNameNS(NS,'is')[0]?.textContent||'';
+      if(t==='str'||!v)return v;
+      const xf=cellXfs.children[Number(node.getAttribute('s')||0)],id=Number(xf.getAttribute('numFmtId')||0);
+      const format=[...numFmts.children].find(n=>Number(n.getAttribute('numFmtId'))===id)?.getAttribute('formatCode')||({1:'0',2:'0.00',9:'0%',10:'0.00%',14:'mm/dd/yy'}[id]||'General');
+      if(/[md]/i.test(format)&&/d/i.test(format)){
+        const d=new Date(Date.UTC(1899,11,30)+Number(v)*86400000);
+        return format==='m/d'?`${d.getUTCMonth()+1}/${d.getUTCDate()}`:`${String(d.getUTCMonth()+1).padStart(2,'0')}/${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCFullYear()).slice(-2)}`;
+      }
+      const decimals=/0\.(0+)/.exec(format)?.[1].length||0;
+      return format.includes('%')?(Number(v)*100).toFixed(decimals)+'%':format==='General'?v:Number(v).toFixed(decimals);
+    }
+    function linesFor(text,width){
+      let count=0;
+      for(const paragraph of String(text).split('\n')){
+        let line='';count++;
+        for(const word of paragraph.split(/\s+/u)){
+          const candidate=line?line+' '+word:word;
+          if(measure.measureText(candidate).width*.75<=width){line=candidate;continue;}
+          if(line){count++;line='';}
+          for(const ch of word){if(line&&measure.measureText(line+ch).width*.75>width){count++;line='';}line+=ch;}
+        }
+      }
+      return count;
+    }
+    for(const [r,row] of rows){
+      if(r>endRow||row.getAttribute('hidden')==='1')continue;
+      for(const node of row.children){
+        const ref=node.getAttribute('r');if(covered.has(ref))continue;
+        const text=shown(node);if(!present(text))continue;
+        const pos=address(ref),merge=mergeStarts.get(ref)||{first:pos,last:pos};
+        let width=0,height=0;for(let c=merge.first.c;c<=merge.last.c;c++)width+=columnWidths.get(c)*pointsPerWidth;
+        for(let rr=merge.first.r;rr<=merge.last.r;rr++)height+=Number(rows.get(rr)?.getAttribute('ht')||15);
+        const xf=cellXfs.children[Number(node.getAttribute('s')||0)],font=fonts.children[Number(xf.getAttribute('fontId')||0)];
+        const size=Number(font.getElementsByTagNameNS(NS,'sz')[0].getAttribute('val')),name=font.getElementsByTagNameNS(NS,'name')[0]?.getAttribute('val')||'Arial';
+        measure.font=`${font.getElementsByTagNameNS(NS,'b').length?'bold ':''}${size}pt "${name}"`;
+        const wraps=xf.getElementsByTagNameNS(NS,'alignment')[0]?.getAttribute('wrapText')==='1';
+        const required=(wraps?linesFor(text,Math.max(6,width-sidePadding)):1)*size*lineLeading+sidePadding;
+        if(required>height){const target=Math.floor((merge.first.r+merge.last.r)/2);setHeight(target,Number(rows.get(target)?.getAttribute('ht')||15)+required-height);}
+      }
+    }
+    const mainEnd=mapRow(69),margin=.25,printWidth=(13-2*margin)*72,printHeight=(8.5-2*margin)*72;
+    const visibleLearners=[...rows.keys()].filter(r=>r>=19&&r<=lastLearnerRow&&rows.get(r).getAttribute('hidden')!=='1');
+    const signatureGap=mapRow(67),mainRows=[...rows.keys()].filter(r=>r<=mainEnd&&r!==signatureGap&&rows.get(r).getAttribute('hidden')!=='1');
+    const otherHeight=sumNumbers(mainRows.map(r=>Number(rows.get(r).getAttribute('ht')||15)));
+    const nativeWidth=sumNumbers([...columnWidths.values()])*pointsPerWidth;
+    const signingSpace=28/printHeight,targetHeight=Math.max(otherHeight/(1-signingSpace),nativeWidth*printHeight/printWidth);
+    setHeight(signatureGap,targetHeight*signingSpace);
+    let spare=Math.max(0,targetHeight-otherHeight-targetHeight*signingSpace);
+    const extra=visibleLearners.length?Math.min(8,spare/visibleLearners.length):0;
+    for(const r of visibleLearners)setHeight(r,Number(rows.get(r).getAttribute('ht'))+extra);
+    spare-=extra*visibleLearners.length;
+    for(const r of [mapRow(64),mapRow(65),6,9,12]){
+      const old=Number(rows.get(r).getAttribute('ht')||15),add=Math.min(spare,409-old);setHeight(r,old+add);spare-=add;
+    }
+    const widthFactor=targetHeight*printWidth/printHeight/nativeWidth;
+    for(const node of columnNodes)node.setAttribute('width',Math.min(255,Number(node.getAttribute('width'))*widthFactor).toFixed(5));
+    // Native two-cell anchors stretch the logo when row/column sizes change.
+    // Retain its original position, picture data and native physical dimensions.
+    const drawing=parse(await zip.file('xl/drawings/drawing1.xml').async('string'));
+    const dns='http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',ans='http://schemas.openxmlformats.org/drawingml/2006/main';
+    for(const anchor of [...drawing.documentElement.children]){
+      if(anchor.localName!=='twoCellAnchor')continue;
+      const picture=anchor.getElementsByTagNameNS(dns,'pic')[0],from=anchor.getElementsByTagNameNS(dns,'from')[0];
+      const native=picture?.getElementsByTagNameNS(ans,'xfrm')[0]?.getElementsByTagNameNS(ans,'ext')[0];
+      if(!picture||!from||!native)continue;
+      const fixed=drawing.createElementNS(dns,'xdr:oneCellAnchor'),extent=drawing.createElementNS(dns,'xdr:ext');
+      extent.setAttribute('cx',native.getAttribute('cx'));extent.setAttribute('cy',native.getAttribute('cy'));
+      fixed.append(from,extent,picture,anchor.getElementsByTagNameNS(dns,'clientData')[0]||drawing.createElementNS(dns,'xdr:clientData'));anchor.replaceWith(fixed);
+    }
+    zip.file('xl/drawings/drawing1.xml',serialize(drawing));
+    fonts.setAttribute('count',fonts.children.length);borders.setAttribute('count',borders.children.length);
+    const pageSetup=sheet.getElementsByTagNameNS(NS,'pageSetup')[0];
+    const pageMargins=sheet.getElementsByTagNameNS(NS,'pageMargins')[0];
+    const printOptions=el(doc,'printOptions',{horizontalCentered:1,verticalCentered:1});
+    sheet.insertBefore(printOptions,pageMargins);
+    for (const [key, value] of Object.entries({left:.25,right:.25,top:.25,bottom:.25,header:.1,footer:.1})) pageMargins.setAttribute(key,value);
+    // Excel's Folio code is 8.5 x 13 inches. Fit the full print area in landscape.
+    pageSetup.removeAttribute('scale');
+    for (const [key,value] of Object.entries({paperSize:14,orientation:'landscape',fitToWidth:1,fitToHeight:1})) pageSetup.setAttribute(key,value);
+    sheet.getElementsByTagNameNS(NS,'pageSetUpPr')[0].setAttribute('fitToPage','1');
+    for (const node of sheet.querySelectorAll('rowBreaks,colBreaks')) node.remove();
+    const dimension=sheet.getElementsByTagNameNS(NS,'dimension')[0];dimension.setAttribute('ref',`A1:${col(lastCol)}${roleRow}`);
     for(const view of [...sheet.getElementsByTagNameNS(NS,'sheetView')]){view.setAttribute('topLeftCell','A1');view.setAttribute('zoomScale','100');view.setAttribute('zoomScaleNormal','100');for(const selection of [...view.getElementsByTagNameNS(NS,'selection')])selection.remove();view.appendChild(el(doc,'selection',{activeCell:'B19',sqref:'B19'}));}
-    const printLayout = await layoutPrint({ zip, doc, stylesDoc, rows, cell, write, mapCol, mapRow,
-      lastCol, lastLearnerRow, roleRow, rawColumns, register, payload });
     for(const row of rows.values()){
       const sorted=[...row.children].sort((a,b)=>address(a.getAttribute('r')).c-address(b.getAttribute('r')).c);row.replaceChildren(...sorted);
     }
@@ -674,25 +645,11 @@
     const subjectSheet=String(section.subject||'').replace(/[\\/?*\[\]:()\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,31).replace(/^[\s']+|[\s']+$/g,'');
     const safeSheet = !subjectSheet || /^history$/i.test(subjectSheet) ? 'Class Record' : subjectSheet;
     wb.getElementsByTagNameNS(NS,'sheet')[0].setAttribute('name',safeSheet);
-    const activitySheetName = safeSheet.toLowerCase() === 'activity register' ? 'Activity register (2)' : 'Activity register';
-    const wbRels = parse(await zip.file('xl/_rels/workbook.xml.rels').async('string'));
-    const relNS = 'http://schemas.openxmlformats.org/package/2006/relationships';
-    const newId = `rId${Math.max(0,...[...wbRels.documentElement.children].map(n => Number(n.getAttribute('Id').replace(/^rId/,'')) || 0)) + 1}`;
-    const relation = wbRels.createElementNS(relNS, 'Relationship');
-    for (const [k,v] of Object.entries({ Id:newId, Type:'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet', Target:'worksheets/sheet2.xml' })) relation.setAttribute(k,v);
-    wbRels.documentElement.appendChild(relation); zip.file('xl/_rels/workbook.xml.rels',serialize(wbRels));
-    const extraSheet = el(wb,'sheet',{name:activitySheetName,sheetId:4}); extraSheet.setAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','r:id',newId);
-    wb.getElementsByTagNameNS(NS,'sheets')[0].appendChild(extraSheet);
-    const types = parse(await zip.file('[Content_Types].xml').async('string'));
-    const override = types.createElementNS('http://schemas.openxmlformats.org/package/2006/content-types','Override');
-    override.setAttribute('PartName','/xl/worksheets/sheet2.xml'); override.setAttribute('ContentType','application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml');
-    types.documentElement.appendChild(override); zip.file('[Content_Types].xml',serialize(types));
     let names=wb.getElementsByTagNameNS(NS,'definedNames')[0];if(!names){names=el(wb,'definedNames');wb.documentElement.appendChild(names);}
     [...names.children].filter(n=>['_xlnm.Print_Area','_xlnm.Print_Titles'].includes(n.getAttribute('name'))).forEach(n=>n.remove());
     const escaped=`'${safeSheet.replace(/'/g,"''")}'`;
-    for(const [name,value] of [['_xlnm.Print_Area',`${escaped}!$A$1:$${col(lastCol)}$${printLayout.endRow}`],['_xlnm.Print_Titles',`${escaped}!$1:$18,${escaped}!$A:$B`]]){const n=el(wb,'definedName',{name,localSheetId:0});n.textContent=value;names.appendChild(n);}
-    const activityEscaped=`'${activitySheetName.replace(/'/g,"''")}'`;
-    for(const [name,value] of [['_xlnm.Print_Area',`${activityEscaped}!$A$1:$G$${printLayout.registerEndRow}`],['_xlnm.Print_Titles',`${activityEscaped}!$1:$5`]]){const n=el(wb,'definedName',{name,localSheetId:1});n.textContent=value;names.appendChild(n);}
+    const printArea=el(wb,'definedName',{name:'_xlnm.Print_Area',localSheetId:0});
+    printArea.textContent=`${escaped}!$A$1:$${col(lastCol)}$${mainEnd},${escaped}!$A$${mapRow(71)}:$${col(lastCol)}$${endRow}`;names.appendChild(printArea);
     let calc=wb.getElementsByTagNameNS(NS,'calcPr')[0];if(!calc){calc=el(wb,'calcPr');wb.documentElement.appendChild(calc);}calc.setAttribute('calcMode','auto');calc.setAttribute('fullCalcOnLoad','1');calc.setAttribute('forceFullCalc','1');
     zip.file('xl/workbook.xml',serialize(wb));
     // The original calc chain has stale references after layout/formula edits.
@@ -703,7 +660,7 @@
       zip.file(path,serialize(part));
     }
     const bytes=await zip.generateAsync({type:'uint8array',compression:'DEFLATE'});
-    return {bytes,sheetName:safeSheet,range:`A1:${col(lastCol)}${printLayout.endRow}`,resultCells};
+    return {bytes,sheetName:safeSheet,range:`A1:${col(lastCol)}${endRow}`,resultCells};
   }
   async function download(payload) {
     const result=await build(payload),blob=new Blob([result.bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
