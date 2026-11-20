@@ -2574,7 +2574,7 @@
       ["reviewerName", section.group === "SHS" ? "SHS coordinator" : "JHS coordinator", settings.reviewerName || ""],
       ["principalName", "Principal", settings.principalName || ""]
     ];
-    modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="excelExportTitle"><div class="section-heading"><h2 id="excelExportTitle">Export school Excel record</h2>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div><p>${escapeHtml(section.subject)} · ${escapeHtml(currentPeriod().name)} · WW ${section.weights[0]}% / PT ${section.weights[1]}% / EX ${section.weights[2]}%</p><p>Scores and HPS remain editable. Excel recalculates the grades using the selected subject’s required weights. Unentered marks count as zero against configured HPS; A/M count as zero; E/L exclude that activity for that learner. A completely unused column has no HPS and does not count.</p><div class="settings-grid">${fields.map(([key,label,value])=>`<label>${label}<input data-excel-meta="${key}" value="${safeValue(value)}"></label>`).join("")}</div><p>Print layout uses 8.5 × 13 in (Folio), landscape, and Narrow margins. Leave unavailable signatories blank.</p><p id="excelExportMessage" role="status"></p><div class="stack-actions"><button type="button" class="button button-primary" data-action="download-school-excel">Save Excel (.xlsx)</button></div></section>`;
+    modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="excelExportTitle"><div class="section-heading"><h2 id="excelExportTitle">Export school Excel record</h2>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div><p>${escapeHtml(section.subject)} · ${escapeHtml(currentPeriod().name)} · WW ${section.weights[0]}% / PT ${section.weights[1]}% / EX ${section.weights[2]}%</p><p>Scores and HPS remain editable. Excel recalculates the grades using the selected subject’s required weights. Unentered marks count as zero against configured HPS; A/M count as zero; E/L exclude that activity for that learner. A completely unused column has no HPS and does not count.</p><div class="settings-grid">${fields.map(([key,label,value])=>`<label>${label}<input data-excel-meta="${key}" value="${safeValue(value)}"></label>`).join("")}</div><p>Print on 8.5 × 13 in (Folio), landscape, at 100%. Large classes continue onto additional grade pages with repeated headings. The activity register follows on its own worksheet; choose Print Entire Workbook to include it. Margins and page breaks are already set. Leave unavailable signatories blank.</p><p id="excelExportMessage" role="status"></p><div class="stack-actions"><button type="button" class="button button-primary" data-action="download-school-excel">Save Excel (.xlsx)</button></div></section>`;
     document.body.appendChild(modal);
   }
 
@@ -2593,7 +2593,7 @@
       await window.CSTRSchoolExcel.download(payload);
       if (activeRegistry().includes(section)) { section.excelSettings = metadata; markStateDirty(); }
       message?.closest(".modal-backdrop")?.remove();
-      setStatus("School Excel record created with live subject-specific formulas and one-page Folio print settings.");
+      setStatus("School Excel record created with live formulas, actual-size Folio pages, and a separate activity register. Choose Print Entire Workbook to print both sheets.");
     } catch (error) {
       if (message) message.textContent = error.message;
       setStatus(`Excel export failed: ${error.message}`, "error");

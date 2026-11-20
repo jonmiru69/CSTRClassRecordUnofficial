@@ -53,8 +53,19 @@ async function main() {
     layout.period.roster[3] = { name: 'Low, Learner', ww: [0, 0], pt: [0, 0, 0], qa: [0, 0, 0] };
     layout.period.roster[47].name = 'Synthetic, Last Learner';
     layout.period.wwDates[0] = '2026-11-01';
+    layout.period.wwDates[1] = '2026-12-31';
+    layout.period.ptDates[0] = '2026-12-31';
+    layout.period.qaDates[0] = '2026-12-31';
     layout.period.activityMeta.ww[0].title = 'Final print check';
     cases.push(['print-layout', layout]);
+    const thirty = fixture(0);
+    thirty.period.roster = Array.from({length:30},(_,i)=>({...structuredClone(thirty.period.roster[0]),name:`Synthetic, Learner ${i+1}`}));
+    cases.push(['thirty-learners',thirty]);
+    const longActivity = fixture(0);
+    longActivity.period.activityMeta.ww[0] = {title:'=Literal title — Synthetic activity',competency:'Learning competency '.repeat(24),topic:'Topic and discussion '.repeat(12)};
+    longActivity.period.wwDates[0] = '2026-12-31';
+    longActivity.period.roster[0].name = 'Villanueva de los Santos y Fernández, María Alexandra Gabriela';
+    cases.push(['long-activity',longActivity]);
     const pending = fixture(5);
     pending.period.roster[0].ww = ['E', ''];
     pending.period.roster[0].pt = ['A', 'M', 24];
@@ -84,7 +95,23 @@ async function main() {
         const attributes = selector => Object.fromEntries([...doc.querySelector(selector).attributes].map(({name, value}) => [name, value]));
         const offset = Math.max(0, payload.period.roster.length - 45);
         const expanded = payload.period.wwHps.length > 10;
+        const activityDoc = new DOMParser().parseFromString(await zip.file('xl/worksheets/sheet2.xml').async('string'),'application/xml');
+        const workbookDoc = new DOMParser().parseFromString(await zip.file('xl/workbook.xml').async('string'),'application/xml');
+        const hasBorders = node => {
+          const xf=styles.querySelector('cellXfs').children[Number(node.getAttribute('s')||0)];
+          const border=styles.querySelector('borders').children[Number(xf.getAttribute('borderId')||0)];
+          return ['left','right','top','bottom'].every(side=>border.querySelector(side)?.getAttribute('style'));
+        };
         return {
+          sheets: [...workbookDoc.querySelectorAll('sheet')].map(s=>s.getAttribute('name')),
+          areas: [...workbookDoc.querySelectorAll('definedName[name="_xlnm.Print_Area"]')].map(n=>n.textContent),
+          borderFailures: [...doc.querySelectorAll('sheetData row')].filter(n=>Number(n.getAttribute('r'))>=14&&Number(n.getAttribute('r'))<=63+offset).flatMap(r=>[...r.children].filter(c=>!hasBorders(c)).map(c=>c.getAttribute('r'))),
+          registerBorders: [...activityDoc.querySelectorAll('sheetData row')].filter(r=>Number(r.getAttribute('r'))>=5).every(r=>[...r.children].every(hasBorders)),
+          registerRows: activityDoc.querySelectorAll('sheetData row').length,
+          registerText: activityDoc.documentElement.textContent,
+          dateRotation: readCellStyle('C17').querySelector('alignment').getAttribute('textRotation'),
+          rowBreakCount: Number(doc.querySelector('rowBreaks').getAttribute('count')),
+          colBreakCount: Number(doc.querySelector('colBreaks').getAttribute('count')),
           values,
           formulaLength: Math.max(...cells.map(cell => cell.querySelector('f').textContent.length)),
           validations: doc.querySelectorAll('dataValidation').length,
@@ -110,11 +137,22 @@ async function main() {
       }, { payload, template });
       assert(info.formulaLength < 8192, label);
       assert(info.validations >= 42 && info.mergedRanges > 20, label);
-      assert.deepEqual(info.pageSetup, { paperSize: '14', orientation: 'landscape', fitToWidth: '1', fitToHeight: '1' }, label);
-      assert.deepEqual(info.margins, { left: '0.25', right: '0.25', top: '0.75', bottom: '0.75', header: '0.3', footer: '0.3' }, label);
-      assert.equal(info.fitToPage, '1', label);
-      assert.equal(info.printOptions.horizontalCentered, '1', label);
-      assert.equal(info.manualBreaks, 0, label);
+      assert.equal(info.pageSetup.scale, '100', `${label}: print at actual size, without shrinking the complete record and register onto one page`);
+      assert.deepEqual(info.pageSetup, { paperSize: '14', orientation: 'landscape', scale: '100' }, label);
+      assert.deepEqual(info.margins, { left: '0.25', right: '0.25', top: '0.3', bottom: '0.3', header: '0.1', footer: '0.1' }, label);
+      assert.equal(info.fitToPage, '0', label);
+      assert.equal(info.printOptions.horizontalCentered, '0', label);
+      assert.equal(info.manualBreaks, 2, label);
+      assert.equal(info.sheets.length, 2,label);
+      assert.equal(info.sheets[1], 'Activity register',label);
+      assert.match(info.areas[0],new RegExp(`\\$${69+Math.max(0,payload.period.roster.length-45)}$`),label);
+      assert.match(info.areas[1], /'Activity register'!\$A\$1:\$G\$/,label);
+      assert.deepEqual(info.borderFailures,[],label);
+      assert(info.registerBorders,label);
+      assert.equal(info.dateRotation,'90',label);
+      assert.equal(info.colBreakCount>0,label==='expanded-grouped-record',label);
+      if(label==='print-layout') assert(info.rowBreakCount>0,label);
+      if(label==='long-activity') { assert.match(info.registerText,/=Literal title/); assert.match(info.registerText,/Learning competency/); }
       assert(info.fonts.length && info.fonts.every(rgb => rgb === 'FF000000') && !info.gradeRuleFont, label);
       assert.equal(info.conditionalFormats, 1, label);
       if (label !== 'expanded-grouped-record') {
@@ -122,9 +160,9 @@ async function main() {
         assert.deepEqual(info.examWeights, payload.section.weights[2] === 0 ? [0, 0, 0] : label === 'preset-9' ? [0, 0, 1] : [.3, .3, .4], label);
       }
       if (label === 'print-layout') {
-        assert.deepEqual(info.signatures, Object.values(layout.metadata).slice(1).map(name => [name.replace('\n', ' '), '0', '1']));
+        assert.deepEqual(info.signatures, Object.values(layout.metadata).slice(1).map(name => [name.replace('\n', ' '), '1', '0']));
         assert(!info.blankRowsHidden);
-      } else assert(info.blankRowsHidden, label);
+      } else assert.equal(info.blankRowsHidden,payload.period.roster.length===1,label);
       if (label === 'fractional-weights') {
         assert.match(info.headings[0], /20\.125%/);
         assert.deepEqual(info.rawExam, ['6.125', '0']);
@@ -138,8 +176,12 @@ async function main() {
       const descriptor = expected.initial.descriptor + (label === 'pending-and-attendance' ? ' (pending)' : '');
       assert.equal(info.values[2][1], descriptor, label);
       fs.writeFileSync(path.join(output, `${label}.xlsx`), Buffer.from(info.workbook));
+      const changed = structuredClone(payload);
+      changed.period.roster[0].ww[0] = Number(changed.period.wwHps[0]);
+      const changedResult = grading.calculateLearner(changed.period.roster[0],changed.period,changed.section);
       manifest.push({ label, cells: info.values.map(([address]) => address), initial: expected.initial.precise,
-        grade: expected.initial.transmuted, descriptor });
+        grade: expected.initial.transmuted, descriptor, changedScore:changed.period.roster[0].ww[0],
+        changedInitial:changedResult.initial.precise, changedGrade:changedResult.initial.transmuted });
     }
 
     const invalid = fixture(0);
