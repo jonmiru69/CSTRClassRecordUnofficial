@@ -3201,7 +3201,22 @@
   function renderStudentExport(entry, analysis, label, disambiguate = false) {
     const { learner, section, period, periodIndex, rowIndex } = entry;
     const name = disambiguate ? `Record ${periodIndex + 1} Row ${rowIndex + 1} · ${learner.name}` : learner.name;
-    return `<button type="button" class="button button-primary" data-action="export-student-png" data-report-name="${escapeHtml(name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(period.name)}">${icon('download')} ${escapeHtml(label)}</button><div hidden aria-hidden="true">${renderStudentReportSvg(entry, analysis, disambiguate)}</div>`;
+    const context = { calendar: state.calendarMode, sectionId: section.id, periodIndex, rowIndex,
+      learnerName: learner.name, periodName: period.name, slot: reportSlot(section, period, periodIndex), disambiguate };
+    return `<button type="button" class="button button-primary" data-action="export-student-png" data-report-context="${escapeHtml(JSON.stringify(context))}" data-report-name="${escapeHtml(name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(period.name)}">${icon('download')} ${escapeHtml(label)}</button><div hidden aria-hidden="true">${renderStudentReportSvg(entry, analysis, disambiguate)}</div>`;
+  }
+
+  function currentStudentExportEntry(button) {
+    const source = JSON.parse(button.dataset.reportContext);
+    const section = activeRegistry().find(section => section.id === source.sectionId);
+    const period = activeSections()[source.sectionId]?.periods[source.periodIndex];
+    const learner = period?.roster[source.rowIndex];
+    if (source.calendar !== state.calendarMode || !section || !period || !learner || getRowCategory(learner)
+      || learner.name !== source.learnerName || period.name !== source.periodName
+      || reportSlot(section, period, source.periodIndex) !== source.slot) {
+      throw new Error('This roster or period changed. Reopen the student report before saving its image.');
+    }
+    return { entry: studentReportEntry(section, period, source.periodIndex, learner, source.rowIndex), disambiguate: source.disambiguate };
   }
 
   function renderLookupStudentReport(entry, disambiguate) {
@@ -3316,16 +3331,24 @@
   }
 
   async function exportStudentReportPng(button) {
-    const svg = button.nextElementSibling?.querySelector('.student-report-svg')?.cloneNode(true);
-    if (!svg || button.disabled) return;
-    addTommyAssessmentToSvg(svg, button.closest('.report-readable'));
+    if (button.disabled) return;
+    commitActiveFieldEdit();
     button.disabled = true; button.setAttribute('aria-busy', 'true');
-    const clean = value => String(value || '').normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '');
-    const filename = [clean(button.dataset.reportName).slice(0,40), clean(button.dataset.reportSection).slice(0,30), clean(button.dataset.reportPeriod).slice(0,40), 'grades'].filter(Boolean).join('-');
-    const width = Number(svg.getAttribute('width')), height = Number(svg.getAttribute('height'));
-    const pageHeight = 6000, pages = Math.ceil(height / pageHeight);
-    let zip;
     try {
+      // Lookup dialogs can stay open while the sheet receives edits or cloud updates.
+      // Resolve the original row in current state instead of exporting its cached SVG.
+      const { entry, disambiguate } = currentStudentExportEntry(button);
+      const template = document.createElement('template');
+      template.innerHTML = renderStudentReportSvg(entry, studentAnalysis(entry), disambiguate);
+      const svg = template.content.querySelector('.student-report-svg');
+      addTommyAssessmentToSvg(svg, button.closest('.report-readable'));
+      const { learner, section, period, periodIndex, rowIndex } = entry;
+      const name = disambiguate ? `Record ${periodIndex + 1} Row ${rowIndex + 1} · ${learner.name}` : learner.name;
+      const clean = value => String(value || '').normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '');
+      const filename = [clean(name).slice(0,40), clean(section.section || section.level).slice(0,30), clean(period.name).slice(0,40), 'grades'].filter(Boolean).join('-');
+      const width = Number(svg.getAttribute('width')), height = Number(svg.getAttribute('height'));
+      const pageHeight = 6000, pages = Math.ceil(height / pageHeight);
+      let zip;
       if (pages > 1) { await window.CSTRAssets.ensure('images'); zip = new window.JSZip(); }
       let output;
       for (let page = 0; page < pages; page++) {
