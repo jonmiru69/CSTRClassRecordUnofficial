@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
   "available": true,
-  "version": "1.0.43",
-  "versionCode": 10043,
+  "version": "1.0.46",
+  "versionCode": 10046,
   "minimumSupportedVersionCode": 0,
-  "sha256": "49f44f95ea4b757cd9e5fd47b6c66a364a5d6cec944e7d51c50a7dbc8fb1ebf4",
+  "sha256": "27f7a3b08cd6283456972a9fd973354b14db615ef59d74622dc9438838458a47",
   "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
-  "bytes": 6126074,
-  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.43.apk",
-  "publishedAt": "2026-11-09T11:37:26.973Z",
-  "notes": "School Excel now fits 8.5 × 13-inch Folio paper and uses subject-specific grading. Long learner names wrap, and activities support bulk points with a shared reason."
+  "bytes": 6129182,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.46.apk",
+  "publishedAt": "2026-11-20T03:10:03.487Z",
+  "notes": "Excel printing now fits the full class record and signatories on one centered 8.5 × 13-inch landscape page, with equal margins, readable dates, automatic text sizing and the original activity register on page 2."
 }
