@@ -3253,14 +3253,13 @@
     const context = { calendar: state.calendarMode, sectionId: entry.section.id, periodIndex: entry.periodIndex,
       rowIndex: entry.rowIndex, learnerName: entry.learner.name, periodName: entry.period.name,
       slot: reportSlot(entry.section, entry.period, entry.periodIndex) };
-    return `<label class="teacher-remarks">Teacher's feedback / remarks<textarea rows="4" data-teacher-remarks data-report-context="${escapeHtml(JSON.stringify(context))}" ${entry.period.locked ? 'disabled' : ''}>${escapeHtml(entry.learner.teacherRemarks || '')}</textarea><small>Included in every downloaded PNG. Each download uses your latest saved text.</small></label>`;
+    return `<label class="teacher-remarks">Teacher's feedback / remarks<textarea rows="4" data-teacher-remarks data-report-context="${escapeHtml(JSON.stringify(context))}">${escapeHtml(entry.learner.teacherRemarks || '')}</textarea><small>Included in every downloaded PNG. Each download uses your latest text. Remarks can be edited even when scores are locked.</small></label>`;
   }
 
   document.addEventListener('input', event => {
     if (!event.target.matches('[data-teacher-remarks]')) return;
     try {
       const { entry } = currentStudentExportEntry(event.target);
-      if (entry.period.locked) return;
       entry.learner.teacherRemarks = event.target.value;
       markFieldEditDirty('remarks:' + event.target.dataset.reportContext);
       document.querySelectorAll('[data-teacher-remarks]').forEach(peer => {

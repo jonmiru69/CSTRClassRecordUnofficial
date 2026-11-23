@@ -166,7 +166,17 @@ async function run(){
   assert.equal(await score.inputValue(),'9');await page.keyboard.press('Control+z');
   assert.equal(await score.inputValue(),'10','A multi-cell paste undoes as one action');
   assert.equal(await page.locator('.record-table input[data-score="ww"][data-row="0"][data-index="1"]').inputValue(),'');
-  console.log('PASS actual PNG downloads match current scores, individual/bulk reasons, cloud replacement, source period, HPS caps, cancellations and attendance marks; changed rows cannot export stale data.');
+  await page.evaluate(()=>window.__reportQA.period(1));
+  await page.locator('#view-tab-one').click();
+  const lockedRemarks=one.getByLabel("Teacher's feedback / remarks");
+  assert(await lockedRemarks.isEnabled(),'Locked scores must not disable teacher remarks');
+  assert.equal(await lockedRemarks.evaluate(node=>getComputedStyle(node).cursor),'text');
+  await lockedRemarks.click();await lockedRemarks.pressSequentially('Feedback for a locked period');
+  assert.equal(await lockedRemarks.inputValue(),'Feedback for a locked period');
+  assert(await one.locator('input[data-score="ww"][data-index="0"]').isDisabled(),'Scores remain locked');
+  exportButton=one.locator('[data-action="export-student-png"]');
+  await exportImage('locked-period-remarks',['12','—','12','20'],['Feedback for a locked period']);
+  console.log('PASS current PNGs, precision, adjustment history, universal undo, and keyboard-typed remarks in locked periods.');
  }finally{await browser.close();server.close();}
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});
