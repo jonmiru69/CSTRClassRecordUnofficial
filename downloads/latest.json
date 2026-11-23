@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "appId": "ph.cstr.classrecord.unofficial",
   "available": true,
-  "version": "1.0.48",
-  "versionCode": 10048,
+  "version": "1.0.49",
+  "versionCode": 10049,
   "minimumSupportedVersionCode": 0,
-  "sha256": "8ad6faedbfc32296b668835bace8377ac2720dd441bd27f2660b4abcb2f0a052",
+  "sha256": "2819ba33fb567afb2529e7a28dc533fb7fb83e63717dacfd729eac2b8a4a40ad",
   "certificateSha256": "6165547ce8e01e34cfae21dcdc394e002e915d20f3a8ba3d70a38004cfd4007e",
-  "bytes": 6129586,
-  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.48.apk",
-  "publishedAt": "2026-11-20T05:33:12.195Z",
-  "notes": "Individual grade report images now include the latest added scores and reasons from the selected class record."
+  "bytes": 6131362,
+  "url": "https://jonmiru69.github.io/CSTRClassRecordUnofficial/downloads/CSTR-Class-Record-1.0.49.apk",
+  "publishedAt": "2026-11-23T09:55:06.468Z",
+  "notes": "Updated class record workflows and reliability fixes."
 }
