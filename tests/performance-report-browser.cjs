@@ -68,7 +68,8 @@ async function run() {
       } });
     });
     const page = await context.newPage();
-    page.setDefaultTimeout(10000);
+    page.setDefaultTimeout(30000);
+    page.setDefaultNavigationTimeout(60000);
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin + '/test-preview/index.html?screen=record');

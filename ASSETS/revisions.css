@@ -213,7 +213,10 @@
 :root body .report-ledger :is(th,td) {padding:12px;text-align:center;vertical-align:top;border:0;border-bottom:1px solid var(--border-light)}
 :root body .report-ledger th:first-child {text-align:left;min-width:200px}
 :root body .report-ledger caption {font-size:16px;font-weight:700;text-align:left;padding-block:12px}
-:root body .adjustment-reason {display:block;font-size:12px;font-weight:400;line-height:1.5;color:var(--brand);margin-top:4px}
+:root body .adjustment-reason {display:block;font-size:12px;font-weight:400;line-height:1.5;color:var(--brand);margin-top:4px;overflow-wrap:anywhere}
+:root body .teacher-remarks {display:grid;gap:10px;margin-block:24px;font-weight:700}
+:root body .teacher-remarks textarea {box-sizing:border-box;width:100%;min-height:110px;resize:vertical;line-height:1.6;padding:12px}
+:root body .teacher-remarks small {font-weight:400;line-height:1.5;color:var(--muted)}
 :root body .report-activity-row {background:var(--surface)!important}
 :root body .report-score-group {background:var(--surface)!important;border:0!important}
 :root body .report-component {background:var(--surface-subtle)!important;color:var(--text)!important;border:0!important}

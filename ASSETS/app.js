@@ -56,6 +56,9 @@
   const completionSeen = new WeakMap();
   let archiveFilter = "active"; // "active" | "archived"
   let state = createInitialState();
+  let undoBaseline = null, undoStateReference = null;
+  const undoStack = [], redoStack = [];
+  let applyingUndo = false;
 
   let cloudRevision = 0;
   let pendingRemoteRevision = 0;
@@ -254,6 +257,12 @@
   // edits will be checkpointed against.
   function establishCleanBaseline() {
     preBatchSnapshot = cloneState(state);
+    // A new account/cloud state starts a new history; autosaves retain it.
+    if (undoStateReference !== state) {
+      undoStack.length = redoStack.length = 0;
+      undoBaseline = cloneState(state);
+      undoStateReference = state;
+    }
   }
 
   function showSaveToast(message, type = "success") {
@@ -299,6 +308,15 @@
   function noteEdit(fieldKey) {
     stateRevision += 1;
     const isNewLogicalChange = fieldKey ? fieldKey !== activeEditFieldKey : true;
+    if (!applyingUndo && JSON.stringify(undoBaseline) !== JSON.stringify(state)) {
+      if (isNewLogicalChange && undoBaseline) {
+        undoStack.push(cloneState(undoBaseline));
+        if (undoStack.length > 100) undoStack.shift();
+      }
+      redoStack.length = 0;
+      undoBaseline = cloneState(state);
+      undoStateReference = state;
+    }
     if (fieldKey) {
       activeEditFieldKey = fieldKey;
       if (fieldEditIdleTimer) clearTimeout(fieldEditIdleTimer);
@@ -511,6 +529,7 @@
             const learner = Array.isArray(period.roster) ? period.roster[index] : null;
             return {
               name: learner && typeof learner.name === "string" ? learner.name : "",
+              ...(typeof learner?.teacherRemarks === 'string' ? { teacherRemarks: learner.teacherRemarks } : {}),
               ww: fitArray(learner && learner.ww, wwLen),
               pt: fitArray(learner && learner.pt, ptLen),
               qa: fitArray(learner && learner.qa, qaLen),
@@ -1983,6 +2002,7 @@
         <div data-report-live="overview"><div class="report-components">${components}</div>${renderDetailedChart([entry], section)}</div>
         <div data-report-live="ledger">${renderScoreLedgerHtml(period, learner)}</div>
         <div data-report-live="one-export">${renderStudentExport(entry, analysis, 'Save this period PNG')}</div>
+        ${renderTeacherRemarks(entry)}
         ${inputs}
       </article>
     </section>`;
@@ -2051,10 +2071,11 @@
   function scoreAdjustmentControl(learner, kind, row, index, locked) {
     const ledger = learner.scoreAdjustments?.[kind]?.[index];
     const total = (ledger?.entries || []).reduce((sum, e) => sum + e.points, 0);
-    const reason = (ledger?.entries || []).map(e => `+${formatScore(e.points)}: ${e.reason}`).join('; ');
+    const totalText = addedPointsText(ledger?.entries || []);
+    const reason = (ledger?.entries || []).map(e => `+${addedPointsText([e])}: ${e.reason}`).join('; ');
     const label = `${total ? 'Manage added points for' : 'Add points to'} ${learner.name || 'learner ' + (row + 1)}, ${kind.toUpperCase()} ${index + 1}`;
     const title = total ? `${reason}. Click + to add more or cancel added points.` : 'Add points with a reason';
-    return `<span class="score-adjustment"><button type="button" class="score-plus" data-action="add-score-points" data-kind="${kind}" data-row="${row}" data-index="${index}" ${locked ? 'disabled' : ''} aria-label="${escapeHtml(label)}" title="${escapeHtml(title)}"><span aria-hidden="true">+</span></button>${total ? `<small class="score-plus-note" title="${escapeHtml(reason)}" aria-label="${escapeHtml('Added ' + formatScore(total) + ' points. ' + reason)}">+${formatScore(total)}*</small>` : ''}</span>`;
+    return `<span class="score-adjustment"><button type="button" class="score-plus" data-action="add-score-points" data-kind="${kind}" data-row="${row}" data-index="${index}" ${locked ? 'disabled' : ''} aria-label="${escapeHtml(label)}" title="${escapeHtml(title)}"><span aria-hidden="true">+</span></button>${total ? `<small class="score-plus-note" title="${escapeHtml(reason)}" aria-label="${escapeHtml('Added ' + totalText + ' points. ' + reason)}">+${totalText}*</small>` : ''}</span>`;
   }
 
   function bulkPointsButton(kind, index, locked, showLabel = false) {
@@ -2940,12 +2961,34 @@
   }
 
   function reportLines(value, limit = 60) {
-    const lines = []; let current = '';
-    // Split long unbroken tokens too, so user content never overflows a report.
-    const words = String(value ?? '').split(/\s+/).filter(Boolean).flatMap(word => word.match(new RegExp(`.{1,${limit}}`, 'gu')) || []);
-    words.forEach(word => { if (current && `${current} ${word}`.length > limit) { lines.push(current); current = word; } else current = current ? `${current} ${word}` : word; });
-    if (current) lines.push(current);
+    const lines = [], context = reportMeasureContext ||= document.createElement('canvas').getContext('2d');
+    // Bound both character count and actual glyph width (including wide capitals).
+    context.font = 'bold 14px Arial';
+    const maxWidth = limit * 7;
+    for (const paragraph of String(value ?? '').split(/\r?\n/)) {
+      let current = '';
+      for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+        if (current && (current.length + word.length + 1 > limit || context.measureText(current + ' ' + word).width > maxWidth)) { lines.push(current); current = ''; }
+        for (const character of word) {
+          if (current && (current.length >= limit || context.measureText(current + character).width > maxWidth)) { lines.push(current); current = ''; }
+          current += character;
+        }
+        current += ' ';
+      }
+      lines.push(current.trimEnd());
+    }
     return lines.length ? lines : ['—'];
+  }
+  let reportMeasureContext;
+
+  function addedPointsText(entries) {
+    // Decimal addition avoids floating point artifacts and never hides small additions.
+    const values = entries.map(e => String(e.points));
+    const parts = values.map(value => { const [coefficient, exponent = '0'] = value.split('e'); const [whole, fraction = ''] = coefficient.split('.'); return { digits: BigInt(whole + fraction), places: fraction.length - Number(exponent) }; });
+    const places = Math.max(0, ...parts.map(p => p.places));
+    const digits = String(parts.reduce((sum, p) => sum + p.digits * 10n ** BigInt(places - p.places), 0n)).padStart(places + 1, '0');
+    const exact = places ? `${digits.slice(0, -places)}.${digits.slice(-places)}`.replace(/0+$/, '').replace(/\.$/, '') : digits;
+    return Number.isInteger(Number(exact)) ? exact : places <= 2 ? Number(exact).toFixed(2) : exact;
   }
 
   function assessmentRows(period, learner) {
@@ -2958,16 +3001,16 @@
   function ledgerNotes(row) {
     const notes = [];
     if (row.original) notes.push(`HPS revised. Original recorded score: ${row.original.score} / ${row.original.hps}.`);
-    (row.ledger?.entries || []).forEach(e => notes.push(`+${formatScore(e.points)} points: ${e.reason}${e.at ? ` · ${reportAuditDate(e.at)}` : ''}`));
+    (row.ledger?.entries || []).forEach(e => notes.push(`+${addedPointsText([e])} points: ${e.reason}${e.at ? ` · ${reportAuditDate(e.at)}` : ''}`));
     if (row.ledger?.entries.length && Number(row.score) < Number(row.ledger.raw) + row.ledger.entries.reduce((n, e) => n + e.points, 0)) notes.push('Current score is capped at the revised HPS.');
     (row.ledger?.history || []).forEach(h => {
       notes.push(`Previous adjustment (no longer applied): raw ${h.raw}, resulting score ${h.applied}. ${h.reason}${h.endedAt ? ` · ${reportAuditDate(h.endedAt)}` : ''}`);
-      h.entries.forEach(e => notes.push(`Previous +${formatScore(e.points)}: ${e.reason}`));
+      h.entries.forEach(e => notes.push(`Previous +${addedPointsText([e])}: ${e.reason}`));
     });
     return notes;
   }
   function renderScoreLedgerHtml(period, learner) {
-    return `<div class="report-ledger-scroll"><table class="report-ledger"><caption>All recorded activities · ${escapeHtml(period.name)}</caption><thead><tr><th>Activity</th><th>Date</th><th>Raw</th><th>Added</th><th>Score / HPS</th></tr></thead><tbody>${assessmentRows(period, learner).map(row => `<tr><th scope="row">${row.kind.toUpperCase()} ${row.index + 1} · ${safeValue(row.meta.title || 'Untitled activity')}${ledgerNotes(row).map(note => `<small class="adjustment-reason">${escapeHtml(note)}</small>`).join('')}</th><td data-label="Date">${safeValue(row.date || '—')}</td><td data-label="Raw" data-mark="${safeValue(row.score)}">${safeValue(row.ledger?.entries.length ? row.ledger.raw : row.score === '' ? '—' : row.score)}</td><td data-label="Added">${row.ledger?.entries.length ? `+${formatScore(row.ledger.entries.reduce((sum, e) => sum + e.points, 0))}*` : '—'}</td><td data-label="Score / HPS" data-mark="${safeValue(row.score)}">${safeValue(row.score === '' ? 'Not recorded' : row.score)} / ${safeValue(row.hps === '' ? '—' : row.hps)}</td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="report-ledger-scroll"><table class="report-ledger"><caption>All recorded activities · ${escapeHtml(period.name)}</caption><thead><tr><th>Activity</th><th>Date</th><th>Raw</th><th>Added</th><th>Score / HPS</th></tr></thead><tbody>${assessmentRows(period, learner).map(row => `<tr><th scope="row">${row.kind.toUpperCase()} ${row.index + 1} · ${safeValue(row.meta.title || 'Untitled activity')}${ledgerNotes(row).map(note => `<small class="adjustment-reason">${escapeHtml(note)}</small>`).join('')}</th><td data-label="Date">${safeValue(row.date || '—')}</td><td data-label="Raw" data-mark="${safeValue(row.score)}">${safeValue(row.ledger?.entries.length ? row.ledger.raw : row.score === '' ? '—' : row.score)}</td><td data-label="Added">${row.ledger?.entries.length ? `+${addedPointsText(row.ledger.entries)}*` : '—'}</td><td data-label="Score / HPS" data-mark="${safeValue(row.score)}">${safeValue(row.score === '' ? 'Not recorded' : row.score)} / ${safeValue(row.hps === '' ? '—' : row.hps)}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
   function renderChartContent(entries, section, top = 0) {
@@ -3206,6 +3249,56 @@
     return `<button type="button" class="button button-primary" data-action="export-student-png" data-report-context="${escapeHtml(JSON.stringify(context))}" data-report-name="${escapeHtml(name)}" data-report-section="${escapeHtml(section.section || section.level)}" data-report-period="${escapeHtml(period.name)}">${icon('download')} ${escapeHtml(label)}</button><div hidden aria-hidden="true">${renderStudentReportSvg(entry, analysis, disambiguate)}</div>`;
   }
 
+  function renderTeacherRemarks(entry) {
+    const context = { calendar: state.calendarMode, sectionId: entry.section.id, periodIndex: entry.periodIndex,
+      rowIndex: entry.rowIndex, learnerName: entry.learner.name, periodName: entry.period.name,
+      slot: reportSlot(entry.section, entry.period, entry.periodIndex) };
+    return `<label class="teacher-remarks">Teacher's feedback / remarks<textarea rows="4" data-teacher-remarks data-report-context="${escapeHtml(JSON.stringify(context))}" ${entry.period.locked ? 'disabled' : ''}>${escapeHtml(entry.learner.teacherRemarks || '')}</textarea><small>Included in every downloaded PNG. Each download uses your latest saved text.</small></label>`;
+  }
+
+  document.addEventListener('input', event => {
+    if (!event.target.matches('[data-teacher-remarks]')) return;
+    try {
+      const { entry } = currentStudentExportEntry(event.target);
+      if (entry.period.locked) return;
+      entry.learner.teacherRemarks = event.target.value;
+      markFieldEditDirty('remarks:' + event.target.dataset.reportContext);
+      document.querySelectorAll('[data-teacher-remarks]').forEach(peer => {
+        if (peer !== event.target && peer.dataset.reportContext === event.target.dataset.reportContext) peer.value = event.target.value;
+      });
+    } catch (error) { showSaveToast(error.message, 'error'); }
+  });
+  document.addEventListener('focusout', event => {
+    if (event.target.matches('[data-teacher-remarks]')) commitActiveFieldEdit();
+  });
+
+  // Capture runs before sheet shortcuts and modal propagation guards.
+  document.addEventListener('keydown', event => {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || !['z','y'].includes(event.key.toLowerCase()) || event.isComposing) return;
+    if (!isSignedIn() || isLoading) return;
+    const target = event.target;
+    // Unsubmitted dialogs and search fields retain their native text undo.
+    if (target.matches('input,textarea,[contenteditable="true"]') && !target.matches('[data-score],[data-hps],[data-name-row],[data-date],[data-activity-field],[data-teacher],[data-period-name],[data-teacher-remarks]')) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    commitHpsField(target); commitPendingBulkFill(); commitActiveFieldEdit();
+    const redo = event.shiftKey || event.key.toLowerCase() === 'y';
+    const from = redo ? redoStack : undoStack, to = redo ? undoStack : redoStack;
+    if (!from.length) return;
+    const focusedRemarks = target.matches('[data-teacher-remarks]') ? target.dataset.reportContext : null;
+    to.push(cloneState(state)); state = from.pop();
+    undoBaseline = cloneState(state); undoStateReference = state;
+    applyingUndo = true;
+    try { markStateDirty(); } finally { applyingUndo = false; }
+    fillArmed = false; clearSelection(); ensureActiveSelectionValid();
+    render();
+    // Lookup dialogs live outside the workspace render tree.
+    document.querySelectorAll('[data-teacher-remarks]').forEach(peer => {
+      try { peer.value = currentStudentExportEntry(peer).entry.learner.teacherRemarks || ''; } catch (_) {}
+      if (focusedRemarks === peer.dataset.reportContext) peer.focus();
+    });
+    showSaveToast(redo ? 'Edit redone.' : 'Edit undone.');
+  }, true);
+
   function currentStudentExportEntry(button) {
     const source = JSON.parse(button.dataset.reportContext);
     const section = activeRegistry().find(section => section.id === source.sectionId);
@@ -3229,6 +3322,7 @@
       ${renderStudentAnalysis(analysis, entry, true)}
       ${renderDetailedChart([entry], section)}
       ${renderScoreLedgerHtml(period, learner)}
+      ${renderTeacherRemarks(entry)}
       <p class="report-footnote">A = Absent (zero), M = Missing (zero), L = Late (excluded), E = Excused (excluded). Pending entries keep grades provisional.</p>
       <div class="student-report-actions">${renderStudentExport(entry, analysis, `Save ${period.name} PNG`, disambiguate)}</div>
     </article>`;
@@ -3237,7 +3331,11 @@
   function renderStudentReportSvg(first, analysis, disambiguate) {
     const { section, period, learner, result } = first;
     const width=960, ink='#042134', muted='#4d5960', accent='#BB1414', orange='#FFA322';
-    const text=(x,y,value,size=14,color=ink,weight=400,extra='')=>`<text x="${x}" y="${y}" fill="${color}" font-family="Arial, sans-serif" font-size="${size}" font-weight="${weight}" ${extra}>${escapeHtml(value)}</text>`;
+    const text=(x,y,value,size=14,color=ink,weight=400,extra='')=>{
+      const columnWidth = ({573:70,655:80,748:88,848:65})[x];
+      const fit = columnWidth && String(value).length * size * .65 > columnWidth ? `textLength="${columnWidth}" lengthAdjust="spacingAndGlyphs"` : '';
+      return `<text x="${x}" y="${y}" fill="${color}" font-family="Arial, sans-serif" font-size="${size}" font-weight="${weight}" ${fit} ${extra}>${escapeHtml(value)}</text>`;
+    };
     const term = !usesTransmutation(section);
     const nameLines=reportLines(learner.name,31), classLines=reportLines(`${section.level} · ${section.subject} · ${section.section || ''}${disambiguate ? ` · Period record ${first.periodIndex + 1} · Roster row ${first.rowIndex + 1}` : ''}`,64);
     const titleLines=reportLines(`${first.period.name} · Individual grade report`,70), titleOffset=(titleLines.length-1)*18;
@@ -3288,7 +3386,7 @@
       const titleLines=reportLines(`${row.kind.toUpperCase()} ${row.index+1} · ${row.meta.title || 'Untitled activity'}`,43);
       titleLines.forEach((line,i)=>body+=text(54,start+i*18,line,13,ink,700));
       const raw=row.ledger?.entries.length?row.ledger.raw:row.score,bonus=(row.ledger?.entries||[]).reduce((n,e)=>n+e.points,0);
-      body+=text(437,start,row.date||'—',12,muted)+text(573,start,raw===''?'—':raw,13,markColor)+text(655,start,bonus?`+${formatScore(bonus)}*`:'—',13,accent,600)+text(748,start,row.score===''?'—':row.score,15,markColor,700)+text(848,start,row.hps===''?'—':row.hps,13);
+      body+=text(437,start,row.date||'—',12,muted)+text(573,start,raw===''?'—':raw,13,markColor)+text(655,start,bonus?`+${addedPointsText(row.ledger.entries)}*`:'—',13,accent,600)+text(748,start,row.score===''?'—':row.score,15,markColor,700)+text(848,start,row.hps===''?'—':row.hps,13);
       y+=Math.max(24,titleLines.length*18);
       if(row.meta.competency||row.meta.topic)reportLines([row.meta.competency&&`Competency: ${row.meta.competency}`,row.meta.topic&&`Topic: ${row.meta.topic}`].filter(Boolean).join(' · '),108).forEach(line=>{body+=text(60,y,line,12,muted);y+=17;});
       ledgerNotes(row).forEach(note=>reportLines(note,104).forEach(line=>{body+=text(60,y,line,12,accent);y+=17;}));
@@ -3297,6 +3395,11 @@
       y+=15;
     });y+=20;
     ['* Added points are separate from the original raw score. Cancelled additions remain in history.','A = Absent (zero); L = Late (excluded); M = Missing (zero); E = Excused (excluded).','HPS = highest possible score; WS = weighted score. Missing requirements keep a grade provisional.','CST-R · Individual grade report'].forEach(line=>{body+=text(44,y,line,12,muted);y+=21;});
+    y+=24;
+    body+=text(44,y,"Teacher's feedback / remarks",20,ink,700);y+=30;
+    const remarks = learner.teacherRemarks || 'No remarks entered.';
+    reportLines(remarks,100).forEach(line=>{body+=text(54,y,line,14,ink);y+=22;});
+    y+=20;
     const height=y+24;
     return `<svg xmlns="http://www.w3.org/2000/svg" class="student-report-svg" width="960" height="${height}" viewBox="0 0 960 ${height}" role="img" aria-label="Comprehensive grade report for ${escapeHtml(learner.name)}, ${escapeHtml(period.name)}"><rect width="960" height="${height}" fill="#fff"/>${body}</g></svg>`;
   }
@@ -3327,6 +3430,7 @@
     svg.querySelector('[data-after-tommy-note]').setAttribute('transform', `translate(0 ${extra})`);
     const height = Number(svg.getAttribute('height')) + extra;
     svg.setAttribute('height', String(height));
+    svg.setAttribute('viewBox', `0 0 960 ${height}`);
     svg.firstElementChild.setAttribute('height', String(height));
   }
 
