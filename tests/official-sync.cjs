@@ -55,15 +55,20 @@ test('retains diacritics, normalizes whitespace, and removes only list numbers',
   assert.equal(engine.nameKey(' 1.  De la Cruz,   Demo A. '),engine.nameKey('De la Cruz, Demo A.'));
   assert.notEqual(engine.nameKey('Peña, Sample'),engine.nameKey('Pena, Sample'));
 });
-test('rejects missing, duplicate, or extra official learner names',()=>{
-  for(const which of ['source duplicate','target duplicate','missing','extra']){
+test('rejects source learners without a match and duplicate learner names',()=>{
+  for(const which of ['source duplicate','target duplicate','missing']){
     const {source,book,period,rows}=fixture();
     if(which==='source duplicate')period.roster[1].name=period.roster[0].name;
     if(which==='target duplicate')rows[15].values[0]=clone(rows[10].values[0]);
     if(which==='missing')period.roster[0].name='Different, Person';
-    if(which==='extra')period.roster.pop();
-    assert.throws(()=>engine.plan(source,book,7),/Duplicate|No exact|missing from/);
+    assert.throws(()=>engine.plan(source,book,7),/Duplicate|No exact/);
   }
+});
+test('preserves official history when a learner has no source entry for this quarter',()=>{
+  const {source,book,period,rows}=fixture();period.roster.pop();rows[15].values[2]=number(12);
+  const plan=engine.plan(source,book,7);assert.equal(plan.allRows.length,1);assert.equal(plan.untouched.length,1);
+  assert.equal(plan.untouched[0].quarter,1);assert.equal(plan.untouched[0].row,15);assert.equal(plan.untouched[0].values[0],'12');
+  assert(engine.requests([plan]).every(request=>request.updateCells.start.rowIndex!==15));
 });
 test('rejects wrong year, grade, weights, and template',()=>{
   for(const [r,c,value] of [[5,0,'REPORT ON RATINGS S.Y. 2025-2026'],[7,0,'YEAR & SECTION: 9- St. Sample SUBJECT: Science'],[9,2,'Written Works (30%)'],[0,0,'Different form']]){
@@ -79,6 +84,13 @@ test('requires two-quarter semester layout and verifies its semester',()=>{
   const {source,book,rows}=fixture(true);assert.equal(engine.plan(source,book,7).allRows.length,2);
   source.semester=2;source.periods[0].semester=2;assert.throws(()=>engine.plan(source,book,7),/semester does not match/);
   source.semester=1;source.periods[0].semester=1;rows[12].values[1]=number(3);assert.throws(()=>engine.plan(source,book,7),/period count/);
+});
+test('requires the explicit source strand to match its official file',()=>{
+  const {source,book}=fixture(true);source.partition='ABM';book.properties.title='Official Our Lady of Consolation - STEM';
+  assert.throws(()=>engine.plan(source,book,7),/matching official strand file/);
+  book.properties.title='Official Our Lady of Consolation - ABM';assert.equal(engine.plan(source,book,7).allRows.length,2);
+  source.partition='STEM';assert.throws(()=>engine.plan(source,book,7),/matching official strand file/);
+  book.properties.title='Official Our Lady of Consolation - STEM';assert.equal(engine.plan(source,book,7).allRows.length,2);
 });
 test('rejects duplicate, missing, and invalid completed period identities',()=>{
   const {source,book,period}=fixture();source.periods.push(clone(period));assert.throws(()=>engine.plan(source,book,7),/Two completed/);

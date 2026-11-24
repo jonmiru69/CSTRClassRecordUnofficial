@@ -28,7 +28,7 @@
     }
     const provider = new window.firebase.auth.GoogleAuthProvider();
     provider.addScope('https://www.googleapis.com/auth/spreadsheets');
-    provider.setCustomParameters({login_hint:expected, prompt:'select_account consent'});
+    provider.setCustomParameters({login_hint:expected, prompt:'select_account'});
     const result = await schoolAuth.signInWithPopup(provider);
     try {
       if (attempt !== epoch || currentOwner() !== owner) throw new Error('Your class record account changed. Connect again.');
@@ -97,7 +97,7 @@
       <div class="sync-connection"><label>School Google email<input type="email" autocomplete="email" data-sync-email placeholder="Your school email" value="${escape(connection?.owner === owner ? connection.email : '')}"></label><button type="button" class="button button-secondary" data-sync-connect>Connect school account</button><button type="button" class="button button-ghost" data-sync-disconnect ${connection?'':'hidden'}>Disconnect</button></div>
       <p data-sync-account>${connection?.owner === owner ? `Connected as ${escape(connection.email)}` : 'Choose your school account in Google’s sign-in window. This keeps your class record signed in.'}</p>
       <label class="sync-year">School year<input data-sync-year value="${escape(year)}" placeholder="2026-2027" pattern="[0-9]{4}-[0-9]{4}" required></label>
-      <div data-sync-jobs>${jobs.map((job,i)=>`<fieldset class="sync-job" data-sync-job="${i}"><legend><label><input type="checkbox" data-sync-include ${!selectedClassId || job.source.section.id===selectedClassId?'checked':''}>${escape(job.source.section.subject)} · ${escape(job.source.section.level)} · ${escape(job.source.section.section)}</label></legend><p>${job.source.semester ? `Semester ${job.source.semester} · `:''}${job.source.periods.length} finished period${job.source.periods.length===1?'':'s'}: ${job.source.periods.map(p=>escape(p.name)).join(', ')}</p><div class="sync-link-row"><label>Official Google Sheets link<input type="url" data-sync-link value="${escape(job.binding.link||'')}" placeholder="Paste the file link from the registrar"></label><button type="button" class="button button-secondary" data-sync-check="${i}">Check link</button></div><label>Subject tab<select data-sync-tab disabled><option value="">Check the link first</option></select></label><div data-sync-heading-check></div><p data-sync-job-status role="status"></p></fieldset>`).join('')}</div>
+      <div data-sync-jobs>${jobs.map((job,i)=>`<fieldset class="sync-job" data-sync-job="${i}"><legend><label><input type="checkbox" data-sync-include ${!selectedClassId || job.source.section.id===selectedClassId?'checked':''}>${escape(job.source.section.subject)} · ${escape(job.source.section.level)} · ${escape(job.source.section.section)}${job.source.partition ? ` · ${escape(job.source.partition === 'ABM' ? 'B&E / ABM' : job.source.partition)}` : ''}</label></legend><p>${job.source.semester ? `Semester ${job.source.semester} · `:''}${job.source.periods.length} finished period${job.source.periods.length===1?'':'s'}: ${job.source.periods.map(p=>escape(p.name)).join(', ')}</p><div class="sync-link-row"><label>Official Google Sheets link<input type="url" data-sync-link value="${escape(job.binding.link||'')}" placeholder="Paste the file link from the registrar"></label><button type="button" class="button button-secondary" data-sync-check="${i}">Check link</button></div><label>Subject tab<select data-sync-tab disabled><option value="">Check the link first</option></select></label><div data-sync-heading-check></div><p data-sync-job-status role="status"></p></fieldset>`).join('')}</div>
       ${jobs.length?'':'<p>No finished grading periods are available in the active classes. Complete a period before transferring.</p>'}
       <p class="sync-privacy">Scores go directly to Google Sheets under your school account. No passwords are stored. The Google connection lasts only in this page. ChatGPT is not involved in the transfer.</p>
       <p data-sync-status role="status" aria-live="polite"></p><div data-sync-preview></div>
@@ -109,6 +109,12 @@
     const selectedJobs = () => jobs.filter((job,i)=>field(i).querySelector('[data-sync-include]').checked);
     const schoolYear = () => dialog.querySelector('[data-sync-year]').value.trim();
     const liveSources = () => getSources().map(source=>({...source,schoolYear:schoolYear()}));
+    function rememberJob(i) {
+      const job=jobs[i],box=field(i);
+      if(!job.metadata || !job.heading)return;
+      const binding={link:box.querySelector('[data-sync-link]').value,sheetId:Number(box.querySelector('[data-sync-tab]').value),acknowledgedHeading:box.querySelector('[data-sync-ack]')?.checked ? `${job.heading.officialSection}|${job.heading.officialSubject}` : null};
+      try{localStorage.setItem(storageKey(owner,job.source,schoolYear()),JSON.stringify(binding));}catch(_){}
+    }
     function invalidate() {
       preview = null;
       dialog.querySelector('[data-sync-preview]').replaceChildren();
@@ -144,6 +150,7 @@
       box.querySelector('[data-sync-heading-check]').innerHTML = inspection.mismatches.length
         ? `<p>${inspection.mismatches.map(escape).join('<br>')}</p><label class="sync-ack"><input type="checkbox" data-sync-ack ${remembered?'checked':''}>I verified that these class and subject names identify the same class.</label>` : '';
       box.querySelector('[data-sync-job-status]').textContent = `${book.properties.title} · ${inspection.sheet.properties.title}. Template and school year checked.`;
+      rememberJob(i);
     }
     async function check(i) {
       invalidate();
@@ -170,7 +177,8 @@
         const source = live.find(s=>s.id === job.source.id);
         if(!source) throw new Error('The source class or completion status changed. Close and reopen this transfer.');
         const ack = box.querySelector('[data-sync-ack]')?.checked && job.heading ? `${job.heading.officialSection}|${job.heading.officialSubject}` : null;
-        plans.push({...engine.plan(source,await read(link.id,Number(sheetValue)),Number(sheetValue),ack),acknowledgedHeading:ack});
+        try { plans.push({...engine.plan(source,await read(link.id,Number(sheetValue)),Number(sheetValue),ack),acknowledgedHeading:ack}); }
+        catch(error) { throw new Error(`${source.section.subject} · ${source.section.section}${source.partition ? ` · ${source.partition}` : ''} → ${job.metadata.properties.title}: ${error.message}`); }
       }
       engine.requests(plans); // Detect two classes targeting the same cells before any write.
       return plans;
@@ -197,14 +205,16 @@
     dialog.addEventListener('input', event=>{
       if(event.target.matches('[data-sync-link],[data-sync-year],[data-sync-email],[data-sync-include],[data-sync-ack]')) invalidate();
       if(event.target.matches('[data-sync-link]')) { const job = jobs[Number(event.target.closest('[data-sync-job]').dataset.syncJob)];job.metadata=null;job.heading=null; }
+      if(event.target.matches('[data-sync-ack]')) rememberJob(Number(event.target.closest('[data-sync-job]').dataset.syncJob));
     });
     dialog.querySelector('[data-sync-preview-button]').onclick = () => action(async()=>{
       invalidate(); message(dialog,'Matching completed periods and checking official cells…');
       const plans = await makePlans();
       if(!active())return;
-      const count = plans.reduce((n,p)=>n+p.source.periods.length,0), changes=plans.reduce((n,p)=>n+p.changes.length*3,0), overwrites=plans.reduce((n,p)=>n+p.overwrites,0);
-      const html = plans.map(p=>`<details class="sync-review"><summary>${escape(p.source.section.subject)} · ${escape(p.source.section.section)} · ${p.allRows.length} learner-period matches</summary><p>${escape(p.title)} → ${escape(p.sheetTitle)}</p><div class="sync-table-wrap"><table><caption>Full-precision weighted scores. Display rounded to three decimals.</caption><thead><tr><th>Learner</th><th>Quarter</th><th>Cells</th><th>WW</th><th>PT</th><th>QA</th><th>Existing WW / PT / QA</th></tr></thead><tbody>${p.allRows.map(r=>`<tr><th scope="row">${escape(r.name)}</th><td>${r.quarter}</td><td>C${r.row+1}:E${r.row+1}</td>${r.values.map(v=>`<td>${v.toFixed(3)}</td>`).join('')}<td>${r.before.map(v=>escape(v.numberValue ?? v.stringValue ?? 'blank')).join(' / ')}</td></tr>`).join('')}</tbody></table></div></details>`).join('');
-      dialog.querySelector('[data-sync-preview]').innerHTML = `<h3>Review the transfer</h3><p>${count} finished periods selected across ${plans.length} class targets. ${changes} input cells will be written; ${overwrites} existing values will change. Names, other periods, formatting, and formulas are preserved.</p>${html}${overwrites?'<label class="sync-ack"><input type="checkbox" data-sync-overwrite>I reviewed the existing scores and approve replacing the values shown above.</label>':''}<p>Updates are atomic within each workbook. Separate workbooks are filled in sequence. Keep other editors out of these input cells while filling.</p>`;
+      const count = new Set(plans.flatMap(p=>p.source.periods.map(period=>`${p.source.classPeriodId || p.source.id}|${period.quarter}`))).size, changes=plans.reduce((n,p)=>n+p.changes.length*3,0), overwrites=plans.reduce((n,p)=>n+p.overwrites,0);
+      const html = plans.map(p=>`<details class="sync-review"><summary>${escape(p.source.section.subject)} · ${escape(p.source.section.section)}${p.source.partition ? ` · ${escape(p.source.partition === 'ABM' ? 'B&E / ABM' : p.source.partition)}` : ''} · ${p.allRows.length} learner-period matches</summary><p>${escape(p.title)} → ${escape(p.sheetTitle)}</p><div class="sync-table-wrap"><table><caption>Full-precision weighted scores. Display rounded to three decimals.</caption><thead><tr><th>Learner</th><th>Quarter</th><th>Cells</th><th>WW</th><th>PT</th><th>QA</th><th>Existing WW / PT / QA</th></tr></thead><tbody>${p.allRows.map(r=>`<tr><th scope="row">${escape(r.name)}</th><td>${r.quarter}</td><td>C${r.row+1}:E${r.row+1}</td>${r.values.map(v=>`<td>${v.toFixed(3)}</td>`).join('')}<td>${r.before.map(v=>escape(v.numberValue ?? v.stringValue ?? 'blank')).join(' / ')}</td></tr>`).join('')}</tbody></table></div></details>`).join('');
+      const untouched = plans.flatMap(p=>p.untouched.map(row=>({...row,sheetTitle:p.sheetTitle,title:p.title})));
+      dialog.querySelector('[data-sync-preview]').innerHTML = `<h3>Review the transfer</h3><p>${count} finished period${count===1?'':'s'} selected across ${plans.length} official target${plans.length===1?'':'s'}. ${changes} input cells will be written; ${overwrites} existing values will change. Names, other periods, formatting, and formulas are preserved.</p>${html}${untouched.length ? `<details class="sync-review"><summary>${untouched.length} official learner-period rows will stay unchanged</summary><p>These learners have no entry in the selected source period. Their existing official scores will be preserved.</p><ul>${untouched.map(row=>`<li>${escape(row.name)} · Quarter ${row.quarter} · ${escape(row.title)} / ${escape(row.sheetTitle)} · C${row.row+1}:E${row.row+1}</li>`).join('')}</ul></details>` : ''}${overwrites?'<label class="sync-ack"><input type="checkbox" data-sync-overwrite>I reviewed the existing scores and approve replacing the values shown above.</label>':''}<p>Updates are atomic within each workbook. Separate workbooks are filled in sequence. Keep other editors out of these input cells while filling.</p>`;
       preview = {plans,source:JSON.stringify(plans.map(p=>p.source)),email:connection.email};
       dialog.querySelector('[data-sync-apply]').hidden = changes===0;
       dialog.querySelector('[data-sync-report]').hidden = false;
@@ -224,7 +234,7 @@
     dialog.querySelector('[data-sync-edit]').onclick=()=>{invalidate();message(dialog,'Choose the classes and check their official links.');};
     dialog.querySelector('[data-sync-report]').onclick = () => {
       if(!preview)return;
-      const report={createdAt:new Date().toISOString(),schoolAccount:preview.email,results:preview.results||[],targets:preview.plans.map(p=>({spreadsheetId:p.spreadsheetId,sheetId:p.sheetId,sheetTitle:p.sheetTitle,schoolYear:p.source.schoolYear,semester:p.source.semester,changes:p.changes}))};
+      const report={createdAt:new Date().toISOString(),schoolAccount:preview.email,results:preview.results||[],targets:preview.plans.map(p=>({spreadsheetId:p.spreadsheetId,sheetId:p.sheetId,sheetTitle:p.sheetTitle,schoolYear:p.source.schoolYear,semester:p.source.semester,partition:p.source.partition,changes:p.changes,unchangedOfficialRows:p.untouched}))};
       const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'}), url=URL.createObjectURL(blob), link=document.createElement('a');
       link.href=url;link.download='official-gradesheet-change-report.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
     };

@@ -10,33 +10,48 @@ const clone=value=>JSON.parse(JSON.stringify(value));
 async function harness(browser, options={}) {
   const page=await browser.newPage({viewport:{width:1440,height:1000}});
   page.on('pageerror',error=>console.error('Browser error:',error.message));
-  const data=fixture(), original=clone(data.book);
+  const data=fixture(Boolean(options.partitions));
+  const sources=[data.source], books={'synthetic-book':data.book};
+  if(options.partitions){
+    data.source.partition='ABM';data.source.classPeriodId='synthetic-class';data.source.id='synthetic-ABM';
+    const stem=clone(data.source);stem.partition='STEM';stem.id='synthetic-STEM';
+    data.source.periods[0].roster.splice(1);stem.periods[0].roster.splice(0,1);sources.push(stem);
+    const stemBook=clone(data.book);stemBook.spreadsheetId='synthetic-stem';stemBook.properties.title='Synthetic official STEM gradesheet';
+    data.book.properties.title='Synthetic official ABM gradesheet';
+    data.book.sheets[0].data[0].rowData[13].values[0]={};
+    stemBook.sheets[0].data[0].rowData[10].values[0]={};books['synthetic-stem']=stemBook;
+  }
+  if(options.officialOnly){data.source.periods[0].roster.pop();data.rows[15].values[2]={userEnteredValue:{numberValue:12},formattedValue:'12'};}
+  const original=clone(data.book);
   let writes=0,reads=0;
   await page.route('https://synthetic.test/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<html><body><main><p>Synthetic preview. Invented learners and a simulated Google connection. No live school records.</p></main></body></html>'}));
   await page.goto('https://synthetic.test/');
   for(const file of ['design-system.css','visual-remaster.css','official-sync.css'])await page.addStyleTag({path:path.join(root,'ASSETS',file)});
   await page.addStyleTag({content:'*,*::before,*::after{transition:none!important;animation:none!important}'});
-  await page.evaluate(({source,email,native})=>{
+  await page.evaluate(({source,sources,email,native})=>{
     window.CSTRMobile={native};
-    window.__syncSource=source;
+    window.__syncSources=sources;
+    window.__syncSource=window.__syncSources[0];
     const user={uid:'synthetic-owner'};
     window.CSTRSync={getCurrentUser:()=>user,onAuthStateChanged(callback){window.__authCallback=callback;return()=>{};}};
     const auth={async setPersistence(){},async signOut(){},async signInWithPopup(){return {user:{email:email||'teacher@cstr.edu.ph',emailVerified:true},credential:{accessToken:'synthetic-token'}};}};
     const firebaseAuth=()=>auth;firebaseAuth.Auth={Persistence:{NONE:'none'}};
-    firebaseAuth.GoogleAuthProvider=class {addScope(scope){window.__scope=scope;}setCustomParameters(){}};
+    firebaseAuth.GoogleAuthProvider=class {addScope(scope){window.__scope=scope;}setCustomParameters(params){window.__oauthPrompt=params.prompt;}};
     window.firebase={apps:[],auth:firebaseAuth,app:()=>({options:{projectId:'synthetic'}}),initializeApp:()=>({auth:()=>auth})};
-  },{source:data.source,email:options.email,native:options.native||false});
+  },{source:data.source,sources,email:options.email,native:options.native||false});
   for(const file of ['grading-engine.js','official-sync-engine.js','official-sync.js'])await page.addScriptTag({path:path.join(root,'ASSETS',file)});
   await page.route('https://sheets.googleapis.com/**',async route=>{
     const request=route.request();
     const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,content-type','Access-Control-Allow-Methods':'GET,POST,OPTIONS'};
     if(request.method()==='OPTIONS')return route.fulfill({status:204,headers,body:''});
+    const id=new URL(request.url()).pathname.split('/').at(-1).replace(':batchUpdate','');
+    const book=books[id];assert(book,'Unexpected target');
     assert.equal(request.headers().authorization,'Bearer synthetic-token');
     if(request.method()==='POST'){
       writes++;
       for(const {updateCells:change}of request.postDataJSON().requests){
         assert.equal(change.fields,'userEnteredValue');assert.equal(change.start.columnIndex,2);
-        const rows=data.book.sheets[0].data[0].rowData;
+        const rows=book.sheets[0].data[0].rowData;
         change.rows[0].values.forEach((value,i)=>{rows[change.start.rowIndex].values[i+2]=clone(value);});
       }
       if(options.lostResponse)return route.abort('failed');
@@ -44,9 +59,9 @@ async function harness(browser, options={}) {
     }
     reads++;
     const grid=request.url().includes('includeGridData');
-    await route.fulfill({status:200,headers,contentType:'application/json',body:JSON.stringify(grid?data.book:{...data.book,sheets:data.book.sheets.map(sheet=>({properties:sheet.properties}))})});
+    await route.fulfill({status:200,headers,contentType:'application/json',body:JSON.stringify(grid?book:{...book,sheets:book.sheets.map(sheet=>({properties:sheet.properties}))})});
   });
-  if(!options.native)await page.evaluate(()=>window.CSTROfficialSync.open({getSources:()=>[window.__syncSource]}));
+  if(!options.native)await page.evaluate(()=>window.CSTROfficialSync.open({getSources:()=>window.__syncSources}));
   return {page,data,original,writes:()=>writes,reads:()=>reads};
 }
 async function prepare(h) {
@@ -54,6 +69,7 @@ async function prepare(h) {
   await page.getByRole('textbox',{name:'School Google email'}).fill('teacher@cstr.edu.ph');
   await page.getByRole('button',{name:'Connect school account',exact:true}).click();
   await page.getByText('Connected as teacher@cstr.edu.ph',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__oauthPrompt),'select_account');
   await page.getByRole('textbox',{name:'Official Google Sheets link',exact:true}).fill('https://docs.google.com/spreadsheets/d/synthetic-book/edit#gid=7');
   await page.getByRole('button',{name:'Check link',exact:true}).click();
   await page.waitForFunction(()=>!document.querySelector('[data-sync-check]').disabled);
@@ -125,6 +141,32 @@ async function main(){
       await h.page.getByRole('button',{name:'Fill verified gradesheets',exact:true}).click();
       await h.page.getByText(/Finished: 1 workbook checked/).waitFor();assert.equal(h.writes(),1);
       console.log('PASS browser: lost write response is resolved by readback without retrying the write');await h.page.close();
+    }
+    {
+      const h=await harness(browser,{partitions:true});
+      await h.page.getByRole('textbox',{name:'School Google email'}).fill('teacher@cstr.edu.ph');
+      await h.page.getByRole('button',{name:'Connect school account',exact:true}).click();
+      await h.page.getByText('Connected as teacher@cstr.edu.ph',{exact:true}).waitFor();
+      for(const [strand,id]of [['B&E / ABM','synthetic-book'],['STEM','synthetic-stem']]){
+        const group=h.page.getByRole('group',{name:`General Science 11 · Grade 11 · Saint Sample · ${strand}`,exact:true});
+        await group.getByRole('textbox',{name:'Official Google Sheets link',exact:true}).fill(`https://docs.google.com/spreadsheets/d/${id}/edit#gid=7`);
+        await group.getByRole('button',{name:'Check link',exact:true}).click();
+        await group.getByText(/Template and school year checked/).waitFor();
+      }
+      await h.page.screenshot({path:path.join(output,'strands.png'),fullPage:true,animations:'disabled'});
+      await h.page.getByRole('button',{name:'Preview finished periods',exact:true}).click();
+      await h.page.getByText(/1 finished period selected across 2 official targets/).waitFor();
+      await h.page.getByRole('button',{name:'Fill verified gradesheets',exact:true}).click();
+      await h.page.getByText(/Finished: 2 workbooks checked/).waitFor();assert.equal(h.writes(),2);
+      console.log('PASS browser: B&E/ABM and STEM groups fill separate official files while counting their shared period once');await h.page.close();
+    }
+    {
+      const h=await harness(browser,{officialOnly:true});await prepare(h);
+      await h.page.getByText('1 official learner-period rows will stay unchanged',{exact:true}).waitFor();
+      await h.page.getByRole('button',{name:'Fill verified gradesheets',exact:true}).click();
+      await h.page.getByText(/Finished: 1 workbook checked/).waitFor();
+      assert.deepEqual(h.data.rows[15].values,h.original.sheets[0].data[0].rowData[15].values);
+      console.log('PASS browser: official learners absent from this source period keep their entire existing row unchanged');await h.page.close();
     }
     {
       const h=await harness(browser,{native:true});assert.equal(await h.page.evaluate(()=>Boolean(window.CSTROfficialSync)),false);

@@ -87,6 +87,13 @@
       const semester = /(?:FIRST|1ST)\s+SEMESTER/i.test(headers) ? 1 : /(?:SECOND|2ND)\s+SEMESTER/i.test(headers) ? 2 : null;
       if (semester !== source.semester) throw new Error('The official workbook semester does not match the completed periods.');
     }
+    if (source.partition) {
+      const label = `${workbook.properties.title} ${meta[2]}`;
+      const stem = /\bSTEM\b/i.test(label), abm = /\bABM\b|\bB\s*&\s*E\b|business.*entrep/i.test(label);
+      if ((source.partition === 'STEM' && (!stem || abm)) || (source.partition === 'ABM' && (!abm || stem)) || !['STEM','ABM'].includes(source.partition)) {
+        throw new Error(`This source group is ${source.partition === 'ABM' ? 'B&E / ABM' : source.partition}. Link its matching official strand file.`);
+      }
+    }
     const header = rows.findIndex(row => /NAMES/i.test(display(row?.[0])) && /^(PERIOD|QUARTER)$/i.test(text(display(row?.[1]))));
     if (header < 0) throw new Error('The official NAMES and PERIOD/Quarter columns were not found.');
     const labels = ['Written Works', 'Performance Task', 'Quarterly Asses'];
@@ -146,10 +153,16 @@
       allRows.push(item);
       if (item.values.some((value, i) => item.before[i].numberValue !== value)) changes.push(item);
     }
-    for (const keys of used.values()) for (const [key, student] of students) if (!keys.has(key)) throw new Error(`The official sheet lists ${student.name}, who is missing from a completed source period. Reconcile the rosters before transferring.`);
+    // A learner can leave a class between quarters. No source entry means no
+    // score to transfer, not zero and not permission to erase official history.
+    const untouched = [];
+    for (const [quarter,keys] of used) for (const [key,student] of students) if (!keys.has(key)) {
+      const row=student.row+quarter-1;
+      untouched.push({name:student.name,quarter,row,values:Array.from({length:3},(_,i)=>display(rows[row]?.[i+2]))});
+    }
     return {
       sourceId: source.id, spreadsheetId: workbook.spreadsheetId, title: workbook.properties.title,
-      sheetId, sheetTitle: sheet.properties.title, source, allRows, changes,
+      sheetId, sheetTitle: sheet.properties.title, source, allRows, changes, untouched,
       overwrites: changes.reduce((sum, item) => sum + item.values.filter((v,i) => Object.keys(item.before[i]).length && item.before[i].numberValue !== v).length, 0),
       // Include names resolved through formulas, headings, inputs, and formula text.
       // Ignore computed F/G values, which may legitimately recalculate on a read.

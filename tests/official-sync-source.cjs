@@ -24,6 +24,17 @@ context.window.CSTRMobile={native:true};assert(!hooks.renderHome().includes('dat
 assert(!hooks.renderSectionRecord().includes('data-action="fill-official-sheets"'));
 console.log('PASS actual app collector: requires saved changes, includes finished unlocked periods, excludes unfinished locked periods and category rows, and hides Android controls.');
 delete context.window.CSTRMobile;
+const splitState=JSON.parse(JSON.stringify(state));
+const splitPeriod=splitState.sections[source.section.id].periods[0];
+const learners=splitPeriod.roster.filter(l=>l.name!=='ALL BOYS');
+splitPeriod.roster=[{name:'B&E BOYS',ww:[],pt:[],qa:[]},learners[0],{name:'STEM-AMH ALL GIRLS',ww:[],pt:[],qa:[]},learners[1]];
+hooks.setState(splitState);
+const split=hooks.sources();assert.equal(split.length,2);assert.deepEqual(Array.from(split,s=>s.partition),['ABM','STEM']);
+assert.equal(split[0].periods[0].roster[0].name,learners[0].name);assert.equal(split[1].periods[0].roster[0].name,learners[1].name);
+assert.equal(split[0].classPeriodId,split[1].classPeriodId);
+splitPeriod.roster.unshift({...learners[0],name:'Unassigned, Example'});hooks.setState(splitState);assert.throws(()=>hooks.sources(),/needs a STEM-AMH or B&E/);
+hooks.setState(state);
+console.log('PASS explicit B&E and STEM-AMH source headings partition cohorts without losing or duplicating students; unassigned students block transfer.');
 (async()=>{
   const events=[];context.window.CSTROfficialSync.open=config=>{assert.equal(config.getSources().length,1);events.push('opened');};
   hooks.setDirty(1);hooks.setSave(async()=>{events.push('saved');hooks.setDirty(0);return true;});

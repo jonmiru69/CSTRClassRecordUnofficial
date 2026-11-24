@@ -2642,13 +2642,41 @@
         const issues = getPeriodInputIntegrity(period);
         if (hasPeriodInputIssues(issues)) throw new Error(`${section.subject} · ${period.name}: ${periodInputIssueMessage(issues)}.`);
         const semester = section.group === 'SHS' ? period.semester : null;
-        if (!groups.has(semester)) groups.set(semester, []);
-        groups.get(semester).push({ ...period, complete:true, roster:period.roster.filter(learner => learner.name?.trim() && !getRowCategory(learner)) });
+        const headingStrand = learner => {
+          if (!getRowCategory(learner)) return null;
+          const label = String(learner.name || '').normalize('NFKC');
+          if (/\bSTEM\b/i.test(label)) return 'STEM';
+          if (/\bABM\b|\bB\s*&\s*E\b|business.*entrep/i.test(label)) return 'ABM';
+          return null;
+        };
+        const splitByStrand = period.roster.some(learner => headingStrand(learner));
+        const cohorts = new Map();
+        let strand = null;
+        for (const learner of period.roster) {
+          const category = getRowCategory(learner);
+          if (category) {
+            const heading = headingStrand(learner);
+            if (heading) strand = heading;
+            else if (category === 'section') strand = null;
+            continue;
+          }
+          if (!learner.name?.trim()) continue;
+          if (splitByStrand && !strand) throw new Error(`${section.subject} · ${period.name}: ${learner.name} needs a STEM-AMH or B&E / ABM heading before transfer.`);
+          const cohort = splitByStrand ? strand : null;
+          if (!cohorts.has(cohort)) cohorts.set(cohort, []);
+          cohorts.get(cohort).push(learner);
+        }
+        for (const [partition, roster] of cohorts) {
+          const key = `${semester || 'year'}|${partition || 'class'}`;
+          if (!groups.has(key)) groups.set(key, {semester,partition,periods:[]});
+          groups.get(key).periods.push({ ...period, complete:true, roster });
+        }
       }
-      for (const [semester, periods] of groups) sources.push({
-        id:`${state.calendarMode}|${section.id}|${semester || 'year'}`,
-        section, semester, calendarMode:state.calendarMode, schoolYear:currentSchoolYear(), cloudRevision, periods
-      });
+      for (const {semester,partition,periods} of groups.values()) {
+        const classPeriodId = `${state.calendarMode}|${section.id}|${semester || 'year'}`;
+        sources.push({id:classPeriodId+(partition?`|${partition}`:''),classPeriodId,partition,
+          section, semester, calendarMode:state.calendarMode, schoolYear:currentSchoolYear(), cloudRevision, periods});
+      }
     }
     return JSON.parse(JSON.stringify(sources));
   }
