@@ -1642,6 +1642,7 @@
           </div>
           <div class="owner-footer"><div class="dashboard-hero-actions">
             ${button(`${icon("records")}<span>Open class records</span>`, "go-records", "button button-primary")}
+            ${!window.CSTRMobile?.native && window.CSTROfficialSync ? button('Fill official gradesheets', 'fill-official-sheets', 'button button-secondary') : ''}
             ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-secondary")}
           </div></div>
         </div>
@@ -1770,6 +1771,7 @@
               ${button(`${icon("trash")} Delete period`, "delete-period", "button button-danger", period.locked ? "disabled" : "")}
               ${button(`${icon("download")} Excel`, "export-excel", "button button-secondary", 'aria-label="Download print-ready Excel sheet" title="Download print-ready Excel sheet"')}
               ${button(`${icon("download")} Export to Official E-Gradesheet`, "export-official", "button button-primary", 'aria-label="Export this class as the official e-gradesheet in PDF or Word" title="Export this class as the official e-gradesheet in PDF or Word"')}
+              ${!window.CSTRMobile?.native && window.CSTROfficialSync ? button('Fill official gradesheets', 'fill-official-sheets', 'button button-secondary') : ''}
             </div>
           </div></details>
         </div>
@@ -2626,6 +2628,47 @@
     const calendarYear = now.getFullYear();
     const startYear = now.getMonth() >= 5 ? calendarYear : calendarYear - 1;
     return `${startYear}-${startYear + 1}`;
+  }
+
+  function officialSyncSources() {
+    if (!isDataLoaded || isStale || !isSignedIn()) throw new Error('Wait for cloud records to load and resolve any save conflict before filling official gradesheets.');
+    if (isSaving || pendingAutoSaveChanges > 0 || stateRevision > lastSavedRevision) throw new Error('Save the latest class record changes before creating a fresh gradesheet preview.');
+    if (state.calendarMode === 'trimester') throw new Error('The official gradesheets inspected use quarters. Switch to the Quarterly / Semestral workspace to transfer.');
+    const sources = [];
+    for (const section of activeRegistry().filter(section => !section.archived)) {
+      const groups = new Map();
+      for (const period of activeSections()[section.id]?.periods || []) {
+        if (!recordCompletion(period).complete) continue;
+        const issues = getPeriodInputIntegrity(period);
+        if (hasPeriodInputIssues(issues)) throw new Error(`${section.subject} · ${period.name}: ${periodInputIssueMessage(issues)}.`);
+        const semester = section.group === 'SHS' ? period.semester : null;
+        if (!groups.has(semester)) groups.set(semester, []);
+        groups.get(semester).push({ ...period, complete:true, roster:period.roster.filter(learner => learner.name?.trim() && !getRowCategory(learner)) });
+      }
+      for (const [semester, periods] of groups) sources.push({
+        id:`${state.calendarMode}|${section.id}|${semester || 'year'}`,
+        section, semester, calendarMode:state.calendarMode, schoolYear:currentSchoolYear(), cloudRevision, periods
+      });
+    }
+    return JSON.parse(JSON.stringify(sources));
+  }
+
+  async function openOfficialSync() {
+    if (window.CSTRMobile?.native || !window.CSTROfficialSync) return;
+    const owner = currentUserKey();
+    try {
+      commitActiveFieldEdit();
+      commitPendingBulkFill();
+      const started = Date.now();
+      if (isSaving) showSaveToast('Waiting for the current cloud save before preparing official gradesheets.');
+      while (isSaving && Date.now() - started < 30000 && currentUserKey() === owner) await new Promise(resolve => setTimeout(resolve, 100));
+      if (currentUserKey() !== owner || !isSignedIn()) return;
+      if (pendingAutoSaveChanges > 0 || stateRevision > lastSavedRevision) {
+        if (!await saveToFirebase()) throw new Error('The cloud save did not finish. Resolve the save issue before filling official gradesheets.');
+      }
+      window.CSTROfficialSync.open({getSources:officialSyncSources, selectedClassId:currentView === 'record' ? activeSectionId : null});
+    }
+    catch (error) { showSaveToast(error.message, 'error'); }
   }
 
   function renderOfficialExportModal() {
@@ -4648,6 +4691,7 @@
     mobileEntryKind='ww'; mobileEntryIndex=0; mobileFilter='';
     const recoveryKeys = [localDraftKey(), versionHistoryKey()];
     try {
+      window.CSTROfficialSync?.reset();
       if (window.CSTRSync?.signOut) await window.CSTRSync.signOut();
     } catch (error) {
       isLoggingOut = false;
@@ -4818,6 +4862,7 @@
 
     if (action === "export-excel") renderExcelExportModal();
     if (action === "export-official") { renderOfficialExportModal(); return; }
+    if (action === "fill-official-sheets") { openOfficialSync(); return; }
     if (action === "export-official-pdf") { exportOfficialGradeSheet("pdf", target); return; }
     if (action === "export-official-word") { exportOfficialGradeSheet("word", target); return; }
 
