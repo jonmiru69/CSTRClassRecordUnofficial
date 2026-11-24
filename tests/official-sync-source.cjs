@@ -35,6 +35,11 @@ assert.equal(split[0].classPeriodId,split[1].classPeriodId);
 splitPeriod.roster.unshift({...learners[0],name:'Unassigned, Example'});hooks.setState(splitState);assert.throws(()=>hooks.sources(),/needs a STEM-AMH or B&E/);
 hooks.setState(state);
 console.log('PASS explicit B&E and STEM-AMH source headings partition cohorts without losing or duplicating students; unassigned students block transfer.');
+const singleStrand=JSON.parse(JSON.stringify(state));
+for(const period of singleStrand.sections[source.section.id].periods)period.roster[0].name='STEM ALL BOYS';
+hooks.setState(singleStrand);assert.equal(hooks.sources().length,1);assert.equal(hooks.sources()[0].partition,null);
+hooks.setState(state);
+console.log('PASS a single-strand class retains its whole-class official target.');
 (async()=>{
   const events=[];context.window.CSTROfficialSync.open=config=>{assert.equal(config.getSources().length,1);events.push('opened');};
   hooks.setDirty(1);hooks.setSave(async()=>{events.push('saved');hooks.setDirty(0);return true;});

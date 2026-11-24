@@ -2637,19 +2637,21 @@
     const sources = [];
     for (const section of activeRegistry().filter(section => !section.archived)) {
       const groups = new Map();
-      for (const period of activeSections()[section.id]?.periods || []) {
+      const sectionPeriods = activeSections()[section.id]?.periods || [];
+      const headingStrand = learner => {
+        if (!getRowCategory(learner)) return null;
+        const label = String(learner.name || '').normalize('NFKC');
+        if (/\bSTEM\b/i.test(label)) return 'STEM';
+        if (/\bABM\b|\bB\s*&\s*E\b|business.*entrep/i.test(label)) return 'ABM';
+        return null;
+      };
+      const sectionStrands = new Set(sectionPeriods.flatMap(period=>period.roster.map(headingStrand)).filter(Boolean));
+      const splitByStrand = sectionStrands.size > 1;
+      for (const period of sectionPeriods) {
         if (!recordCompletion(period).complete) continue;
         const issues = getPeriodInputIntegrity(period);
         if (hasPeriodInputIssues(issues)) throw new Error(`${section.subject} · ${period.name}: ${periodInputIssueMessage(issues)}.`);
         const semester = section.group === 'SHS' ? period.semester : null;
-        const headingStrand = learner => {
-          if (!getRowCategory(learner)) return null;
-          const label = String(learner.name || '').normalize('NFKC');
-          if (/\bSTEM\b/i.test(label)) return 'STEM';
-          if (/\bABM\b|\bB\s*&\s*E\b|business.*entrep/i.test(label)) return 'ABM';
-          return null;
-        };
-        const splitByStrand = period.roster.some(learner => headingStrand(learner));
         const cohorts = new Map();
         let strand = null;
         for (const learner of period.roster) {
