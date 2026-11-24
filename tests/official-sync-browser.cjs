@@ -21,6 +21,7 @@ async function harness(browser, options={}) {
     data.book.sheets[0].data[0].rowData[13].values[0]={};
     stemBook.sheets[0].data[0].rowData[10].values[0]={};books['synthetic-stem']=stemBook;
   }
+  if(options.sourceOnly)data.source.periods[0].roster[0].name='Unmatched, Synthetic';
   if(options.officialOnly){data.source.periods[0].roster.pop();data.rows[15].values[2]={userEnteredValue:{numberValue:12},formattedValue:'12'};}
   const original=clone(data.book);
   let writes=0,reads=0;
@@ -110,7 +111,7 @@ async function main(){
       await h.page.getByText(/Finished: 1 workbook checked/).waitFor();
       assert.equal(h.writes(),2);assert.equal(after[10].values[2].userEnteredValue.numberValue,20);
       await h.page.getByRole('button',{name:'Create a fresh preview',exact:true}).click();
-      await h.page.getByText('All selected scores already match. Nothing needs to be written.',{exact:true}).waitFor();
+      await h.page.getByText('All matched scores already agree. Nothing needs to be written.',{exact:true}).waitFor();
       assert.equal(h.writes(),2);assert(await h.page.getByRole('button',{name:'Fill verified gradesheets',exact:true}).isHidden());
       console.log('PASS browser: a saved correction updates the same linked sheet; repeating unchanged scores makes no write');
       await h.page.close();
@@ -167,6 +168,15 @@ async function main(){
       await h.page.getByText(/Finished: 1 workbook checked/).waitFor();
       assert.deepEqual(h.data.rows[15].values,h.original.sheets[0].data[0].rowData[15].values);
       console.log('PASS browser: official learners absent from this source period keep their entire existing row unchanged');await h.page.close();
+    }
+    {
+      const h=await harness(browser,{sourceOnly:true});await prepare(h);
+      await h.page.getByText('1 source learner-period entries will be skipped',{exact:true}).waitFor();
+      await h.page.getByRole('button',{name:'Fill verified gradesheets',exact:true}).click();
+      await h.page.getByText(/Finished: 1 workbook checked/).waitFor();
+      assert.deepEqual(h.data.rows[10].values,h.original.sheets[0].data[0].rowData[10].values);
+      assert.equal(h.data.rows[15].values[2].userEnteredValue.numberValue,0);
+      console.log('PASS browser: source-only names are disclosed and skipped while matched learners update correctly');await h.page.close();
     }
     {
       const h=await harness(browser,{native:true});assert.equal(await h.page.evaluate(()=>Boolean(window.CSTROfficialSync)),false);

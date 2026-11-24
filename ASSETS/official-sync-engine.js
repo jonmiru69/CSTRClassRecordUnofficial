@@ -136,11 +136,11 @@
     const data = inspect(source, workbook, sheetId);
     const { sheet, rows, students } = data;
     if (data.mismatches.length && acknowledgedHeading !== `${data.officialSection}|${data.officialSubject}`) throw new Error(data.mismatches.join(' ') + ' Verify this mapping explicitly before previewing.');
-    const sourceData = sourceRows(source), used = new Map(), changes = [], allRows = [];
+    const sourceData = sourceRows(source), used = new Map(), changes = [], allRows = [], skipped = [];
+    for (const learner of sourceData) if (!used.has(learner.quarter)) used.set(learner.quarter,new Set());
     for (const learner of sourceData) {
       const target = students.get(learner.key);
-      if (!target) throw new Error(`No exact full-name match in the official sheet: ${learner.name}. Correct the names before transferring.`);
-      if (!used.has(learner.quarter)) used.set(learner.quarter, new Set());
+      if (!target) { skipped.push({name:learner.name,quarter:learner.quarter}); continue; }
       used.get(learner.quarter).add(learner.key);
       const row = target.row + learner.quarter - 1, cells = rows[row] || [];
       if (!entered(cells[5]).formulaValue || !entered(cells[6]).formulaValue) throw new Error(`Missing official grade formulas at row ${row + 1}. Ask the registrar to repair the template.`);
@@ -162,7 +162,7 @@
     }
     return {
       sourceId: source.id, spreadsheetId: workbook.spreadsheetId, title: workbook.properties.title,
-      sheetId, sheetTitle: sheet.properties.title, source, allRows, changes, untouched,
+      sheetId, sheetTitle: sheet.properties.title, source, allRows, changes, untouched, skipped,
       overwrites: changes.reduce((sum, item) => sum + item.values.filter((v,i) => Object.keys(item.before[i]).length && item.before[i].numberValue !== v).length, 0),
       // Include names resolved through formulas, headings, inputs, and formula text.
       // Ignore computed F/G values, which may legitimately recalculate on a read.

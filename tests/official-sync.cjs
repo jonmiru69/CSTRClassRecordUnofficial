@@ -55,14 +55,19 @@ test('retains diacritics, normalizes whitespace, and removes only list numbers',
   assert.equal(engine.nameKey(' 1.  De la Cruz,   Demo A. '),engine.nameKey('De la Cruz, Demo A.'));
   assert.notEqual(engine.nameKey('Peña, Sample'),engine.nameKey('Pena, Sample'));
 });
-test('rejects source learners without a match and duplicate learner names',()=>{
-  for(const which of ['source duplicate','target duplicate','missing']){
+test('rejects duplicate learner names',()=>{
+  for(const which of ['source duplicate','target duplicate']){
     const {source,book,period,rows}=fixture();
     if(which==='source duplicate')period.roster[1].name=period.roster[0].name;
     if(which==='target duplicate')rows[15].values[0]=clone(rows[10].values[0]);
-    if(which==='missing')period.roster[0].name='Different, Person';
-    assert.throws(()=>engine.plan(source,book,7),/Duplicate|No exact/);
+    assert.throws(()=>engine.plan(source,book,7),/Duplicate/);
   }
+});
+test('skips source-only names without affecting matched learners or official-only rows',()=>{
+  const {source,book,period}=fixture();period.roster[0].name='Different, Person';
+  const plan=engine.plan(source,book,7);assert.equal(plan.skipped.length,1);assert.equal(plan.allRows.length,1);assert.equal(plan.untouched.length,1);
+  assert.equal(plan.skipped[0].name,'Different, Person');assert.equal(plan.changes[0].name,'Bautista, Demo B.');
+  assert(engine.requests([plan]).every(request=>request.updateCells.start.rowIndex===15));
 });
 test('preserves official history when a learner has no source entry for this quarter',()=>{
   const {source,book,period,rows}=fixture();period.roster.pop();rows[15].values[2]=number(12);
