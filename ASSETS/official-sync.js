@@ -87,7 +87,7 @@
     const label = `${plan.source.section.subject} · ${plan.source.section.section}${plan.source.partition ? ` · ${plan.source.partition === 'ABM' ? 'B&E / ABM' : plan.source.partition}` : ''}`;
     return `<details class="sync-review" data-sync-review><summary>${escape(label)} · ${plan.allRows.length} learner-period matches</summary>
       <p>${escape(plan.title)} → ${escape(plan.sheetTitle)}</p>
-      <div class="sync-quarter-buttons" role="group" aria-label="Review quarter for ${escape(label)}">${quarters.map(q=>`<button type="button" class="button" data-sync-quarter="${q}" aria-pressed="${q===quarter}" aria-controls="sync-quarter-table-${index}">Quarter ${q}</button>`).join('')}</div>
+      <div class="sync-quarter-buttons" role="group" aria-label="Review quarter for ${escape(label)}">${quarters.map(q=>`<button type="button" class="sync-quarter-button" data-sync-quarter="${q}" aria-pressed="${q===quarter}" aria-controls="sync-quarter-table-${index}">Quarter ${q}</button>`).join('')}</div>
       <p class="sync-quarter-summary"><strong data-sync-quarter-label aria-live="polite">Quarter ${quarter} · ${count} matched learner${count===1?'':'s'}</strong><span>All selected finished quarters remain included in the transfer.</span></p>
       <div class="sync-table-wrap" id="sync-quarter-table-${index}"><table><caption>WW/PT/QA scores are rounded to two decimal places before transfer.</caption><thead><tr><th>Learner</th><th>Quarter</th><th>Cells</th><th>WW</th><th>PT</th><th>QA</th><th>Existing WW / PT / QA</th></tr></thead><tbody>${plan.allRows.map(row=>`<tr data-sync-row-quarter="${row.quarter}" ${row.quarter===quarter?'':'hidden'}><th scope="row">${escape(row.name)}</th><td>${row.quarter}</td><td>C${row.row+1}:E${row.row+1}</td>${row.values.map(value=>`<td>${value.toFixed(2)}</td>`).join('')}<td>${row.before.map(value=>escape(value.numberValue ?? value.stringValue ?? 'blank')).join(' / ')}</td></tr>`).join('')}</tbody></table><p data-sync-quarter-empty ${count?'hidden':''}>No matched learners for this quarter. Unmatched names are listed below the class reviews.</p></div></details>`;
   }
@@ -101,6 +101,7 @@
     let preview = null, busy = false, stopped = false, mutating = false;
     const jobs = sources.map(source => ({source, binding:restore(owner,source,year)}));
     dialog.className = 'official-sync-dialog';
+    dialog.id = 'officialSyncDialog';
     dialog.setAttribute('aria-labelledby','officialSyncTitle');
     dialog.innerHTML = `<div class="sync-heading"><h2 id="officialSyncTitle">Fill official gradesheets</h2><button type="button" class="button button-secondary" data-sync-close>Close</button></div>
       <p>Transfer finished grading periods from your class record into the registrar’s Google Sheets. Unfinished periods are excluded.</p>

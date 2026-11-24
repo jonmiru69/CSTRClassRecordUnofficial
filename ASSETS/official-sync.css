@@ -49,15 +49,18 @@
 .sync-review { padding: 14px 0; border-bottom: 1px solid var(--border); }
 .sync-review summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
 .sync-quarter-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
-.sync-quarter-buttons .button {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-subtle);
-  color: var(--text);
+:root body #officialSyncDialog .sync-quarter-button {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--border) !important;
+  border-radius: 4px !important;
+  background: var(--surface-subtle) !important;
+  color: var(--text) !important;
   font: inherit;
   font-weight: 600;
 }
-.sync-quarter-buttons .button[aria-pressed=true] { background: var(--brand, var(--maroon)); color: var(--on-brand, #fff); border-color: var(--brand, var(--maroon)); }
+:root body #officialSyncDialog .sync-quarter-button[aria-pressed=true] { background: var(--brand, var(--maroon)) !important; color: var(--on-brand, #fff) !important; border-color: var(--brand, var(--maroon)) !important; }
+:root body #officialSyncDialog .sync-quarter-button:focus-visible { outline: 2px solid var(--info) !important; outline-offset: 3px; }
 .official-sync-dialog .sync-quarter-summary { display: flex; flex-direction: column; gap: 2px; margin: 10px 0; }
 .sync-quarter-summary span { color: var(--muted); font-size: .875rem; }
 .sync-table-wrap { overflow: auto; max-height: 360px; margin: 12px 0; }

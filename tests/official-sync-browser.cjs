@@ -37,7 +37,7 @@ async function harness(browser, options={}) {
   let writes=0,reads=0;
   await page.route('https://synthetic.test/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<html><body><main><p>Synthetic preview. Invented learners and a simulated Google connection. No live school records.</p></main></body></html>'}));
   await page.goto('https://synthetic.test/');
-  for(const file of ['design-system.css','visual-remaster.css','official-sync.css'])await page.addStyleTag({path:path.join(root,'ASSETS',file)});
+  for(const match of fs.readFileSync(path.join(root,'index.html'),'utf8').matchAll(/rel="stylesheet" href="ASSETS\/([^"?]+)(?:\?[^"\s]*)?"/g))await page.addStyleTag({path:path.join(root,'ASSETS',match[1])});
   await page.addStyleTag({content:'*,*::before,*::after{transition:none!important;animation:none!important}'});
   await page.evaluate(({source,sources,email,native})=>{
     window.CSTRMobile={native};
@@ -145,6 +145,9 @@ async function main(){
       for(const [name,width,height,dark]of [['quarters-desktop',1440,1000,false],['quarters-phone',390,844,false],['quarters-dark',1440,1000,true]]){
         await h.page.setViewportSize({width,height});await h.page.evaluate(dark=>document.documentElement.dataset.theme=dark?'dark':'light',dark);
         assert(await h.page.locator('.official-sync-dialog').evaluate(node=>node.scrollWidth<=node.clientWidth+1));
+        const selected=review.getByRole('button',{name:'Quarter 2',exact:true}),other=review.getByRole('button',{name:'Quarter 1',exact:true});
+        assert.notEqual(await selected.evaluate(node=>getComputedStyle(node).backgroundColor),await other.evaluate(node=>getComputedStyle(node).backgroundColor));
+        assert(await selected.evaluate(node=>node.getBoundingClientRect().height>=44));
         await h.page.screenshot({path:path.join(output,`${name}.png`),fullPage:true,animations:'disabled'});
       }
       await h.page.getByRole('button',{name:'Fill verified gradesheets',exact:true}).click();
