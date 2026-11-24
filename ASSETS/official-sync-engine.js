@@ -52,7 +52,8 @@
         const values = kinds.map(kind => {
           const component = result[kind];
           if (component.error || component.missing || !Number.isFinite(component.weighted)) throw new Error(`${text(learner.name)} has an incomplete or invalid ${kind.toUpperCase()} component in ${period.name}.`);
-          return component.weighted;
+          // Official inputs store two decimals, using the existing half-up rule.
+          return grading.roundHalfUp(component.weighted, 2);
         });
         rows.push({ name: text(learner.name), key, quarter, values });
       }

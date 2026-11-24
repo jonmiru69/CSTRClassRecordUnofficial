@@ -23,6 +23,11 @@ async function harness(browser, options={}) {
   }
   if(options.sourceOnly)data.source.periods[0].roster[0].name='Unmatched, Synthetic';
   if(options.officialOnly){data.source.periods[0].roster.pop();data.rows[15].values[2]={userEnteredValue:{numberValue:12},formattedValue:'12'};}
+  if(options.rounding){
+    const period=data.source.periods[0];period.wwHps=[100];period.ptHps=[100];period.qaHps=[120,120,120];
+    period.roster[0].ww=[97.38];period.roster[0].pt=[87.653];period.roster[0].qa=[40.3,40.3,40.3];
+    [19.476,43.8265,10.075].forEach((numberValue,i)=>data.rows[10].values[i+2]={userEnteredValue:{numberValue},formattedValue:String(numberValue)});
+  }
   const original=clone(data.book);
   let writes=0,reads=0;
   await page.route('https://synthetic.test/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<html><body><main><p>Synthetic preview. Invented learners and a simulated Google connection. No live school records.</p></main></body></html>'}));
@@ -115,6 +120,22 @@ async function main(){
       assert.equal(h.writes(),2);assert(await h.page.getByRole('button',{name:'Fill verified gradesheets',exact:true}).isHidden());
       console.log('PASS browser: a saved correction updates the same linked sheet; repeating unchanged scores makes no write');
       await h.page.close();
+    }
+    {
+      const h=await harness(browser,{rounding:true});await prepare(h);
+      await h.page.locator('.sync-review summary').first().click();
+      await h.page.getByText('WW/PT/QA scores are rounded to two decimal places before transfer.',{exact:true}).waitFor();
+      const displayed=await h.page.locator('.sync-review tbody tr').first().innerText();
+      assert(displayed.includes('19.48')&&displayed.includes('43.83')&&displayed.includes('10.08'));
+      await h.page.getByRole('checkbox',{name:/I reviewed the existing scores/}).check();
+      await h.page.getByRole('button',{name:'Fill verified gradesheets',exact:true}).click();
+      await h.page.getByText(/Finished: 1 workbook checked/).waitFor();
+      assert.deepEqual(h.data.rows[10].values.slice(2,5).map(c=>c.userEnteredValue.numberValue),[19.48,43.83,10.08]);
+      assert.equal(h.data.source.periods[0].roster[0].ww[0],97.38);
+      await h.page.getByRole('button',{name:'Create a fresh preview',exact:true}).click();
+      await h.page.getByText('All matched scores already agree. Nothing needs to be written.',{exact:true}).waitFor();
+      assert.equal(h.writes(),1);
+      console.log('PASS browser: repairs previous full-precision inputs with two-decimal numeric writes and a zero-write repeat');await h.page.close();
     }
     {
       const h=await harness(browser);await prepare(h);

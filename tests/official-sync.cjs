@@ -34,6 +34,25 @@ test('matches exact normalized names and writes weighted values including actual
   assert.equal(requests.length,2);
   for(const {updateCells:r} of requests){assert.equal(r.fields,'userEnteredValue');assert.equal(r.start.columnIndex,2);assert.equal(r.rows[0].values.length,3);}
 });
+test('rounds stored WW/PT/QA to two decimals before comparison, write and verification',()=>{
+  const {source,book,period,rows}=fixture();
+  period.wwHps=[100];period.ptHps=[100];period.qaHps=[120,120,120];
+  period.roster[0].ww=[97.38];period.roster[0].pt=[87.653];period.roster[0].qa=[40.3,40.3,40.3];
+  const plan=engine.plan(source,book,7);
+  assert.deepEqual(plan.allRows[0].values,[19.48,43.83,10.08]);
+  const written=engine.requests([plan])[0].updateCells.rows[0].values;
+  assert.deepEqual(written.map(c=>c.userEnteredValue.numberValue),[19.48,43.83,10.08]);
+  for(const item of plan.allRows)item.values.forEach((v,i)=>rows[item.row].values[i+2]=number(v));
+  assert(engine.verify(plan,book));assert.equal(engine.plan(source,book,7).changes.length,0);
+  rows[10].values[2]=number(19.476);assert(!engine.verify(plan,book));
+  assert.equal(engine.plan(source,book,7).changes.length,1);
+});
+test('rounds up decimal halfway cases and retains zeros and whole scores',()=>{
+  for(const [value,expected] of [[19.476,19.48],[19.474,19.47],[1.005,1.01],[10.075,10.08],[19.999,20],[0,0],[20,20]]){
+    const {source,period}=fixture();period.wwHps=[1000];period.roster[0].ww=[value*50];
+    assert.equal(engine.sourceRows(source)[0].values[0],expected);
+  }
+});
 test('excludes unfinished periods even if locked or given a conflicting quarter',()=>{
   const {source,book}=fixture();source.periods.push({...clone(source.periods[0]),complete:false,locked:true,quarter:1});
   assert.equal(engine.plan(source,book,7).allRows.length,2);
