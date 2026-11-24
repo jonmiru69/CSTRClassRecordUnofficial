@@ -81,6 +81,16 @@
     box.textContent = text;
     box.classList.toggle('sync-error',error);
   }
+  function reviewClass(plan, index) {
+    const quarters = [...new Set(plan.source.periods.map(period=>period.quarter))].sort((a,b)=>a-b);
+    const quarter = quarters[0], count = plan.allRows.filter(row=>row.quarter===quarter).length;
+    const label = `${plan.source.section.subject} · ${plan.source.section.section}${plan.source.partition ? ` · ${plan.source.partition === 'ABM' ? 'B&E / ABM' : plan.source.partition}` : ''}`;
+    return `<details class="sync-review" data-sync-review><summary>${escape(label)} · ${plan.allRows.length} learner-period matches</summary>
+      <p>${escape(plan.title)} → ${escape(plan.sheetTitle)}</p>
+      <div class="sync-quarter-buttons" role="group" aria-label="Review quarter for ${escape(label)}">${quarters.map(q=>`<button type="button" class="button" data-sync-quarter="${q}" aria-pressed="${q===quarter}" aria-controls="sync-quarter-table-${index}">Quarter ${q}</button>`).join('')}</div>
+      <p class="sync-quarter-summary"><strong data-sync-quarter-label aria-live="polite">Quarter ${quarter} · ${count} matched learner${count===1?'':'s'}</strong><span>All selected finished quarters remain included in the transfer.</span></p>
+      <div class="sync-table-wrap" id="sync-quarter-table-${index}"><table><caption>WW/PT/QA scores are rounded to two decimal places before transfer.</caption><thead><tr><th>Learner</th><th>Quarter</th><th>Cells</th><th>WW</th><th>PT</th><th>QA</th><th>Existing WW / PT / QA</th></tr></thead><tbody>${plan.allRows.map(row=>`<tr data-sync-row-quarter="${row.quarter}" ${row.quarter===quarter?'':'hidden'}><th scope="row">${escape(row.name)}</th><td>${row.quarter}</td><td>C${row.row+1}:E${row.row+1}</td>${row.values.map(value=>`<td>${value.toFixed(2)}</td>`).join('')}<td>${row.before.map(value=>escape(value.numberValue ?? value.stringValue ?? 'blank')).join(' / ')}</td></tr>`).join('')}</tbody></table><p data-sync-quarter-empty ${count?'hidden':''}>No matched learners for this quarter. Unmatched names are listed below the class reviews.</p></div></details>`;
+  }
   function open({getSources, selectedClassId = null}) {
     assertWeb();
     currentDialog?.close();
@@ -109,6 +119,17 @@
     const selectedJobs = () => jobs.filter((job,i)=>field(i).querySelector('[data-sync-include]').checked);
     const schoolYear = () => dialog.querySelector('[data-sync-year]').value.trim();
     const liveSources = () => getSources().map(source=>({...source,schoolYear:schoolYear()}));
+    dialog.querySelector('[data-sync-preview]').addEventListener('click',event=>{
+      const button = event.target.closest('[data-sync-quarter]');
+      if(!button || button.disabled)return;
+      const review = button.closest('[data-sync-review]'), quarter = Number(button.dataset.syncQuarter);
+      review.querySelectorAll('[data-sync-quarter]').forEach(control=>control.setAttribute('aria-pressed',String(control===button)));
+      let count = 0;
+      review.querySelectorAll('[data-sync-row-quarter]').forEach(row=>{row.hidden=Number(row.dataset.syncRowQuarter)!==quarter;if(!row.hidden)count++;});
+      review.querySelector('[data-sync-quarter-label]').textContent=`Quarter ${quarter} · ${count} matched learner${count===1?'':'s'}`;
+      review.querySelector('[data-sync-quarter-empty]').hidden=Boolean(count);
+      review.querySelector('.sync-table-wrap').scrollTop=0;
+    });
     function rememberJob(i) {
       const job=jobs[i],box=field(i);
       if(!job.metadata || !job.heading)return;
@@ -213,7 +234,7 @@
       if(!active())return;
       const matched = plans.reduce((n,p)=>n+p.allRows.length,0);
       const count = new Set(plans.flatMap(p=>p.source.periods.map(period=>`${p.source.classPeriodId || p.source.id}|${period.quarter}`))).size, changes=plans.reduce((n,p)=>n+p.changes.length*3,0), overwrites=plans.reduce((n,p)=>n+p.overwrites,0);
-      const html = plans.map(p=>`<details class="sync-review"><summary>${escape(p.source.section.subject)} · ${escape(p.source.section.section)}${p.source.partition ? ` · ${escape(p.source.partition === 'ABM' ? 'B&E / ABM' : p.source.partition)}` : ''} · ${p.allRows.length} learner-period matches</summary><p>${escape(p.title)} → ${escape(p.sheetTitle)}</p><div class="sync-table-wrap"><table><caption>WW/PT/QA scores are rounded to two decimal places before transfer.</caption><thead><tr><th>Learner</th><th>Quarter</th><th>Cells</th><th>WW</th><th>PT</th><th>QA</th><th>Existing WW / PT / QA</th></tr></thead><tbody>${p.allRows.map(r=>`<tr><th scope="row">${escape(r.name)}</th><td>${r.quarter}</td><td>C${r.row+1}:E${r.row+1}</td>${r.values.map(v=>`<td>${v.toFixed(2)}</td>`).join('')}<td>${r.before.map(v=>escape(v.numberValue ?? v.stringValue ?? 'blank')).join(' / ')}</td></tr>`).join('')}</tbody></table></div></details>`).join('');
+      const html = plans.map(reviewClass).join('');
       const skipped = plans.flatMap(p=>p.skipped.map(row=>({...row,sheetTitle:p.sheetTitle,title:p.title})));
       const untouched = plans.flatMap(p=>p.untouched.map(row=>({...row,sheetTitle:p.sheetTitle,title:p.title})));
       dialog.querySelector('[data-sync-preview]').innerHTML = `<h3>Review the transfer</h3><p>${count} finished period${count===1?'':'s'} selected across ${plans.length} official target${plans.length===1?'':'s'}. ${changes} input cells will be written; ${overwrites} existing values will change. Names, other periods, formatting, and formulas are preserved.</p>${html}${skipped.length ? `<details class="sync-review"><summary>${skipped.length} source learner-period entries will be skipped</summary><p>These source names have no exact match in the official sheet. No official cell will be changed for them.</p><ul>${skipped.map(row=>`<li>${escape(row.name)} · Quarter ${row.quarter} · ${escape(row.title)} / ${escape(row.sheetTitle)}</li>`).join('')}</ul></details>` : ''}${untouched.length ? `<details class="sync-review"><summary>${untouched.length} official learner-period rows will stay unchanged</summary><p>These learners have no entry in the selected source period. Their existing official scores will be preserved.</p><ul>${untouched.map(row=>`<li>${escape(row.name)} · Quarter ${row.quarter} · ${escape(row.title)} / ${escape(row.sheetTitle)} · C${row.row+1}:E${row.row+1}</li>`).join('')}</ul></details>` : ''}${overwrites?'<label class="sync-ack"><input type="checkbox" data-sync-overwrite>I reviewed the existing scores and approve replacing the values shown above.</label>':''}<p>Updates are atomic within each workbook. Separate workbooks are filled in sequence. Keep other editors out of these input cells while filling.</p>`;

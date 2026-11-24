@@ -48,6 +48,18 @@
 .sync-actions { margin-top: 24px; flex-wrap: wrap; }
 .sync-review { padding: 14px 0; border-bottom: 1px solid var(--border); }
 .sync-review summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
+.sync-quarter-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.sync-quarter-buttons .button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-subtle);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+}
+.sync-quarter-buttons .button[aria-pressed=true] { background: var(--brand, var(--maroon)); color: var(--on-brand, #fff); border-color: var(--brand, var(--maroon)); }
+.official-sync-dialog .sync-quarter-summary { display: flex; flex-direction: column; gap: 2px; margin: 10px 0; }
+.sync-quarter-summary span { color: var(--muted); font-size: .875rem; }
 .sync-table-wrap { overflow: auto; max-height: 360px; margin: 12px 0; }
 .sync-table-wrap table { border-collapse: collapse; width: 100%; font-size: .875rem; font-variant-numeric: tabular-nums; }
 .sync-table-wrap th, .sync-table-wrap td { border-bottom: 1px solid var(--border); padding: 8px; text-align: left; white-space: nowrap; }

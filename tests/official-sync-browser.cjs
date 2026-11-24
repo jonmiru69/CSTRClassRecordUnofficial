@@ -28,6 +28,11 @@ async function harness(browser, options={}) {
     period.roster[0].ww=[97.38];period.roster[0].pt=[87.653];period.roster[0].qa=[40.3,40.3,40.3];
     [19.476,43.8265,10.075].forEach((numberValue,i)=>data.rows[10].values[i+2]={userEnteredValue:{numberValue},formattedValue:String(numberValue)});
   }
+  if(options.quarters)for(const source of sources){
+    const second=clone(source.periods[0]);second.quarter=2;second.name='Second quarter';
+    second.roster.forEach(learner=>{learner.ww=[20];if(options.emptyQuarter)learner.name='Unmatched '+learner.name;});
+    source.periods.push(second);
+  }
   const original=clone(data.book);
   let writes=0,reads=0;
   await page.route('https://synthetic.test/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<html><body><main><p>Synthetic preview. Invented learners and a simulated Google connection. No live school records.</p></main></body></html>'}));
@@ -122,6 +127,42 @@ async function main(){
       await h.page.close();
     }
     {
+      const h=await harness(browser,{quarters:true});await prepare(h);
+      const review=h.page.locator('[data-sync-review]').first();await review.locator('summary').click();
+      assert.equal(await review.getByRole('button',{name:'Quarter 1',exact:true}).getAttribute('aria-pressed'),'true');
+      assert.equal(await review.locator('tbody tr:visible').count(),2);
+      assert.equal(await review.getByRole('button',{name:'Quarter 3',exact:true}).count(),0);
+      const reads=h.reads(),source=JSON.stringify(h.data.source);
+      await review.locator('.sync-table-wrap').evaluate(node=>{node.style.maxHeight='60px';node.scrollTop=40;});
+      await review.getByRole('button',{name:'Quarter 2',exact:true}).focus();
+      await h.page.keyboard.press('Enter');
+      assert.equal(await review.getByRole('button',{name:'Quarter 2',exact:true}).getAttribute('aria-pressed'),'true');
+      assert.equal(await review.locator('[data-sync-quarter-label]').innerText(),'Quarter 2 · 2 matched learners');
+      assert.deepEqual(await review.locator('tbody tr:visible td:nth-child(2)').allTextContents(),['2','2']);
+      assert.equal(await review.locator('.sync-table-wrap').evaluate(node=>node.scrollTop),0);
+      assert.equal(h.reads(),reads);assert.equal(h.writes(),0);assert.equal(JSON.stringify(h.data.source),source);
+      await review.locator('.sync-table-wrap').evaluate(node=>node.style.maxHeight='');
+      for(const [name,width,height,dark]of [['quarters-desktop',1440,1000,false],['quarters-phone',390,844,false],['quarters-dark',1440,1000,true]]){
+        await h.page.setViewportSize({width,height});await h.page.evaluate(dark=>document.documentElement.dataset.theme=dark?'dark':'light',dark);
+        assert(await h.page.locator('.official-sync-dialog').evaluate(node=>node.scrollWidth<=node.clientWidth+1));
+        await h.page.screenshot({path:path.join(output,`${name}.png`),fullPage:true,animations:'disabled'});
+      }
+      await h.page.getByRole('button',{name:'Fill verified gradesheets',exact:true}).click();
+      await h.page.getByText(/Finished: 1 workbook checked/).waitFor();
+      assert.equal(h.data.rows[10].values[2].userEnteredValue.numberValue,15);
+      assert.equal(h.data.rows[11].values[2].userEnteredValue.numberValue,20);
+      assert.equal(await review.getByRole('button',{name:'Quarter 2',exact:true}).getAttribute('aria-pressed'),'true');
+      console.log('PASS browser: keyboard quarter filters show one quarter, reset its scroll, keep sources untouched, and transfer every selected quarter');await h.page.close();
+    }
+    {
+      const h=await harness(browser,{quarters:true,emptyQuarter:true});await prepare(h);
+      const review=h.page.locator('[data-sync-review]').first();await review.locator('summary').click();
+      await review.getByRole('button',{name:'Quarter 2',exact:true}).click();
+      assert.equal(await review.locator('tbody tr:visible').count(),0);
+      assert(await review.getByText(/No matched learners for this quarter/).isVisible());
+      console.log('PASS browser: a finished quarter with no official matches has an explicit empty state');await h.page.close();
+    }
+    {
       const h=await harness(browser,{rounding:true});await prepare(h);
       await h.page.locator('.sync-review summary').first().click();
       await h.page.getByText('WW/PT/QA scores are rounded to two decimal places before transfer.',{exact:true}).waitFor();
@@ -165,7 +206,7 @@ async function main(){
       console.log('PASS browser: lost write response is resolved by readback without retrying the write');await h.page.close();
     }
     {
-      const h=await harness(browser,{partitions:true});
+      const h=await harness(browser,{partitions:true,quarters:true});
       await h.page.getByRole('textbox',{name:'School Google email'}).fill('teacher@cstr.edu.ph');
       await h.page.getByRole('button',{name:'Connect school account',exact:true}).click();
       await h.page.getByText('Connected as teacher@cstr.edu.ph',{exact:true}).waitFor();
@@ -177,7 +218,12 @@ async function main(){
       }
       await h.page.screenshot({path:path.join(output,'strands.png'),fullPage:true,animations:'disabled'});
       await h.page.getByRole('button',{name:'Preview finished periods',exact:true}).click();
-      await h.page.getByText(/1 finished period selected across 2 official targets/).waitFor();
+      await h.page.getByText(/2 finished periods selected across 2 official targets/).waitFor();
+      const reviews=h.page.locator('[data-sync-review]');
+      await reviews.nth(0).locator('summary').click();await reviews.nth(1).locator('summary').click();
+      await reviews.nth(0).getByRole('button',{name:'Quarter 2',exact:true}).click();
+      assert.equal(await reviews.nth(1).getByRole('button',{name:'Quarter 1',exact:true}).getAttribute('aria-pressed'),'true');
+      assert.deepEqual(await reviews.nth(1).locator('tbody tr:visible td:nth-child(2)').allTextContents(),['1']);
       await h.page.getByRole('button',{name:'Fill verified gradesheets',exact:true}).click();
       await h.page.getByText(/Finished: 2 workbooks checked/).waitFor();assert.equal(h.writes(),2);
       console.log('PASS browser: B&E/ABM and STEM groups fill separate official files while counting their shared period once');await h.page.close();
