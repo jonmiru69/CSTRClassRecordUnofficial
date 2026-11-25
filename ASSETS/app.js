@@ -2635,7 +2635,7 @@
       if(peer.subject===section?.subject)for(const key of ['checkerName','checkerTitle'])if(previous[key])settings[key]=previous[key];
       if(peer.group===section?.group)for(const key of ['reviewerName','reviewerTitle'])if(previous[key])settings[key]=previous[key];
     }
-    Object.assign(settings,saved.principal||{},saved.checkers?.[section?.subject]||{},saved.reviewers?.[section?.group]||{},section?.excelSettings||{});
+    Object.assign(settings,section?.excelSettings||{},saved.principal||{},saved.checkers?.[section?.subject]||{},saved.reviewers?.[section?.group]||{});
     return settings;
   }
 

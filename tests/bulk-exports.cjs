@@ -21,6 +21,8 @@ assert.equal(h.exportSignatorySettings(otherClass).reviewerName,'JHS Head');
 assert.equal(h.exportSignatorySettings({...otherClass,group:'SHS'}).reviewerName,undefined,'JHS coordinator must not be recommended for SHS');
 const savedState=JSON.parse(JSON.stringify(h.getState()));h.setState(savedState);
 assert.equal(h.exportSignatorySettings(otherClass).principalTitle,'Ms.','Signatories survive save/reload normalization');
+assert.equal(h.exportSignatorySettings({...otherClass,excelSettings:{principalName:'Old Principal'}}).principalName,'Principal','Latest saved names replace stale class defaults');
+assert.equal(h.exportSignatorySettings().checkerName,'Area Head','Individual exports also recommend names in the bulk dialog');
 console.log('PASS reusable signatories across classes and reload, separate JHS/SHS recommendations');
 
 let plan=h.completedExportPlan();assert.deepEqual(JSON.parse(JSON.stringify(plan[0].accepted.map(p=>p.slot))),[0,1]);assert.equal(plan[0].skipped.length,1,'Locked but unfinished Q3 is excluded');
