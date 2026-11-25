@@ -549,6 +549,7 @@
     if (!saved || typeof saved !== "object") return base;
     base.photo = typeof saved.photo === "string" && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(saved.photo) && saved.photo.length <= 2000000 ? saved.photo : "";
     base.teacher = saved.teacher && typeof saved.teacher === "object" ? saved.teacher : base.teacher;
+    base.exportSignatories = saved.exportSignatories && typeof saved.exportSignatories === "object" ? cloneState(saved.exportSignatories) : {};
     base.bulkExportSettings = saved.bulkExportSettings && typeof saved.bulkExportSettings === "object" ? {...saved.bulkExportSettings} : {};
     base.calendarMode = saved.calendarMode === "trimester" ? "trimester" : "legacy";
     base.trimesterModeSeen = saved.trimesterModeSeen === true || saved.calendarMode === "trimester" || (Array.isArray(saved.registryTri) && saved.registryTri.length > 0);
@@ -2623,11 +2624,37 @@
     });
   }
 
+  function exportSignatorySettings(section) {
+    const saved=state.exportSignatories||{}, settings={...(state.bulkExportSettings||{}),...(!section?saved.latest||{}:{})};
+    if(section)for(const key of ['checkerName','checkerTitle','reviewerName','reviewerTitle'])delete settings[key];
+    // Reuse existing class settings too, including records saved before this update.
+    const peers=activeRegistry().filter(item=>item.id!==section?.id);
+    for(const peer of peers) {
+      const previous=peer.excelSettings||{};
+      for(const key of ['principalName','principalTitle']) if(previous[key])settings[key]=previous[key];
+      if(peer.subject===section?.subject)for(const key of ['checkerName','checkerTitle'])if(previous[key])settings[key]=previous[key];
+      if(peer.group===section?.group)for(const key of ['reviewerName','reviewerTitle'])if(previous[key])settings[key]=previous[key];
+    }
+    Object.assign(settings,saved.principal||{},saved.checkers?.[section?.subject]||{},saved.reviewers?.[section?.group]||{},section?.excelSettings||{});
+    return settings;
+  }
+
+  function rememberExportSignatories(metadata, section) {
+    const saved=state.exportSignatories||={};
+    saved.latest={...saved.latest,...Object.fromEntries(Object.entries(metadata).filter(([key,value])=>/^(checker|reviewer|principal)(Name|Title)$/.test(key)&&value))};
+    const pick=prefix=>Object.fromEntries(['Name','Title'].map(suffix=>[prefix+suffix,metadata[prefix+suffix]]).filter(([,v])=>v!==undefined));
+    if(metadata.principalName)saved.principal=pick('principal');
+    if(section&&metadata.checkerName){saved.checkers||={};saved.checkers[section.subject]=pick('checker');}
+    if(section&&metadata.reviewerName){saved.reviewers||={};saved.reviewers[section.group]=pick('reviewer');}
+    if(metadata.teacherTitle)state.teacher.title=metadata.teacherTitle;
+    markStateDirty();
+  }
+
   function renderBulkExportModal() {
     commitHpsField(document.activeElement);commitActiveFieldEdit();
     document.querySelector('.modal-backdrop')?.remove();
     const plan=completedExportPlan(),modal=document.createElement('div');modal.className='modal-backdrop';
-    const settings=state.bulkExportSettings||{};
+    const settings=exportSignatorySettings();
     const names=[['teacher','Record owner / subject teacher',state.teacher.name||currentUserName()],['checker','Subject area coordinator',settings.checkerName||''],['reviewer','JHS / SHS coordinator',settings.reviewerName||''],['principal','School principal',settings.principalName||'']];
     modal.innerHTML=`<section class="modal bulk-export-modal" role="dialog" aria-modal="true" aria-labelledby="bulkExportTitle"><div class="section-heading"><h2 id="bulkExportTitle">Bulk download completed records</h2>${button(icon('close'),'close-modal','icon-button','aria-label="Close"')}</div><p>Only completed quarters in the current workspace are included. Unfinished quarters and their scores are omitted. Records are checked again when you download.</p><div class="settings-grid"><label>Download<select id="bulkExportKind"><option value="both">E-Gradesheets and E-Class Records</option><option value="gradesheet">E-Gradesheets only</option><option value="classrecord">E-Class Records only</option></select></label><label>E-Gradesheet format<select id="bulkExportFormat"><option value="pdf">PDF</option><option value="word">Word (.docx)</option><option value="both">PDF and Word</option></select></label><label>School year<input data-bulk-meta="schoolYear" value="${safeValue(settings.schoolYear||currentSchoolYear())}"></label>${names.map(([key,label,name])=>`<label>${label}<span class="export-name-inputs">${exportTitleSelect(`data-bulk-meta="${key}Title"`,key==='teacher'?state.teacher.title:settings[key+'Title'],name)}<input data-bulk-meta="${key}Name" aria-label="${label} name" value="${safeValue(name)}"></span></label>`).join('')}</div><p>E-Class Records use Excel with the school's formulas. E-Gradesheets use the official Word / PDF form. Select classes to include:</p><div class="bulk-export-classes">${plan.map(({section,accepted,skipped})=>`<div class="bulk-export-class"><label><input type="checkbox" data-bulk-section="${safeValue(section.id)}" ${accepted.length?'checked':'disabled'}> ${escapeHtml([section.level,section.section,section.subject].filter(Boolean).join(' · '))}</label><p>${accepted.length?`Include: ${accepted.map(entry=>escapeHtml(entry.period.name)).join(', ')}`:'No completed quarters to export.'}</p>${skipped.length?`<details><summary>${skipped.length} excluded quarter${skipped.length===1?'':'s'}</summary><ul>${skipped.map(item=>`<li>${escapeHtml(item.name)}: ${escapeHtml(item.reason)}</li>`).join('')}</ul></details>`:''}</div>`).join('')||'<p>No active classes in this workspace.</p>'}</div><p id="bulkExportMessage" role="status" aria-live="polite"></p><div class="stack-actions"><button type="button" class="button button-primary" data-action="download-bulk-export" ${plan.some(item=>item.accepted.length)?'':'disabled'}>Download ZIP</button></div></section>`;
     document.body.append(modal);
@@ -2687,7 +2714,8 @@
       const blob=new Blob([bytes],{type:'application/zip'});
       await window.CSTROfficialGradesheet.downloadBlob(blob,`Completed-Class-Records-${metadata.schoolYear}.zip`);
       state.teacher.title=metadata.teacherTitle;
-      state.bulkExportSettings={...metadata};markStateDirty();
+      state.bulkExportSettings={...metadata};
+      snapshot.forEach(entry=>rememberExportSignatories(metadata,entry.section));
       message.textContent=`Prepared ${files} file${files===1?'':'s'} from completed quarters in ${snapshot.length} class${snapshot.length===1?'':'es'}. ZIP sent to your save / download destination.`;
       showSaveToast('Completed records ZIP prepared.');
     }catch(error){if(message)message.textContent=error.message;showSaveToast(`Bulk export failed: ${error.message}`,'error');}
@@ -2707,7 +2735,7 @@
     const section = currentSection();
     if (!section) return;
     document.querySelector(".modal-backdrop")?.remove();
-    const settings = section.excelSettings || {};
+    const settings = exportSignatorySettings(section);
     const modal = document.createElement("div"); modal.className = "modal-backdrop";
     const fields = [
       ["schoolYear", "School year", settings.schoolYear || currentSchoolYear()],
@@ -2733,7 +2761,7 @@
       const payload = cloneState({ section, period: currentPeriod(), metadata, calendarMode: state.calendarMode });
       await window.CSTRAssets.ensure("excel");
       await window.CSTRSchoolExcel.download(payload);
-      if (activeRegistry().includes(section)) { section.excelSettings = metadata; state.teacher.title = metadata.teacherTitle; markStateDirty(); }
+      if (activeRegistry().includes(section)) { section.excelSettings = metadata; rememberExportSignatories(metadata,section); }
       message?.closest(".modal-backdrop")?.remove();
       setStatus("School Excel record created with live formulas, a fitted Folio class-record page, and the original activity register on page 2.");
     } catch (error) {
@@ -2761,6 +2789,7 @@
       return;
     }
     document.querySelector(".modal-backdrop")?.remove();
+    const settings = exportSignatorySettings(section);
     const modal = document.createElement("div");
     modal.className = "modal-backdrop official-export-backdrop";
     modal.innerHTML = `<section class="modal official-export-modal" role="dialog" aria-modal="true" aria-labelledby="officialExportTitle">
@@ -2774,8 +2803,8 @@
           <input id="officialSchoolYear" value="${safeValue(currentSchoolYear())}" inputmode="numeric" placeholder="2026-2027" aria-describedby="officialExportAccuracy">
         </label>
         <label>School principal
-          <span class="export-name-inputs">${exportTitleSelect('id="officialPrincipalTitle"', section.excelSettings?.principalTitle, section.excelSettings?.principalName)}
-          <input id="officialPrincipalName" value="${safeValue(section.excelSettings?.principalName || "")}" placeholder="Principal's full name and credentials" aria-describedby="officialExportAccuracy" aria-label="School principal name"></span>
+          <span class="export-name-inputs">${exportTitleSelect('id="officialPrincipalTitle"', settings.principalTitle, settings.principalName)}
+          <input id="officialPrincipalName" value="${safeValue(settings.principalName || "")}" placeholder="Principal's full name and credentials" aria-describedby="officialExportAccuracy" aria-label="School principal name"></span>
         </label>
         <label>Subject teacher
           <span class="export-name-inputs">${exportTitleSelect('id="officialTeacherTitle"', state.teacher.title, state.teacher.name)}
@@ -3026,6 +3055,7 @@
       } else {
         await exporter.downloadBlob(artifact.blob, artifact.filename);
       }
+      rememberExportSignatories({principalName:document.querySelector('#officialPrincipalName')?.value.trim(),principalTitle:document.querySelector('#officialPrincipalTitle')?.value,teacherTitle:document.querySelector('#officialTeacherTitle')?.value},currentSection());
       document.querySelector(".official-export-backdrop")?.remove();
       if (fileHandle) {
         setStatus(`Official e-gradesheet ${formatLabel} saved successfully as ${fileHandle.name || artifact.filename}.`);

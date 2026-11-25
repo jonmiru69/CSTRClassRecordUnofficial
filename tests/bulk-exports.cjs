@@ -7,12 +7,22 @@ const fields={schoolYear:'2026-2027',teacherName:'Mr. Synthetic Teacher',teacher
 let kind='both',format='both',delivered;
 const message={textContent:''};
 const context={console,Blob,Uint8Array,ArrayBuffer,TextEncoder,TextDecoder,setTimeout:()=>0,clearTimeout:noop,setInterval:()=>0,clearInterval:noop,Date,Math,localStorage:storage,sessionStorage:storage,matchMedia:()=>({matches:false,addEventListener:noop}),document:{createElement:()=>({setAttribute:noop,classList:{remove:noop},remove:noop}),querySelector:s=>s==='#app'?element:s==='#bulkExportMessage'?message:s==='#bulkExportKind'?{value:kind}:s==='#bulkExportFormat'?{value:format}:null,querySelectorAll:s=>s==='[data-bulk-section]:checked'?[{dataset:{bulkSection:'sample'}}]:s==='[data-bulk-meta]'?Object.entries(fields).map(([key,value])=>({dataset:{bulkMeta:key},value})):[],addEventListener:noop,documentElement:element,body:{...element,append:noop}},window:{addEventListener:noop,CSTRGrading:grading,CSTRRecordTools:records,CSTRExportNames:names,JSZip,CSTRAssets:{ensure:async()=>{}},CSTRSchoolExcel:{validate(payload){const learners=payload.period.roster;for(const k of ['ww','pt','qa'])if(learners.some(l=>l[k].length!==payload.period[k+'Hps'].length))throw Error('inconsistent arrays');},build:async payload=>({bytes:Buffer.from(JSON.stringify(payload))})},CSTROfficialGradesheet:{createPdf:async payload=>({bytes:Buffer.from(JSON.stringify(payload))}),createWord:async payload=>({blob:new Blob([JSON.stringify(payload)])}),downloadBlob:async blob=>{delivered=blob;}}},requestAnimationFrame:noop,ResizeObserver:class{observe(){}}};
-const source=fs.readFileSync(path.join(__dirname,'../ASSETS/app.js'),'utf8').replace('  initApp();',`window.hooks={completedExportPlan,completedGradesheetPayload,exportBulkRecords,renderHome,createInitialState,getState:()=>state,setState(v){state=normalizeState(v);activeSectionId=state.registry[0]?.id;}};`);vm.runInNewContext(source,context);const h=context.window.hooks;
+const source=fs.readFileSync(path.join(__dirname,'../ASSETS/app.js'),'utf8').replace('  initApp();',`window.hooks={exportSignatorySettings,rememberExportSignatories,completedExportPlan,completedGradesheetPayload,exportBulkRecords,renderHome,createInitialState,getState:()=>state,setState(v){state=normalizeState(v);activeSectionId=state.registry[0]?.id;}};`);vm.runInNewContext(source,context);const h=context.window.hooks;
 const f=fixture(0);f.section.id='sample';f.section.rosterSize=1;
 const p=n=>({...structuredClone(f.period),name:'Quarter '+n,quarter:n,locked:n===3});
 const state=h.createInitialState();state.teacher.name='Synthetic Teacher';state.registry=[f.section];state.sections={sample:{periods:[p(1),p(2),p(3)]}};state.sections.sample.periods[2].roster[0].ww[0]='';
 h.setState(state);
 assert(h.renderHome().includes('open-bulk-export'));
+const remembered={checkerName:'Area Head',checkerTitle:'Ms.',reviewerName:'JHS Head',reviewerTitle:'Mr.',principalName:'Principal',principalTitle:'Ms.'};
+h.rememberExportSignatories(remembered,f.section);
+const otherClass={...f.section,id:'other'};
+assert.equal(h.exportSignatorySettings(otherClass).checkerName,'Area Head');
+assert.equal(h.exportSignatorySettings(otherClass).reviewerName,'JHS Head');
+assert.equal(h.exportSignatorySettings({...otherClass,group:'SHS'}).reviewerName,undefined,'JHS coordinator must not be recommended for SHS');
+const savedState=JSON.parse(JSON.stringify(h.getState()));h.setState(savedState);
+assert.equal(h.exportSignatorySettings(otherClass).principalTitle,'Ms.','Signatories survive save/reload normalization');
+console.log('PASS reusable signatories across classes and reload, separate JHS/SHS recommendations');
+
 let plan=h.completedExportPlan();assert.deepEqual(JSON.parse(JSON.stringify(plan[0].accepted.map(p=>p.slot))),[0,1]);assert.equal(plan[0].skipped.length,1,'Locked but unfinished Q3 is excluded');
 let payload=h.completedGradesheetPayload(plan[0],fields);assert.equal(payload.periodCount,2);assert.equal(payload.includeFinal,false);assert.equal(payload.minimumRows,0);assert.equal(payload.students[0].periods.length,2);assert.equal(payload.students[0].finalGrade,null);assert.equal(payload.teacherName,'Ms. Synthetic Teacher');
 assert.equal(names.format('Ms. Ms. Sample','Mr.'),'Mr. Sample');assert.equal(names.format('', 'Ms.'),'');

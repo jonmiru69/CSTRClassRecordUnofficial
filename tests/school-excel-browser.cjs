@@ -109,7 +109,14 @@ async function main() {
         const content=[...doc.querySelectorAll('sheetData c')].filter(c=>c.querySelector('f,v,is')?.textContent).map(c=>[c.getAttribute('r'),c.getAttribute('t')||'',...['f','v','is'].map(tag=>c.querySelector(tag)?.textContent||'')]);
         const workbookDoc=new DOMParser().parseFromString(await zip.file('xl/workbook.xml').async('string'),'application/xml');
         const grid=[...doc.querySelectorAll('sheetData row')].filter(r=>Number(r.getAttribute('r'))>=14&&Number(r.getAttribute('r'))<=63+offset).flatMap(r=>[...r.children]);
-        const borderFailures=grid.filter(c=>{
+        const mergedCells=new Set();
+        const toIndex=letters=>[...letters].reduce((n,c)=>n*26+c.charCodeAt(0)-64,0);
+        for(const merge of doc.querySelectorAll('mergeCell')){
+          const [a,b]=merge.getAttribute('ref').split(':').map(ref=>{const m=/([A-Z]+)(\d+)/.exec(ref);return {c:toIndex(m[1]),r:Number(m[2])};});
+          for(const c of grid){const m=/([A-Z]+)(\d+)/.exec(c.getAttribute('r')),column=toIndex(m[1]),row=Number(m[2]);if(column>=a.c&&column<=b.c&&row>=a.r&&row<=b.r)mergedCells.add(c);}
+        }
+        // Merged perimeters are checked separately in reference-exports.cjs.
+        const borderFailures=grid.filter(c=>!mergedCells.has(c)).filter(c=>{
           const xf=styles.querySelector('cellXfs').children[Number(c.getAttribute('s')||0)];
           const border=styles.querySelector('borders').children[Number(xf.getAttribute('borderId')||0)];
           return !['left','right','top','bottom'].every(side=>border.querySelector(side)?.getAttribute('style'));

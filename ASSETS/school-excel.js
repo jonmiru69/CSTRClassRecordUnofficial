@@ -697,6 +697,38 @@
       fixed.append(from,extent,picture,anchor.getElementsByTagNameNS(dns,'clientData')[0]||drawing.createElementNS(dns,'xdr:clientData'));anchor.replaceWith(fixed);
     }
     zip.file('xl/drawings/drawing1.xml',serialize(drawing));
+    // Reflow changes merged ranges. Rebuild their perimeter on every physical
+    // cell, including the final visible column, so Excel never clips a box.
+    // Keep borderless headings and signature underlines in their native form.
+    const perimeterStyles=new Map();
+    for(const ref of mergeRefs){
+      const [a,b]=ref.split(':').map(address),anchor=cell(a.c,a.r);
+      const baseBorder=borders.children[Number(cellXfs.children[Number(anchor.getAttribute('s')||0)].getAttribute('borderId')||0)];
+      const edges=['left','right','top','bottom'].map(side=>baseBorder.getElementsByTagNameNS(NS,side)[0]);
+      const styled=edges.filter(edge=>edge?.getAttribute('style'));
+      if(styled.length<2)continue;
+      const fallback=styled[0];
+      for(let r=a.r;r<=b.r;r++)for(let c=a.c;c<=b.c;c++){
+        const node=cell(c,r),base=Number(node.getAttribute('s')||0);
+        const mask=[c===a.c,c===b.c,r===a.r,r===b.r];
+        const key=[base,...edges.map(e=>e?.getAttribute('style')||fallback.getAttribute('style')),...mask].join('|');
+        if(!perimeterStyles.has(key)){
+          const xf=cellXfs.children[base].cloneNode(true),border=el(stylesDoc,'border');
+          ['left','right','top','bottom'].forEach((side,i)=>{
+            const edge=mask[i]?(edges[i]?.getAttribute('style')?edges[i]:fallback).cloneNode(true):el(stylesDoc,side);
+            // A fallback edge must use the destination side's element name.
+            const destination=el(stylesDoc,side);
+            for(const attr of edge.attributes)destination.setAttribute(attr.name,attr.value);
+            destination.append(...[...edge.children].map(n=>n.cloneNode(true)));border.appendChild(destination);
+          });
+          border.appendChild(el(stylesDoc,'diagonal'));
+          xf.setAttribute('borderId',borders.children.length);xf.setAttribute('applyBorder','1');borders.appendChild(border);
+          perimeterStyles.set(key,cellXfs.children.length);cellXfs.appendChild(xf);
+        }
+        node.setAttribute('s',perimeterStyles.get(key));
+      }
+    }
+    cellXfs.setAttribute('count',cellXfs.children.length);
     fonts.setAttribute('count',fonts.children.length);borders.setAttribute('count',borders.children.length);
     const pageSetup=sheet.getElementsByTagNameNS(NS,'pageSetup')[0];
     const pageMargins=sheet.getElementsByTagNameNS(NS,'pageMargins')[0];

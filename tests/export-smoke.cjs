@@ -11,6 +11,13 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
  assert(doc.includes('PROVISIONAL'));
  console.log('PASS Official Word exporter generates a valid ZIP containing document.xml, supplied metadata and provisional labeling.');
  const pages=ctx.CSTROfficialGradesheet.renderPages({subject:'Synthetic',teacherName:'Synthetic teacher',principalName:'Synthetic principal',schoolYear:'2026-2027',weights:[30,40,30],provisional:true,students:[]});assert(pages.length>0&&pages.every(p=>p.startsWith('<svg')));assert(pages[0].includes('PROVISIONAL'));console.log('PASS Official SVG page generation includes provisional labeling.');
+ const roundingStudents=[1.005,1.004,1.999,0,2.675].map((n,i)=>({name:'Rounding '+i,periods:[{ww:n,pt:n,qa:n}]}));
+ const roundingPayload={students:roundingStudents,minimumRows:0};
+ const roundingSvg=ctx.CSTROfficialGradesheet.renderPages(roundingPayload).join('');
+ const roundingWord=await ctx.CSTROfficialGradesheet.createWord(roundingPayload);
+ const roundingXml=await (await zip.loadAsync(await roundingWord.blob.arrayBuffer())).file('word/document.xml').async('string');
+ for(const expected of ['1.01','1.00','2.00','0.00','2.68']){assert(roundingSvg.split('>'+expected+'</text>').length>=4);assert(roundingXml.split('>'+expected+'</w:t>').length>=4);}
+ console.log('PASS WW/PT/QA display consistent decimal half-up rounding in shared PDF/Word model.');
  const semester={subject:'Synthetic SHS',schoolYear:'2026-2027',periodCount:2,semester:2,students:[{name:'Synthetic Learner',periods:[{periodical:83},{periodical:100}],finalGrade:92}]};
  const semesterSvg=ctx.CSTROfficialGradesheet.renderPages(semester).join('');
  assert(semesterSvg.includes('SEMESTER 2')&&semesterSvg.includes('>92</text>'));

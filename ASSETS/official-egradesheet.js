@@ -78,7 +78,7 @@
       const finalRow=i===payload.periodCount,p=student.periods[i]||{};
       // Formatting changes display precision only; supplied grades are not recomputed.
       return {student,studentIndex,rowInStudent:i,finalRow,periodLabel:finalRow?'F':String(payload.periodNumbers[i] || i+1),
-        ww:finalRow?'':p.ww===null?'':String(p.ww),pt:finalRow?'':fixedOrBlank(p.pt,2),qa:finalRow?'':fixedOrBlank(p.qa,2),
+        ww:finalRow?'':fixedOrBlank(p.ww,2),pt:finalRow?'':fixedOrBlank(p.pt,2),qa:finalRow?'':fixedOrBlank(p.qa,2),
         initial:finalRow?'':fixedOrBlank(p.initial,2),periodical:integerOrBlank(finalRow?student.finalGrade:p.periodical)};
     }));
   }
@@ -196,7 +196,7 @@
 
   function fixedOrBlank(value, decimals) {
     const number = finiteNumber(value);
-    return number === null ? "" : number.toFixed(decimals);
+    return number === null ? "" : number.toLocaleString('en-US',{minimumFractionDigits:decimals,maximumFractionDigits:decimals,useGrouping:false});
   }
 
   function integerOrBlank(value) {

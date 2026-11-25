@@ -23,7 +23,7 @@ The supplied `REFERENCE E-GRADESHEET.xlsx` was inspected read-only across all 13
 | Period labels | Times New Roman bold, 12 pt |
 | Component / initial values | Calibri, 12 pt |
 | Final grade | Calibri bold, 14 pt |
-| Numeric display | WW General; PT/QA and initial grade 0.00; periodical/final grade 0 |
+| Numeric display | WW/PT/QA and initial grade 0.00; periodical/final grade 0 |
 | Signatories | Submitted/check label; blank row; principal and teacher side by side; italic School Principal; teacher signature caption; blank row; quarter receipt lines |
 
 The standard subject forms share these dimensions except Filipino's wider period column. TLE, Music & Arts and PE & Health have different component percentages; exports continue to use the class's existing subject weights. The source's consolidated MAPEH and consolidated ratings worksheets were examined as distinct forms; the existing subject exporter remains CST-R Form 1.
@@ -46,3 +46,11 @@ Mr./Ms. titles are separate from stored names. The owner defaults to Mr.; every 
 - Optional on Windows with Excel and Word: run `powershell -NoProfile -File tests/reference-exports-native.ps1` after `node tests/reference-exports.cjs`. This opens synthetic exports in separate hidden instances, verifies native Excel recalculation, and renders Word/PDF previews.
 
 Native Excel recalculation was verified for every subject preset and the three edge cases. Native Word rendered the complete synthetic sample on four Folio pages and the Q1/Q2-only sample on one page. The original export formulas were compared directly before recording the immutable formula fingerprints. The complete functional suite and synthetic learner-report PNG checks also passed.
+
+## Export corrections
+
+Signatory names and titles are reused across classes and saved with the workspace. Subject-area recommendations follow the subject; JHS and SHS coordinator recommendations remain separate. Existing class export settings also supply recommendations. Individual and bulk exports, including principal names entered in Word/PDF dialogs, update these defaults after successful file delivery.
+
+WW, PT and QA use the same two-decimal, half-up display rounding (for example, 1.005 prints as 1.01). Raw values and grading formulas are unchanged.
+
+Merged boxes have explicit perimeter borders on all constituent cells after column compaction. Interior merged-cell seams are removed; borderless headings and single-edge signature lines retain their form. Regression checks cover merged perimeter continuity across every subject preset and sparse/expanded layouts, with native Excel recalculation and printed-header inspection.
