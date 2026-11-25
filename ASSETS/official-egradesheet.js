@@ -301,7 +301,12 @@
       if (!response.ok) throw new Error(`Could not load PDF font ${name}.`);
       // Keep complete fonts. This bundled fontkit/pdf-lib combination can emit
       // subset glyph IDs that render as missing characters in PDF readers.
-      return pdf.embedFont(await response.arrayBuffer(), { subset: false });
+      return pdf.embedFont(await response.arrayBuffer(), {
+        subset: false,
+        // Draw the spreadsheet's literal characters, without discretionary
+        // ligatures, fraction substitutions or position-dependent kerning.
+        features: { liga: false, clig: false, calt: false, kern: false, frac: false, numr: false, dnom: false }
+      });
     }));
     const color = hex => { const value = hex.replace('#', ''); return api.rgb(parseInt(value.slice(0,2),16)/255, parseInt(value.slice(2,4),16)/255, parseInt(value.slice(4,6),16)/255); };
     const pages = renderPages(payload);
@@ -309,6 +314,9 @@
     pdf.setAuthor(payload.teacherName || "CSTR Class Record");
     for (const svg of pages) {
       const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+      // Reuse one resource name per embedded face. A new alias for every cell
+      // makes some readers repeatedly rebuild the same font's glyph cache.
+      const fontKeys = fonts.map(font => page.node.newFontDictionary(font.name, font.ref));
       const documentSvg = new DOMParser().parseFromString(svg, 'image/svg+xml');
       for (const node of documentSvg.documentElement.children) {
         const get = (key, fallback = 0) => Number(node.getAttribute(key) || fallback);
@@ -322,7 +330,8 @@
         } else if (node.tagName === 'text') {
           const serif = (node.getAttribute('font-family') || '').includes('Times');
           const bold = get('font-weight', 400) >= 600, italic = node.getAttribute('font-style') === 'italic';
-          const font = fonts[Number(node.getAttribute('data-font') || (serif ? italic ? 4 : bold ? 3 : 2 : italic ? 5 : bold ? 1 : 0))];
+          const fontIndex = Number(node.getAttribute('data-font') || (serif ? italic ? 4 : bold ? 3 : 2 : italic ? 5 : bold ? 1 : 0));
+          const font = fonts[fontIndex];
           const text = node.textContent;
           let size = get('font-size', 9), x = get('x');
           const anchor = node.getAttribute('text-anchor');
@@ -333,7 +342,11 @@
           const width = font.widthOfTextAtSize(text, size);
           if (anchor === 'middle') x -= width / 2;
           else if (anchor === 'end') x -= width;
-          page.drawText(text, { x, y: PAGE_HEIGHT-get('y'), font, size, color: color(node.getAttribute('fill') || '#000000') });
+          page.pushOperators(...api.drawText(font.encodeText(text), {
+            x, y: PAGE_HEIGHT-get('y'), font: fontKeys[fontIndex], size,
+            color: color(node.getAttribute('fill') || '#000000'),
+            rotate: api.degrees(0), xSkew: api.degrees(0), ySkew: api.degrees(0)
+          }));
         }
       }
     }
