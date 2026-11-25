@@ -252,7 +252,7 @@
       calendarMode: payload?.calendarMode || (payload?.periodCount === 3 ? 'trimester' : 'legacy'),
       includeFinal: payload?.includeFinal !== false,
       minimumRows: payload?.minimumRows === 0 ? 0 : MINIMUM_OFFICIAL_ROWS,
-      periodNumbers: Array.isArray(payload?.periodNumbers) ? payload.periodNumbers.slice(0,4) : [1,2,3,4],
+      periodNumbers: Array.isArray(payload?.periodNumbers) ? payload.periodNumbers.slice(0,4) : payload?.semester === 2 ? [3,4] : [1,2,3,4],
       semester: [1, 2].includes(payload?.semester) ? payload.semester : null,
       provisional: payload?.provisional === true,
       schoolYear: cleanText(payload && payload.schoolYear),

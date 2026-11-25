@@ -2662,15 +2662,24 @@
     kind.addEventListener('change',()=>{format.disabled=kind.value==='classrecord';});
   }
 
-  function completedGradesheetPayload(entry, metadata) {
-    const payload=officialExportPayload({section:entry.section,periods:entry.accepted.map(item=>item.period),metadata});
+  function completedGradesheetPayload(entry, metadata, semester) {
+    const payload=officialExportPayload({section:entry.section,periods:entry.accepted.map(item=>item.period),metadata,semester});
     if(payload.inputErrors.length||payload.slotErrors.length)throw new Error(payload.inputErrors.concat(payload.slotErrors).join(' '));
-    const selected=entry.accepted.map(item=>item.slot);
+    const firstSlot=payload.semester===2?2:0;
+    const selected=entry.accepted.map(item=>item.slot-firstSlot);
     return {...payload,students:payload.students.map(student=>{
       const periods=Array.from({length:payload.periodCount},(_,slot)=>selected.includes(slot)&&Number.isFinite(student.periods[slot]?.periodical)?student.periods[slot]:{periodical:60});
       return {...student,periods,finalGrade:Math.round(periods.reduce((sum,period)=>sum+period.periodical,0)/payload.periodCount)};
     }),
-      periodNumbers:Array.from({length:payload.periodCount},(_,slot)=>slot+1),includeFinal:true,minimumRows:0,provisional:false};
+      periodNumbers:Array.from({length:payload.periodCount},(_,slot)=>firstSlot+slot+1),includeFinal:true,minimumRows:0,provisional:false};
+  }
+
+  function completedGradesheetPayloads(entry, metadata) {
+    if(state.calendarMode!=='trimester' && entry.section.group==='SHS') {
+      return [1,2].filter(semester=>entry.accepted.some(item=>Math.floor(item.slot/2)+1===semester))
+        .map(semester=>completedGradesheetPayload({...entry,accepted:entry.accepted.filter(item=>Math.floor(item.slot/2)+1===semester)},metadata,semester));
+    }
+    return [completedGradesheetPayload(entry,metadata)];
   }
 
   async function exportBulkRecords(trigger) {
@@ -2690,7 +2699,7 @@
       // Freeze the validated source before asynchronous generation. A later edit
       // cannot introduce unfinished data into an archive already being prepared.
       const snapshot=cloneState(plan),calendarMode=state.calendarMode;
-      const gradesheets=kind==='classrecord'?[]:snapshot.map(entry=>completedGradesheetPayload(entry,metadata));
+      const gradesheets=kind==='classrecord'?[]:snapshot.map(entry=>completedGradesheetPayloads(entry,metadata));
       await window.CSTRAssets.ensure('excel');
       if(kind!=='classrecord'){
         if(format!=='word')await window.CSTRAssets.ensure('pdf');
@@ -2701,13 +2710,12 @@
       for(let index=0;index<snapshot.length;index++){
         const entry=snapshot[index],folder=archive.folder(`${index+1}-${safe([entry.section.level,entry.section.section,entry.section.subject].join('-'))}`);
         message.textContent=`Preparing class ${index+1} of ${snapshot.length}…`;
-        const slots=entry.accepted.map(item=>`Q${item.slot+1}`).join('-');
         if(kind!=='gradesheet')for(const accepted of entry.accepted){
           const result=await window.CSTRSchoolExcel.build({section:entry.section,period:accepted.period,metadata,calendarMode});
           folder.file(`E-Class-Record-${safe(accepted.period.name)}-${accepted.slot+1}.xlsx`,result.bytes);files++;
         }
-        if(kind!=='classrecord'){
-          const payload=gradesheets[index];
+        if(kind!=='classrecord')for(const payload of gradesheets[index]){
+          const slots=payload.semester?`Semester-${payload.semester}`:entry.accepted.map(item=>`Q${item.slot+1}`).join('-');
           if(format!=='word'){const result=await window.CSTROfficialGradesheet.createPdf(payload);folder.file(`E-Gradesheet-${slots}.pdf`,result.bytes);files++;}
           if(format!=='pdf'){const result=await window.CSTROfficialGradesheet.createWord(payload);folder.file(`E-Gradesheet-${slots}.docx`,await result.blob.arrayBuffer());files++;}
         }
@@ -2813,10 +2821,10 @@
           <input id="officialTeacherName" value="${safeValue(state.teacher.name || currentUserName() || "")}" placeholder="Teacher's full name" aria-describedby="officialExportAccuracy" aria-label="Subject teacher name"></span>
         </label>
         ${section.group === "SHS" && periodCount === 4 ? `<label>Reporting range
-          <select id="officialSemester"><option value="">Full-year record · four quarters</option><option value="1">Semester 1 · two quarters</option><option value="2">Semester 2 · two quarters</option></select>
+          <select id="officialSemester"><option value="1" ${currentPeriod()?.semester!==2?'selected':''}>Semester 1 - Q1/Q2</option><option value="2" ${currentPeriod()?.semester===2?'selected':''}>Semester 2 - Q3/Q4</option></select>
         </label>` : ""}
       </div>
-      <p id="officialExportAccuracy" class="official-export-accuracy">Final grades stay blank until the selected periods are complete. Provisional period grades may appear for review.</p>
+      <p id="officialExportAccuracy" class="official-export-accuracy">Unfinished components stay blank with a quarter grade of 60. F averages the two quarters in the selected SHS semester, or all four JHS quarters.</p>
       <p id="officialExportMessage" class="official-export-message" role="status" aria-live="polite"></p>
       <div class="official-export-format-note"><strong>Output:</strong> Word / PDF · 8.5 × 13 in (Folio) portrait · CST-R Form 1.</div>
       <div class="stack-actions official-export-actions">
@@ -2837,8 +2845,8 @@
   function officialExportPayload(options = {}) {
     const section = options.section || currentSection();
     const annualCount = state.calendarMode === "trimester" ? 3 : 4;
-    const semesterChoice = options.periods ? "" : document.querySelector("#officialSemester")?.value;
-    const semester = annualCount === 4 && section.group === "SHS" && ["1", "2"].includes(semesterChoice) ? Number(semesterChoice) : null;
+    const semesterChoice = options.semester ?? (options.periods ? 1 : document.querySelector("#officialSemester")?.value || currentPeriod()?.semester || 1);
+    const semester = annualCount === 4 && section.group === "SHS" && [1, 2].includes(Number(semesterChoice)) ? Number(semesterChoice) : null;
     const periodCount = semester ? 2 : annualCount;
     const firstSlot = semester === 2 ? 2 : 0;
     const periods = options.periods || (activeSections()[section.id] && activeSections()[section.id].periods) || [];
@@ -2949,6 +2957,7 @@
       weights: section.weights,
       students,
       periodCount,
+      periodNumbers: Array.from({length:periodCount},(_,slot)=>firstSlot+slot+1),
       semester,
       calendarMode: state.calendarMode,
       provisional: students.some(student => student.periods.some(period => !period.complete)),
@@ -2980,7 +2989,7 @@
     const missingGrades = expectedGrades - completedGrades;
     return {
       type: "warning",
-      message: `This class record is provisional and requires review before export. ${missingGrades} of ${expectedGrades} period assessment record${expectedGrades === 1 ? " is" : "s are"} incomplete. Blank marks may currently calculate as zero; period grades can be provisional. Final grades remain blank until every period is complete.`
+      message: `This class record is provisional and requires review before export. ${missingGrades} of ${expectedGrades} period assessment record${expectedGrades === 1 ? " is" : "s are"} incomplete. Exported unfinished components stay blank and their quarter grades show 60. F averages the selected semester's two quarters for SHS, or all four quarters for JHS.`
     };
   }
 
