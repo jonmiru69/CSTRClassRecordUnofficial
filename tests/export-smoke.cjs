@@ -26,13 +26,15 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
  ctx.DOMParser=class {parseFromString(svg){return {documentElement:{children:[...svg.matchAll(/<text\b([^>]*)>([\s\S]*?)<\/text>/g)].map(([,attributes,text])=>({tagName:'text',textContent:text.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'"),getAttribute:name=>new RegExp('(?:^|\\s)'+name+'="([^"]*)"').exec(attributes)?.[1]??null}))}};}};
  const pdfResult=await ctx.CSTROfficialGradesheet.createPdf({subject:'Synthetic Science',teacherName:'Synthetic teacher',principalName:'Synthetic principal',schoolYear:'2026-2027',weights:[20,50,30],students:[{name:'Synthetic learner'}]});
  const pdf=await pdfApi.PDFDocument.load(pdfResult.bytes);assert.equal(pdf.getPageCount(),pages.length);
+ for(const page of pdf.getPages()){const resources=page.node.lookup(pdfApi.PDFName.of('Resources'),pdfApi.PDFDict);const fonts=resources.lookup(pdfApi.PDFName.of('Font'),pdfApi.PDFDict);assert.equal(fonts.keys().length,7,'Reuse exactly one resource per font face to avoid reader glyph-cache corruption');}
  let fontCount=0;
  for(const [,object] of pdf.context.enumerateIndirectObjects()){
    if(!(object instanceof pdfApi.PDFDict)||object.get(pdfApi.PDFName.of('Type'))?.toString()!=='/FontDescriptor')continue;
+   if(object.has(pdfApi.PDFName.of('FontFile2'))){const bytes=pdfApi.decodePDFRawStream(object.lookup(pdfApi.PDFName.of('FontFile2'),pdfApi.PDFRawStream)).decode();assert(ctx.fontkit.create(bytes).numGlyphs>1000,'TrueType fonts must remain complete: subset CID mappings can omit printed characters');fontCount++;continue;}
    const stream=object.lookup(pdfApi.PDFName.of('FontFile3'),pdfApi.PDFRawStream);
    assert.equal(stream.dict.get(pdfApi.PDFName.of('Subtype')).toString(),'/OpenType');
    assert.equal(Buffer.from(pdfApi.decodePDFRawStream(stream).decode()).subarray(0,4).toString(),'OTTO');fontCount++;
  }
- assert.equal(fontCount,5);console.log('PASS PDF binary reload, five embedded OpenType/CFF fonts, and matching font stream declarations.');
+ assert.equal(fontCount,7);console.log('PASS PDF binary reload, seven embedded reference fonts, and matching font stream declarations.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
 

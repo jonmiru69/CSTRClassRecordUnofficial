@@ -11,6 +11,7 @@ function harness(){
  context.document.createElement=()=>({...element});
  const querySelector=context.document.querySelector;
  context.document.querySelector=selector=>selector==='#officialSemester'?{value:semester}:querySelector(selector);
+context.window.CSTRExportNames=require('../ASSETS/export-names.js');
  let source=fs.readFileSync(path.join(root,'ASSETS/app.js'),'utf8').replace('  initApp();',`window.hooks={sanitizeScoreValue,learnerResult,officialExportPayload,officialExportReadiness,isLearnerAssessmentComplete,renderReportResultHtml,getPeriodInputIntegrity,performLogout,persistLocalDraft,createInitialState,setState(v){state=normalizeState(v);activeSectionId=activeRegistry()[0]?.id;activePeriodIndex=0;},getState:()=>state};`);
  vm.runInNewContext(source,context);
  return {h:context.window.hooks,sessionStorage,localStorage,mobile,chooseSemester(value){semester=value;},get disk(){return disk;},get signedOut(){return signedOut;},failSignOut(){failSignOut=true;}};

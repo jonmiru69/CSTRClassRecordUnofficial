@@ -3,6 +3,7 @@ const noop=()=>{};const element={dataset:{theme:"light"},addEventListener:noop,q
 const context={console,setTimeout,clearTimeout,setInterval:()=>0,clearInterval:noop,Date,Math,localStorage:storage,sessionStorage:storage,matchMedia:()=>({matches:false,addEventListener:noop}),document:{querySelector:s=>s==='#app'?element:null,querySelectorAll:()=>[],addEventListener:noop,documentElement:element,body:element},window:{addEventListener:noop},requestAnimationFrame:noop,ResizeObserver:class{observe(){}}};
 vm.runInNewContext(read('registration.js'),context);
 context.window.CSTRGrading=require(path.join(base,'grading-engine.js'));context.window.CSTRRecordTools=require(path.join(base,'record-tools.js'));
+context.window.CSTRExportNames=require('../ASSETS/export-names.js');
 const source=read('app.js').replace('  initApp();','  window.testHooks={renderLogin,renderHome,renderLegacyClaimPanel,normalizeState,createInitialState,renderSectionRecord,setState(value){state=normalizeState(value);activeSectionId=state.registry[0]?.id||"";}};');
 vm.runInNewContext(source,context);const h=context.window.testHooks;
 assert(h.renderLogin().includes('Unofficial'));assert(h.renderLogin().includes('request-teacher-access'));assert(!h.renderLogin().includes('signupForm'));assert(!h.renderLegacyClaimPanel().includes('type="password"'));assert(h.renderHome().includes('Active class records'));assert(h.renderHome().includes('Teacher details'));assert.equal(h.createInitialState().teacher.age,'');
