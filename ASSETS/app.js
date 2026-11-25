@@ -2666,9 +2666,11 @@
     const payload=officialExportPayload({section:entry.section,periods:entry.accepted.map(item=>item.period),metadata});
     if(payload.inputErrors.length||payload.slotErrors.length)throw new Error(payload.inputErrors.concat(payload.slotErrors).join(' '));
     const selected=entry.accepted.map(item=>item.slot);
-    const full=selected.length===(state.calendarMode==='trimester'?3:4);
-    return {...payload,students:payload.students.map(student=>({...student,periods:selected.map(slot=>student.periods[slot]),finalGrade:full?student.finalGrade:null})),
-      periodCount:selected.length,periodNumbers:selected.map(slot=>slot+1),includeFinal:full,minimumRows:0,provisional:false};
+    return {...payload,students:payload.students.map(student=>{
+      const periods=Array.from({length:payload.periodCount},(_,slot)=>selected.includes(slot)&&Number.isFinite(student.periods[slot]?.periodical)?student.periods[slot]:{periodical:60});
+      return {...student,periods,finalGrade:Math.round(periods.reduce((sum,period)=>sum+period.periodical,0)/payload.periodCount)};
+    }),
+      periodNumbers:Array.from({length:payload.periodCount},(_,slot)=>slot+1),includeFinal:true,minimumRows:0,provisional:false};
   }
 
   async function exportBulkRecords(trigger) {

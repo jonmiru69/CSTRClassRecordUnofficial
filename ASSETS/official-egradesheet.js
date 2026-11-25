@@ -228,19 +228,20 @@
   function normalizeStudent(student, periodCount) {
     const sourcePeriods = Array.isArray(student && student.periods) ? student.periods : [];
     const periods = Array.from({ length: periodCount }, (_, index) => {
-      const period = sourcePeriods[index] || {};
+      const source = sourcePeriods[index] || {};
+      const period = source.complete === false ? {} : source;
       return {
         ww: finiteNumber(period.ww),
         pt: finiteNumber(period.pt),
         qa: finiteNumber(period.qa),
         initial: finiteNumber(period.initial),
-        periodical: finiteNumber(period.periodical)
+        periodical: finiteNumber(period.periodical) ?? (cleanText(student?.name) ? 60 : null)
       };
     });
     return {
       name: cleanText(student && student.name),
       periods,
-      finalGrade: finiteNumber(student && student.finalGrade)
+      finalGrade: cleanText(student?.name) ? Math.round(periods.reduce((sum,period)=>sum+period.periodical,0)/periodCount) : null
     };
   }
 

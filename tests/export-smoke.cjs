@@ -18,6 +18,15 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
  const roundingXml=await (await zip.loadAsync(await roundingWord.blob.arrayBuffer())).file('word/document.xml').async('string');
  for(const expected of ['1.01','1.00','2.00','0.00','2.68']){assert(roundingSvg.split('>'+expected+'</text>').length>=4);assert(roundingXml.split('>'+expected+'</w:t>').length>=4);}
  console.log('PASS WW/PT/QA display consistent decimal half-up rounding in shared PDF/Word model.');
+ const partial={students:[{name:'Completed quarters only',periods:[{ww:12.34,pt:23.45,qa:34.56,initial:70,periodical:88},{ww:12.34,pt:23.45,qa:34.56,initial:70,periodical:88},{},{}],finalGrade:null}],periodCount:4,includeFinal:true,minimumRows:0};
+ const partialWord=await ctx.CSTROfficialGradesheet.createWord(partial);
+ const partialXml=await (await zip.loadAsync(await partialWord.blob.arrayBuffer())).file('word/document.xml').async('string');
+ for(const text of ['>3</w:t>','>4</w:t>','3rd __','4th __'])assert(partialXml.includes(text));
+ assert.equal(partialXml.split('>12.34</w:t>').length-1,2,'Only the two completed quarters carry WW data');
+ const partialSvg=ctx.CSTROfficialGradesheet.renderPages(partial).join('');
+ assert(partialSvg.includes('3rd __')&&partialSvg.includes('4th __'));
+ assert.equal(partialXml.split('>60</w:t>').length-1,2);assert(partialXml.includes('>74</w:t>'),'F averages 88,88,60,60');
+ console.log('PASS four quarter rows/receipt lines, blank unfinished components, 60 quarter defaults and four-quarter F average.');
  const semester={subject:'Synthetic SHS',schoolYear:'2026-2027',periodCount:2,semester:2,students:[{name:'Synthetic Learner',periods:[{periodical:83},{periodical:100}],finalGrade:92}]};
  const semesterSvg=ctx.CSTROfficialGradesheet.renderPages(semester).join('');
  assert(semesterSvg.includes('SEMESTER 2')&&semesterSvg.includes('>92</text>'));
