@@ -7,6 +7,7 @@ const storage={getItem:key=>key==='cstr-class-record-login'?'true':null,setItem:
 const context={console,setTimeout,clearTimeout,setInterval:()=>0,clearInterval:noop,Date,Math,localStorage:storage,sessionStorage:storage,matchMedia:()=>({matches:false,addEventListener:noop}),document:{querySelector:s=>s==='#app'?element:null,querySelectorAll:()=>[],addEventListener:noop,documentElement:element,body:element},window:{addEventListener:noop},requestAnimationFrame:noop,ResizeObserver:class{observe(){}}};
 context.window.CSTRGrading=require('../ASSETS/grading-engine.js');
 context.window.CSTRRecordTools=require('../ASSETS/record-tools.js');
+context.window.CSTRExportNames=require('../ASSETS/export-names.js');
 context.window.CSTROfficialSync={open:noop};
 const code=fs.readFileSync(path.join(root,'ASSETS/app.js'),'utf8').replace('  initApp();',`window.testHooks={createInitialState,renderHome,renderSectionRecord,sources:officialSyncSources,open:openOfficialSync,setSave(fn){saveToFirebase=fn;},setToast(fn){showSaveToast=fn;},setDirty(value){pendingAutoSaveChanges=value;},setState(next){state=normalizeState(next);activeSectionId=state.registry[0]?.id||'';isDataLoaded=true;}};`);
 vm.runInNewContext(code,context);
