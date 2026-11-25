@@ -4,16 +4,36 @@
   if (window.CSTRMobile?.native || window.Capacitor?.isNativePlatform?.()) return;
   const engine = window.CSTROfficialSyncEngine;
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let schoolAuth, connection, currentDialog, epoch = 0;
+  let schoolAuth, connection, currentDialog, epoch = 0, opening = 0;
   const currentOwner = () => window.CSTRSync?.getCurrentUser()?.uid;
+  const preferredEmail = () => window.CSTRSync?.getCurrentUser()?.email?.toLowerCase() === 'sanchezramil2202@gmail.com' ? 'rsanchez.faculty@cstr.edu.ph' : '';
+  function schoolLinkRef(owner) {
+    const db = window.CSTRSync?.db;
+    if (!db) throw new Error('Account settings are unavailable. Reload the website and try again.');
+    return db.ref(`cstr-class-record-users/${owner}/schoolGradesheetLink`);
+  }
+  async function loadSchoolLink(owner) {
+    const ref = schoolLinkRef(owner);
+    let value = (await ref.once('value')).val();
+    const suggestedEmail = preferredEmail();
+    if(!value && suggestedEmail && currentOwner() === owner) {
+      const result = await ref.transaction(existing=>existing || {email:suggestedEmail, configuredAt:Date.now()});
+      value = result.snapshot.val();
+    }
+    if (currentOwner() !== owner) throw new Error('Your class record account changed. Open the transfer again.');
+    if(value?.unlinked)return {unlinked:true};
+    return value && typeof value.email === 'string' && /^[^\s@]+@cstr\.edu\.ph$/.test(value.email) ? value : null;
+  }
   function assertWeb() {
     if (window.CSTRMobile?.native || window.Capacitor?.isNativePlatform?.()) throw new Error('Official gradesheet filling is available on the website only.');
   }
   function reset() {
-    epoch++;
+    epoch++; opening++;
     connection = null;
     void schoolAuth?.signOut().catch(() => {});
     currentDialog?.close();
+    currentDialog?.remove();
+    currentDialog = null;
   }
   async function connect(email) {
     assertWeb();
@@ -91,11 +111,20 @@
       <p class="sync-quarter-summary"><strong data-sync-quarter-label aria-live="polite">Quarter ${quarter} 路 ${count} matched learner${count===1?'':'s'}</strong><span>All selected finished quarters remain included in the transfer.</span></p>
       <div class="sync-table-wrap" id="sync-quarter-table-${index}"><table><caption>WW/PT/QA scores are rounded to two decimal places before transfer.</caption><thead><tr><th>Learner</th><th>Quarter</th><th>Cells</th><th>WW</th><th>PT</th><th>QA</th><th>Existing WW / PT / QA</th></tr></thead><tbody>${plan.allRows.map(row=>`<tr data-sync-row-quarter="${row.quarter}" ${row.quarter===quarter?'':'hidden'}><th scope="row">${escape(row.name)}</th><td>${row.quarter}</td><td>C${row.row+1}:E${row.row+1}</td>${row.values.map(value=>`<td>${value.toFixed(2)}</td>`).join('')}<td>${row.before.map(value=>escape(value.numberValue ?? value.stringValue ?? 'blank')).join(' / ')}</td></tr>`).join('')}</tbody></table><p data-sync-quarter-empty ${count?'hidden':''}>No matched learners for this quarter. Unmatched names are listed below the class reviews.</p></div></details>`;
   }
-  function open({getSources, selectedClassId = null}) {
+  async function open({getSources, selectedClassId = null}) {
     assertWeb();
     currentDialog?.close();
+    currentDialog?.remove();
+    currentDialog = null;
     const owner = currentOwner();
     if (!owner) return;
+    const request = ++opening;
+    let schoolLink;
+    try { schoolLink = await loadSchoolLink(owner); } catch (error) { window.alert(error.message); return; }
+    if(request !== opening || currentOwner() !== owner)return;
+    currentDialog?.close();
+    currentDialog?.remove();
+    currentDialog = null;
     const sources = getSources(), dialog = document.createElement('dialog');
     const year = sources[0]?.schoolYear || '';
     let preview = null, busy = false, stopped = false, mutating = false;
@@ -105,12 +134,13 @@
     dialog.setAttribute('aria-labelledby','officialSyncTitle');
     dialog.innerHTML = `<div class="sync-heading"><h2 id="officialSyncTitle">Fill official gradesheets</h2><button type="button" class="button button-secondary" data-sync-close>Close</button></div>
       <p>Transfer finished grading periods from your class record into the registrar鈥檚 Google Sheets. Unfinished periods are excluded.</p>
-      <div class="sync-connection"><label>School Google email<input type="email" autocomplete="email" data-sync-email placeholder="Your school email" value="${escape(connection?.owner === owner ? connection.email : '')}"></label><button type="button" class="button button-secondary" data-sync-connect>Connect school account</button><button type="button" class="button button-ghost" data-sync-disconnect ${connection?'':'hidden'}>Disconnect</button></div>
-      <p data-sync-account>${connection?.owner === owner ? `Connected as ${escape(connection.email)}` : 'Choose your school account in Google鈥檚 sign-in window. This keeps your class record signed in.'}</p>
+      <div class="sync-connection"><label>School Google email<input type="email" autocomplete="email" data-sync-email placeholder="Your school email" value="${escape(schoolLink?.email || (schoolLink?.unlinked ? '' : preferredEmail()))}" ${schoolLink?.email ? 'readonly' : ''}></label><button type="button" class="button button-secondary" data-sync-connect>${schoolLink?.email ? 'Reconnect school account' : 'Link school account'}</button><button type="button" class="button button-ghost" data-sync-disconnect ${schoolLink?.email?'':'hidden'}>Unlink school account</button></div>
+      <p data-sync-account>${connection?.owner === owner ? `Connected as ${escape(connection.email)}` : schoolLink?.email ? `Linked to ${escape(schoolLink.email)}. Reconnect to renew Google Sheets permission.` : 'No school account linked. Enter your own school email to begin.'}</p>
+      <details data-sync-guide ${schoolLink?.verifiedAt ? '' : 'open'}><summary>School account setup guide</summary><ol><li>Enter your own cstr.edu.ph email and choose Link school account.</li><li>In Google抯 window, select that exact school account and allow spreadsheet access. Your website login stays signed in.</li><li>Paste each official Google Sheets file link supplied by the registrar, choose its subject tab, and check the preview.</li><li>Fill verified gradesheets. Only finished periods are included; scores are matched by name and rounded to two decimal places.</li><li>After saving changes to your class record, open this feature and preview again. If Google permission expired, select Reconnect. Your email link remains saved across devices and sign-ins.</li><li>Use Unlink school account to remove the saved email and end this page抯 Sheets connection. To revoke Google抯 grant too, remove this app in your Google Account抯 third-party connections.</li></ol><p>Each website account has its own school-email setting. Linking an email does not grant access to locked sheets: the registrar must give that school account permission. Official file links are remembered in this browser.</p></details>
       <label class="sync-year">School year<input data-sync-year value="${escape(year)}" placeholder="2026-2027" pattern="[0-9]{4}-[0-9]{4}" required></label>
       <div data-sync-jobs>${jobs.map((job,i)=>`<fieldset class="sync-job" data-sync-job="${i}"><legend><label><input type="checkbox" data-sync-include ${!selectedClassId || job.source.section.id===selectedClassId?'checked':''}>${escape(job.source.section.subject)} 路 ${escape(job.source.section.level)} 路 ${escape(job.source.section.section)}${job.source.partition ? ` 路 ${escape(job.source.partition === 'ABM' ? 'B&E / ABM' : job.source.partition)}` : ''}</label></legend><p>${job.source.semester ? `Semester ${job.source.semester} 路 `:''}${job.source.periods.length} finished period${job.source.periods.length===1?'':'s'}: ${job.source.periods.map(p=>escape(p.name)).join(', ')}</p><div class="sync-link-row"><label>Official Google Sheets link<input type="url" data-sync-link value="${escape(job.binding.link||'')}" placeholder="Paste the file link from the registrar"></label><button type="button" class="button button-secondary" data-sync-check="${i}">Check link</button></div><label>Subject tab<select data-sync-tab disabled><option value="">Check the link first</option></select></label><div data-sync-heading-check></div><p data-sync-job-status role="status"></p></fieldset>`).join('')}</div>
       ${jobs.length?'':'<p>No finished grading periods are available in the active classes. Complete a period before transferring.</p>'}
-      <p class="sync-privacy">Scores go directly to Google Sheets under your school account. No passwords are stored. The Google connection lasts only in this page. ChatGPT is not involved in the transfer.</p>
+      <p class="sync-privacy">Scores go directly to Google Sheets under your school account. No passwords are stored. Your school-email link is saved to your website account until you unlink it. Google Sheets permission expires separately; use Reconnect when requested. ChatGPT is not involved in the transfer.</p>
       <p data-sync-status role="status" aria-live="polite"></p><div data-sync-preview></div>
       <div class="sync-actions"><button type="button" class="button button-secondary" data-sync-edit hidden>Edit links and classes</button><button type="button" class="button button-primary" data-sync-preview-button ${jobs.length?'':'disabled'}>Preview finished periods</button><button type="button" class="button button-secondary" data-sync-report hidden>Download change report</button><button type="button" class="button button-primary" data-sync-apply hidden>Fill verified gradesheets</button></div>`;
     document.body.append(dialog);
@@ -207,9 +237,17 @@
     }
     dialog.querySelector('[data-sync-connect]').onclick = () => action(async()=>{
       invalidate();
-      const email = await connect(dialog.querySelector('[data-sync-email]').value);
+      const email = await connect(schoolLink?.email || dialog.querySelector('[data-sync-email]').value);
       if(!active())return;
-      dialog.querySelector('[data-sync-account]').textContent = `Connected as ${email}`;
+      try {
+        await schoolLinkRef(owner).set({email, verifiedAt:Date.now()});
+        if(!active()) { connection=null; return; }
+      } catch(error) { connection=null; throw new Error('Google connected, but the school link could not be saved. Try again.'); }
+      schoolLink = {email};
+      dialog.querySelector('[data-sync-email]').readOnly = true;
+      dialog.querySelector('[data-sync-connect]').textContent = 'Reconnect school account';
+      dialog.querySelector('[data-sync-guide]').open = false;
+      dialog.querySelector('[data-sync-account]').textContent = `Connected as ${email}. School-email link saved to your website account.`;
       dialog.querySelector('[data-sync-disconnect]').hidden = false;
       message(dialog,'School account connected. Check the official link for each selected class.');
       for (const job of selectedJobs()) {
@@ -217,11 +255,17 @@
         if (field(i).querySelector('[data-sync-link]').value.trim()) await check(i);
       }
     });
-    dialog.querySelector('[data-sync-disconnect]').onclick = () => {
-      epoch++; connection = null; invalidate();
-      dialog.querySelector('[data-sync-account]').textContent = 'Disconnected. Connect your school account before reading or filling gradesheets.';
-      dialog.querySelector('[data-sync-disconnect]').hidden = true;
-    };
+    dialog.querySelector('[data-sync-disconnect]').onclick = () => action(async()=>{
+      await schoolLinkRef(owner).set({unlinked:true});
+      if(!active())return;
+      epoch++; connection = null; schoolLink = null; invalidate();
+      const emailField=dialog.querySelector('[data-sync-email]');
+      emailField.value=''; emailField.readOnly=false;
+      dialog.querySelector('[data-sync-connect]').textContent='Link school account';
+      dialog.querySelector('[data-sync-account]').textContent='School account unlinked. Enter a school email to set up a new link.';
+      dialog.querySelector('[data-sync-disconnect]').hidden=true;
+      dialog.querySelector('[data-sync-guide]').open=true;
+    });
     dialog.querySelectorAll('[data-sync-check]').forEach(button=>button.onclick=()=>action(()=>check(Number(button.dataset.syncCheck))));
     dialog.querySelectorAll('[data-sync-tab]').forEach((select,i)=>select.onchange=()=>action(async()=>{invalidate();await headingCheck(i);}));
     dialog.addEventListener('input', event=>{

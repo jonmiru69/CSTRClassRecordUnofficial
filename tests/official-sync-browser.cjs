@@ -43,8 +43,9 @@ async function harness(browser, options={}) {
     window.CSTRMobile={native};
     window.__syncSources=sources;
     window.__syncSource=window.__syncSources[0];
-    const user={uid:'synthetic-owner'};
-    window.CSTRSync={getCurrentUser:()=>user,onAuthStateChanged(callback){window.__authCallback=callback;return()=>{};}};
+    const user=window.__workspaceUser={uid:'synthetic-owner',email:'teacher@example.test'};
+    window.__schoolSettings={};
+    window.CSTRSync={db:{ref(key){return {async once(){return {val:()=>window.__schoolSettings[key]||null};},async transaction(fn){window.__schoolSettings[key]=fn(window.__schoolSettings[key]||null);return {snapshot:{val:()=>window.__schoolSettings[key]}};},async set(value){if(window.__failSchoolSave)throw Error('offline');window.__schoolSettings[key]=value;}};}},getCurrentUser:()=>window.__workspaceUser,onAuthStateChanged(callback){window.__authCallback=callback;return()=>{};}};
     const auth={async setPersistence(){},async signOut(){},async signInWithPopup(){return {user:{email:email||'teacher@cstr.edu.ph',emailVerified:true},credential:{accessToken:'synthetic-token'}};}};
     const firebaseAuth=()=>auth;firebaseAuth.Auth={Persistence:{NONE:'none'}};
     firebaseAuth.GoogleAuthProvider=class {addScope(scope){window.__scope=scope;}setCustomParameters(params){window.__oauthPrompt=params.prompt;}};
@@ -78,8 +79,8 @@ async function harness(browser, options={}) {
 async function prepare(h) {
   const {page}=h;
   await page.getByRole('textbox',{name:'School Google email'}).fill('teacher@cstr.edu.ph');
-  await page.getByRole('button',{name:'Connect school account',exact:true}).click();
-  await page.getByText('Connected as teacher@cstr.edu.ph',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Link school account',exact:true}).click();
+  await page.getByText(/Connected as teacher@cstr.edu.ph/).waitFor();
   assert.equal(await page.evaluate(()=>window.__oauthPrompt),'select_account');
   await page.getByRole('textbox',{name:'Official Google Sheets link',exact:true}).fill('https://docs.google.com/spreadsheets/d/synthetic-book/edit#gid=7');
   await page.getByRole('button',{name:'Check link',exact:true}).click();
@@ -198,7 +199,7 @@ async function main(){
     {
       const h=await harness(browser,{email:'wrong@cstr.edu.ph'});
       await h.page.getByRole('textbox',{name:'School Google email'}).fill('teacher@cstr.edu.ph');
-      await h.page.getByRole('button',{name:'Connect school account',exact:true}).click();
+      await h.page.getByRole('button',{name:'Link school account',exact:true}).click();
       await h.page.getByText(/selected a different Google account/).waitFor();assert.equal(h.reads(),0);assert.equal(h.writes(),0);
       console.log('PASS browser: wrong school identity never gets a usable connection');await h.page.close();
     }
@@ -211,8 +212,8 @@ async function main(){
     {
       const h=await harness(browser,{partitions:true,quarters:true});
       await h.page.getByRole('textbox',{name:'School Google email'}).fill('teacher@cstr.edu.ph');
-      await h.page.getByRole('button',{name:'Connect school account',exact:true}).click();
-      await h.page.getByText('Connected as teacher@cstr.edu.ph',{exact:true}).waitFor();
+      await h.page.getByRole('button',{name:'Link school account',exact:true}).click();
+      await h.page.getByText(/Connected as teacher@cstr.edu.ph/).waitFor();
       for(const [strand,id]of [['B&E / ABM','synthetic-book'],['STEM','synthetic-stem']]){
         const group=h.page.getByRole('group',{name:`General Science 11 · Grade 11 · Saint Sample · ${strand}`,exact:true});
         await group.getByRole('textbox',{name:'Official Google Sheets link',exact:true}).fill(`https://docs.google.com/spreadsheets/d/${id}/edit#gid=7`);
@@ -247,6 +248,30 @@ async function main(){
       assert.deepEqual(h.data.rows[10].values,h.original.sheets[0].data[0].rowData[10].values);
       assert.equal(h.data.rows[15].values[2].userEnteredValue.numberValue,0);
       console.log('PASS browser: source-only names are disclosed and skipped while matched learners update correctly');await h.page.close();
+    }
+    {
+      const h=await harness(browser);const page=h.page;
+      assert.equal(await page.locator('[data-sync-email]').inputValue(),'');
+      assert.equal(await page.locator('[data-sync-guide]').getAttribute('open'),'');
+      await page.locator('[data-sync-email]').fill('teacher@cstr.edu.ph');
+      await page.locator('[data-sync-connect]').click();
+      await page.getByText(/School-email link saved/).waitFor();
+      const saved=await page.evaluate(()=>window.__schoolSettings);
+      assert.equal(Object.values(saved)[0].email,'teacher@cstr.edu.ph');
+      assert(!JSON.stringify(saved).includes('synthetic-token'));
+      await page.evaluate(async()=>{window.CSTROfficialSync.reset();await window.CSTROfficialSync.open({getSources:()=>window.__syncSources});});
+      assert.equal(await page.locator('[data-sync-email]').inputValue(),'teacher@cstr.edu.ph');
+      assert.equal(await page.locator('[data-sync-email]').getAttribute('readonly'),'');
+      await page.getByText(/Linked to teacher@cstr.edu.ph/).waitFor();
+      await page.locator('[data-sync-disconnect]').click();
+      await page.getByText(/School account unlinked/).waitFor();
+      await page.evaluate(async()=>{window.CSTROfficialSync.reset();await window.CSTROfficialSync.open({getSources:()=>window.__syncSources});});
+      assert.equal(await page.locator('[data-sync-email]').inputValue(),'');
+      await page.evaluate(async()=>{window.__workspaceUser={uid:'different-owner',email:'other@example.test'};window.CSTROfficialSync.reset();await window.CSTROfficialSync.open({getSources:()=>window.__syncSources});});
+      assert.equal(await page.locator('[data-sync-email]').inputValue(),'');
+      await page.evaluate(async()=>{window.__workspaceUser={uid:'preferred-owner',email:'sanchezramil2202@gmail.com'};window.CSTROfficialSync.reset();await window.CSTROfficialSync.open({getSources:()=>window.__syncSources});});
+      assert.equal(await page.locator('[data-sync-email]').inputValue(),'rsanchez.faculty@cstr.edu.ph');
+      console.log('PASS school link persists in account settings across session resets, stores no OAuth token, isolates owners, honors unlink, and prefills only the requested website account');await page.close();
     }
     {
       const h=await harness(browser,{native:true});assert.equal(await h.page.evaluate(()=>Boolean(window.CSTROfficialSync)),false);
