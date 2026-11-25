@@ -11,6 +11,7 @@ function harness(){
  context.document.createElement=()=>({...element});
  const querySelector=context.document.querySelector;
  context.document.querySelector=selector=>selector==='#officialSemester'?{value:semester}:querySelector(selector);
+context.window.CSTRExportNames=require('../ASSETS/export-names.js');
  let source=fs.readFileSync(path.join(root,'ASSETS/app.js'),'utf8').replace('  initApp();',`window.hooks={sanitizeScoreValue,learnerResult,officialExportPayload,officialExportReadiness,isLearnerAssessmentComplete,renderReportResultHtml,getPeriodInputIntegrity,performLogout,persistLocalDraft,createInitialState,setState(v){state=normalizeState(v);activeSectionId=activeRegistry()[0]?.id;activePeriodIndex=0;},getState:()=>state};`);
  vm.runInNewContext(source,context);
  return {h:context.window.hooks,sessionStorage,localStorage,mobile,chooseSemester(value){semester=value;},get disk(){return disk;},get signedOut(){return signedOut;},failSignOut(){failSignOut=true;}};
@@ -62,7 +63,7 @@ async function main(){
  h.setState(state(h,[period(1),period(3,'8'),period(4,'6')]));let payload=h.officialExportPayload();
  assert.equal(payload.students[0].periods[1].periodical,undefined);assert.equal(payload.students[0].periods[2].periodical,83);assert.equal(payload.students[0].periods[3].periodical,72);
  const terms=[period(1),period(3,'8')];terms[0].term=1;terms[1].term=3;h.setState(state(h,terms,'trimester'));payload=h.officialExportPayload();assert.equal(payload.students[0].periods[1].periodical,undefined);assert.equal(payload.students[0].periods[2].periodical,83);
- const shs={...section,group:'SHS'};const quarters=[period(2,'8'),period(1)];quarters[0].semester=2;quarters[1].semester=1;h.setState(state(h,quarters,'legacy',shs));payload=h.officialExportPayload();assert.equal(payload.students[0].periods[0].periodical,100);assert.equal(payload.students[0].periods[3].periodical,83);
+ const shs={...section,group:'SHS'};const quarters=[period(2,'8'),period(1)];quarters[0].semester=2;quarters[1].semester=1;h.setState(state(h,quarters,'legacy',shs));payload=h.officialExportPayload({semester:1});assert.equal(payload.periodCount,2);assert.equal(payload.students[0].periods[0].periodical,100);assert.equal(payload.students[0].periods[1].periodical,undefined);payload=h.officialExportPayload({semester:2});assert.equal(payload.periodCount,2);assert.equal(payload.students[0].periods[0].periodical,undefined);assert.equal(payload.students[0].periods[1].periodical,83);
  const secondSemester=[{...period(1,'8'),semester:2},{...period(2),semester:2}];
  h.setState(state(h,[...secondSemester,{...period(1,'11'),semester:1}],'legacy',shs));
  a.chooseSemester('2');payload=h.officialExportPayload();

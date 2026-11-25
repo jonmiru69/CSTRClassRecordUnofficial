@@ -74,7 +74,10 @@
   async function build(payload, options = {}) {
     if (!root.JSZip || !root.CSTRGrading) throw new Error('School Excel export tools are unavailable.');
     validate(payload);
-    const { section, period } = payload, metadata = payload.metadata || {};
+    const { section, period } = payload, metadata = { ...payload.metadata };
+    for (const key of ['teacher', 'checker', 'reviewer', 'principal']) {
+      if (root.CSTRExportNames) metadata[key + 'Name'] = root.CSTRExportNames.format(metadata[key + 'Name'], metadata[key + 'Title']);
+    }
     const input = options.templateBytes || await (async () => {
       const response = await fetch(new URL('ASSETS/templates/cstr-class-record.xlsx?v=20261025', document.baseURI));
       if (!response.ok) throw new Error('The school Excel template could not be loaded. Refresh and retry.');
@@ -154,6 +157,18 @@
     }
     const W = (oldCol, oldRow, value, formula) => write(mapCol(colIndex(oldCol)), mapRow(oldRow), value, formula);
     const rawColumns = { ww: Array.from({ length: Math.max(10, lengths.ww) }, (_, i) => 2 + i), pt: Array.from({ length: Math.max(8, lengths.pt) }, (_, i) => mapCol(14) + i), qa: Array.from({ length: Math.max(3, lengths.qa) }, (_, i) => mapCol(24) + i) };
+    // Keep the calculation ranges intact. Blank template slots are presentation
+    // columns only: hiding them cannot shift formulas, roles or subject weights.
+    const hiddenColumns = new Set();
+    if (!original) for (const [kind, columns] of Object.entries(rawColumns)) {
+      columns.forEach((c, index) => {
+        const meta = period.activityMeta?.[kind]?.[index] || {};
+        const used = present(period[kind + 'Hps'][index]) || present(period[kind + 'Dates'][index]) ||
+          ['title', 'topic', 'competency'].some(key => present(meta[key])) ||
+          period.roster.some(learner => present(learner[kind]?.[index]));
+        if (!used) hiddenColumns.add(c);
+      });
+    }
     const roleRow = mapRow(76) + Math.max(7, ...Object.values(lengths));
     ensureRow(roleRow).setAttribute('hidden', '1');
     const componentRules = Object.fromEntries(Object.keys(rawColumns).map(kind => [kind, root.CSTRGrading.componentOptions(section, period, kind)]));
@@ -450,6 +465,66 @@
       for(let i=0;i<added[kind];i++){const clone=style.cloneNode(true),c=mapCol(threshold)-added[kind]+i+1;clone.setAttribute('min',c);clone.setAttribute('max',c);newCols.push(clone);}
     }
     cols.replaceChildren(...newCols.sort((a,b)=>Number(a.getAttribute('min'))-Number(b.getAttribute('min'))));
+    for (const node of cols.children) {
+      if (hiddenColumns.has(Number(node.getAttribute('min')) - 1)) node.setAttribute('hidden', '1');
+      else node.removeAttribute('hidden');
+    }
+    if (hiddenColumns.size) {
+      // Header metadata, signatures and the register share the worksheet columns.
+      // Reflow these lanes onto visible columns so their text cannot disappear
+      // with an unused raw-score column. The grade table and every formula stay
+      // at their original addresses.
+      const visible = Array.from({length:lastCol + 1}, (_, c) => c).filter(c => !hiddenColumns.has(c));
+      for (const [r, rowNode] of rows) {
+        if (r >= 14 && r <= lastLearnerRow || r > endRow) continue;
+        const existingMerges = mergeRefs.filter(ref => address(ref.split(':')[0]).r === r);
+        const covered = new Set();
+        for (const ref of existingMerges) {
+          const [a,b] = ref.split(':').map(address);
+          if (a.r !== b.r) continue;
+          for (let c = a.c + 1; c <= b.c; c++) covered.add(c);
+        }
+        const content = [...rowNode.children].filter(node => {
+          const c = address(node.getAttribute('r')).c;
+          return !covered.has(c) && [...node.children].some(n => ['f','v','is'].includes(n.localName) && present(n.textContent));
+        }).sort((a,b) => address(a.getAttribute('r')).c - address(b.getAttribute('r')).c);
+        if (!content.length) continue;
+        const snapshots = content.map(node => ({ c:address(node.getAttribute('r')).c, node:node.cloneNode(true) }));
+        for (const node of rowNode.children) { node.replaceChildren(); node.removeAttribute('t'); node.setAttribute('s','0'); }
+        for (let i = mergeRefs.length - 1; i >= 0; i--) if (existingMerges.includes(mergeRefs[i])) mergeRefs.splice(i,1);
+        let start = 0;
+        snapshots.forEach(({c,node}, index) => {
+          const remaining = snapshots.length - index - 1;
+          const minimumSpan = r <= 13 ? 2 : 1;
+          const desired = snapshots.length === 1 ? 0 : Math.floor(c / (lastCol + 1) * visible.length);
+          start = Math.max(start, Math.min(desired, visible.length - remaining * minimumSpan - minimumSpan));
+          const next = snapshots[index + 1];
+          const end = Math.max(start + minimumSpan - 1, Math.min(visible.length - remaining * minimumSpan - 1,
+            next ? Math.floor(next.c / (lastCol + 1) * visible.length) - 1 : visible.length - 1));
+          const target = cell(visible[start],r);
+          target.setAttribute('s',node.getAttribute('s') || '0');
+          if (node.hasAttribute('t')) target.setAttribute('t',node.getAttribute('t'));
+          target.replaceChildren(...[...node.children].map(n => n.cloneNode(true)));
+          if (visible[end] > visible[start]) mergeRefs.push(`${col(visible[start])}${r}:${col(visible[end])}${r}`);
+          start = end + 1;
+        });
+      }
+      // Move merged grade captions off a hidden first slot (sparse registers).
+      for (let i = 0; i < mergeRefs.length; i++) {
+        const [a,b] = mergeRefs[i].split(':').map(address);
+        if (a.r < 14 || a.r > 17 || !hiddenColumns.has(a.c)) continue;
+        const first = visible.find(c => c >= a.c && c <= b.c);
+        if (first === undefined) continue;
+        const source = cell(a.c,a.r), target = cell(first,a.r);
+        target.setAttribute('s',source.getAttribute('s') || '0');
+        if (source.hasAttribute('t')) target.setAttribute('t',source.getAttribute('t'));
+        target.replaceChildren(...[...source.children].map(n => n.cloneNode(true)));
+        source.replaceChildren(); source.removeAttribute('t');
+        mergeRefs[i] = `${col(first)}${a.r}:${col(b.c)}${b.r}`;
+      }
+      merges.replaceChildren(...mergeRefs.map(ref => el(doc,'mergeCell',{ref})));
+      merges.setAttribute('count',mergeRefs.length);
+    }
     // Keep the failing-grade fill, with the same black number as every other grade.
     for(const formatting of [...sheet.getElementsByTagNameNS(NS,'conditionalFormatting')]){
       const start=formatting.getAttribute('sqref').split(':')[0];
@@ -500,7 +575,7 @@
       let width=rawColumns.ww.includes(c)||rawColumns.pt.includes(c)?uniformDateWidth:Number(node.getAttribute('width'))+1;
       if([13,23,31].map(mapCol).includes(c))width=Math.max(width,12); // Teacher label and precise component weights.
       if(rawColumns.qa.includes(c))width=Math.max(width,13); // Keep exam words intact.
-      node.setAttribute('width',width);node.setAttribute('customWidth','1');columnWidths.set(c,width);
+      node.setAttribute('width',width);node.setAttribute('customWidth','1');columnWidths.set(c,hiddenColumns.has(c) ? 0 : width);
     }
     function printStyle(node,r,c){
       const base=Number(node.getAttribute('s')||0),grid=r>=14&&r<=lastLearnerRow;
@@ -579,7 +654,7 @@
     for(const [r,row] of rows){
       if(r>endRow||row.getAttribute('hidden')==='1')continue;
       for(const node of row.children){
-        const ref=node.getAttribute('r');if(covered.has(ref))continue;
+        const ref=node.getAttribute('r');if(covered.has(ref)||hiddenColumns.has(address(ref).c))continue;
         const text=shown(node);if(!present(text))continue;
         const pos=address(ref),merge=mergeStarts.get(ref)||{first:pos,last:pos};
         let width=0,height=0;for(let c=merge.first.c;c<=merge.last.c;c++)width+=columnWidths.get(c)*pointsPerWidth;
@@ -622,6 +697,38 @@
       fixed.append(from,extent,picture,anchor.getElementsByTagNameNS(dns,'clientData')[0]||drawing.createElementNS(dns,'xdr:clientData'));anchor.replaceWith(fixed);
     }
     zip.file('xl/drawings/drawing1.xml',serialize(drawing));
+    // Reflow changes merged ranges. Rebuild their perimeter on every physical
+    // cell, including the final visible column, so Excel never clips a box.
+    // Keep borderless headings and signature underlines in their native form.
+    const perimeterStyles=new Map();
+    for(const ref of mergeRefs){
+      const [a,b]=ref.split(':').map(address),anchor=cell(a.c,a.r);
+      const baseBorder=borders.children[Number(cellXfs.children[Number(anchor.getAttribute('s')||0)].getAttribute('borderId')||0)];
+      const edges=['left','right','top','bottom'].map(side=>baseBorder.getElementsByTagNameNS(NS,side)[0]);
+      const styled=edges.filter(edge=>edge?.getAttribute('style'));
+      if(styled.length<2)continue;
+      const fallback=styled[0];
+      for(let r=a.r;r<=b.r;r++)for(let c=a.c;c<=b.c;c++){
+        const node=cell(c,r),base=Number(node.getAttribute('s')||0);
+        const mask=[c===a.c,c===b.c,r===a.r,r===b.r];
+        const key=[base,...edges.map(e=>e?.getAttribute('style')||fallback.getAttribute('style')),...mask].join('|');
+        if(!perimeterStyles.has(key)){
+          const xf=cellXfs.children[base].cloneNode(true),border=el(stylesDoc,'border');
+          ['left','right','top','bottom'].forEach((side,i)=>{
+            const edge=mask[i]?(edges[i]?.getAttribute('style')?edges[i]:fallback).cloneNode(true):el(stylesDoc,side);
+            // A fallback edge must use the destination side's element name.
+            const destination=el(stylesDoc,side);
+            for(const attr of edge.attributes)destination.setAttribute(attr.name,attr.value);
+            destination.append(...[...edge.children].map(n=>n.cloneNode(true)));border.appendChild(destination);
+          });
+          border.appendChild(el(stylesDoc,'diagonal'));
+          xf.setAttribute('borderId',borders.children.length);xf.setAttribute('applyBorder','1');borders.appendChild(border);
+          perimeterStyles.set(key,cellXfs.children.length);cellXfs.appendChild(xf);
+        }
+        node.setAttribute('s',perimeterStyles.get(key));
+      }
+    }
+    cellXfs.setAttribute('count',cellXfs.children.length);
     fonts.setAttribute('count',fonts.children.length);borders.setAttribute('count',borders.children.length);
     const pageSetup=sheet.getElementsByTagNameNS(NS,'pageSetup')[0];
     const pageMargins=sheet.getElementsByTagNameNS(NS,'pageMargins')[0];

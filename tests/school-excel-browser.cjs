@@ -20,7 +20,7 @@ async function main() {
   const manifest = [];
   try {
     const page = await browser.newPage();
-    for (const script of ['vendor/jszip.min.js', 'grading-engine.js', 'record-tools.js', 'school-excel.js']) {
+    for (const script of ['vendor/jszip.min.js', 'export-names.js', 'grading-engine.js', 'record-tools.js', 'school-excel.js']) {
       await page.addScriptTag({ path: script==='school-excel.js'&&recordBaseline?path.resolve(process.env.CSTR_EXPORT_BASELINE):path.join(assets, script) });
     }
     const template = fs.readFileSync(path.join(assets, 'templates/cstr-class-record.xlsx')).toString('base64');
@@ -109,7 +109,14 @@ async function main() {
         const content=[...doc.querySelectorAll('sheetData c')].filter(c=>c.querySelector('f,v,is')?.textContent).map(c=>[c.getAttribute('r'),c.getAttribute('t')||'',...['f','v','is'].map(tag=>c.querySelector(tag)?.textContent||'')]);
         const workbookDoc=new DOMParser().parseFromString(await zip.file('xl/workbook.xml').async('string'),'application/xml');
         const grid=[...doc.querySelectorAll('sheetData row')].filter(r=>Number(r.getAttribute('r'))>=14&&Number(r.getAttribute('r'))<=63+offset).flatMap(r=>[...r.children]);
-        const borderFailures=grid.filter(c=>{
+        const mergedCells=new Set();
+        const toIndex=letters=>[...letters].reduce((n,c)=>n*26+c.charCodeAt(0)-64,0);
+        for(const merge of doc.querySelectorAll('mergeCell')){
+          const [a,b]=merge.getAttribute('ref').split(':').map(ref=>{const m=/([A-Z]+)(\d+)/.exec(ref);return {c:toIndex(m[1]),r:Number(m[2])};});
+          for(const c of grid){const m=/([A-Z]+)(\d+)/.exec(c.getAttribute('r')),column=toIndex(m[1]),row=Number(m[2]);if(column>=a.c&&column<=b.c&&row>=a.r&&row<=b.r)mergedCells.add(c);}
+        }
+        // Merged perimeters are checked separately in reference-exports.cjs.
+        const borderFailures=grid.filter(c=>!mergedCells.has(c)).filter(c=>{
           const xf=styles.querySelector('cellXfs').children[Number(c.getAttribute('s')||0)];
           const border=styles.querySelector('borders').children[Number(xf.getAttribute('borderId')||0)];
           return !['left','right','top','bottom'].every(side=>border.querySelector(side)?.getAttribute('style'));
@@ -141,15 +148,15 @@ async function main() {
           examWeights: expanded ? [] : ['AB18', 'AC18', 'AD18'].map(ref => Number(value(ref))),
           headings: ['C14', 'C15', expanded ? '' : 'O15'].map(value),
           rawExam: expanded ? null : [value('Y19'), readCellStyle('Y19').getAttribute('numFmtId')],
-          signatures: expanded ? [] : ['B', 'K', 'U', 'AD'].map(c => {
-            const ref = `${c}${68 + offset}`, style = readCellStyle(ref).querySelector('alignment');
-            return [readCell(ref).querySelector('t')?.textContent, style.getAttribute('wrapText'), style.getAttribute('shrinkToFit')];
+          signatures: expanded ? [] : [...doc.querySelectorAll(`row[r="${68+offset}"] c`)].filter(c => c.querySelector('t')?.textContent).map(c => {
+            const ref=c.getAttribute('r'),style=readCellStyle(ref).querySelector('alignment');
+            return [c.querySelector('t').textContent,style.getAttribute('wrapText'),style.getAttribute('shrinkToFit')];
           })
         };
       }, { payload, template });
       const fingerprint=crypto.createHash('sha256').update(info.content).digest('hex');
       if(recordBaseline){contentSnapshots[label]=fingerprint;continue;}
-      assert.equal(fingerprint,contentSnapshots[label],`${label}: existing content, formulas, positions and merged table layout must be preserved`);
+      assert.equal(fingerprint,contentSnapshots[label],`${label}: reviewed content, formulas and compacted template layout must be preserved`);
       assert.equal(info.sheetCount,1,label);
       assert.deepEqual(info.borderFailures,[],label);
       assert(info.maxFont<=15,label);
@@ -170,7 +177,7 @@ async function main() {
         assert.deepEqual(info.examWeights, payload.section.weights[2] === 0 ? [0, 0, 0] : label === 'preset-9' ? [0, 0, 1] : [.3, .3, .4], label);
       }
       if (label === 'print-layout') {
-        assert.deepEqual(info.signatures, Object.values(layout.metadata).slice(1).map(name => [name.replace('\n', ' '), '1', '0']));
+        assert.deepEqual(info.signatures, Object.values(layout.metadata).slice(1).map(name => [require('../ASSETS/export-names.js').format(name), '1', '0']));
         assert(!info.blankRowsHidden);
       } else assert.equal(info.blankRowsHidden,payload.period.roster.length===1,label);
       if (label === 'fractional-weights') {

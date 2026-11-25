@@ -454,6 +454,7 @@
       photo: "",
       teacher: {
         name: "",
+        title: "Mr.",
         age: "",
         specialization: "",
         level: "Secondary",
@@ -548,6 +549,8 @@
     if (!saved || typeof saved !== "object") return base;
     base.photo = typeof saved.photo === "string" && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(saved.photo) && saved.photo.length <= 2000000 ? saved.photo : "";
     base.teacher = saved.teacher && typeof saved.teacher === "object" ? saved.teacher : base.teacher;
+    base.exportSignatories = saved.exportSignatories && typeof saved.exportSignatories === "object" ? cloneState(saved.exportSignatories) : {};
+    base.bulkExportSettings = saved.bulkExportSettings && typeof saved.bulkExportSettings === "object" ? {...saved.bulkExportSettings} : {};
     base.calendarMode = saved.calendarMode === "trimester" ? "trimester" : "legacy";
     base.trimesterModeSeen = saved.trimesterModeSeen === true || saved.calendarMode === "trimester" || (Array.isArray(saved.registryTri) && saved.registryTri.length > 0);
     const legacy = normalizeRegistryAndSections(saved.registry, saved.sections, "legacy");
@@ -890,10 +893,10 @@
 
   // Scores remain text while a teacher is typing so partial decimals stay
   // usable. This only drives integrity feedback; grading formulas stay intact.
-  function getPeriodInputIntegrity(period, details) {
+  function getPeriodInputIntegrity(period, details, exportSection) {
     const issues = { invalidHps: 0, invalidScores: 0, aboveHps: 0, missingHps: 0, invalidGroups: 0, pending: 0, unnamed: 0, unconfigured: 0 };
     if (!period) return issues;
-    const section = activeRegistry().find(item => activeSections()[item.id]?.periods?.includes(period)) || currentSection();
+    const section = exportSection || activeRegistry().find(item => activeSections()[item.id]?.periods?.includes(period)) || currentSection();
     const hasEntry = value => String(value ?? '').trim() !== '';
     const add = (type, kind, index, row, group) => {
       issues[type]++;
@@ -1634,6 +1637,7 @@
           <p class="teacher-welcome">The teacher behind every class.</p>
           <div class="profile-editor">
             <div class="teacher-block">
+              <label class="profile-field"><span>Export title</span>${exportTitleSelect('data-teacher="title"',state.teacher.title,state.teacher.name)}</label>
               <label class="profile-field profile-name-field"><span>Full name</span><input type="text" class="teacher-name-input" data-teacher="name" value="${safeValue(state.teacher.name)}" placeholder="Full name"></label>
               <label class="profile-field"><span>School level</span><select class="teacher-meta-input" data-teacher="level"><option value="Elementary" ${state.teacher.level === "Elementary" ? "selected" : ""}>Elementary</option><option value="Secondary" ${state.teacher.level === "Secondary" ? "selected" : ""}>Secondary</option></select></label>
               <label class="profile-field"><span>Specialization</span><input type="text" class="teacher-meta-input" data-teacher="specialization" value="${safeValue(state.teacher.specialization)}" placeholder="e.g. Science and Research"></label>
@@ -1641,6 +1645,7 @@
             </div>
           </div>
           <div class="owner-footer"><div class="dashboard-hero-actions">
+            ${button(`${icon("download")}<span>Bulk download completed records</span>`, "open-bulk-export", "button button-secondary")}
             ${button(`${icon("records")}<span>Open class records</span>`, "go-records", "button button-primary")}
             ${!window.CSTRMobile?.native && window.CSTROfficialSync ? button('Fill official gradesheets', 'fill-official-sheets', 'button button-secondary') : ''}
             ${button(`${icon("plus")}<span>Add class</span>`, "open-add-class", "button button-secondary")}
@@ -2584,11 +2589,165 @@
     return Number.isFinite(numeric) ? numeric : String(value);
   }
 
+  function completedExportPlan() {
+    return activeRegistry().filter(section => !section.archived).map(section => {
+      const periods = activeSections()[section.id]?.periods || [];
+      const slots = periods.map((period,index) => reportSlot(section,period,index));
+      const accepted = [], skipped = [];
+      periods.forEach((period,index) => {
+        const slot = slots[index], identity = state.calendarMode==='trimester' ? period.term : period.quarter;
+        const max = state.calendarMode==='trimester' ? 3 : section.group==='SHS' ? 2 : 4;
+        let reason = '';
+        if (!Number.isInteger(slot) || slot<0 || slot>=(state.calendarMode==='trimester'?3:4) ||
+            identity!=null && (!Number.isInteger(identity)||identity<1||identity>max) ||
+            state.calendarMode!=='trimester'&&section.group==='SHS'&&period.semester!=null&&![1,2].includes(period.semester) ||
+            slots.filter(other => other===slot).length!==1) reason='Review period identity';
+        const learners=(period.roster||[]).filter(learner=>String(learner.name||'').trim()&&!getRowCategory(learner));
+        if (!reason && !learners.length) reason='No named learners';
+        if (!reason) {
+          try {
+            window.CSTRSchoolExcel.validate({section,period});
+            const issues=getPeriodInputIntegrity(period);
+            const unfinishedActivity = ['ww','pt','qa'].some((kind,component) => section.weights[component] > 0 &&
+              period[kind+'Hps'].some((hps,i) => {
+                const meta=period.activityMeta?.[kind]?.[i]||{};
+                const described=[period[kind+'Dates'][i],meta.title,meta.topic,meta.competency].some(value=>String(value??'').trim());
+                return described && !(window.CSTRGrading.numberOrNull(hps)>0);
+              }));
+            if (hasPeriodInputIssues(issues)||issues.pending||issues.unconfigured||unfinishedActivity ||
+                !learners.every(learner=>isLearnerAssessmentComplete(learner,period,section))) reason='Incomplete or invalid entries';
+          } catch(error) { reason=error.message; }
+        }
+        if (reason) skipped.push({name:period.name,reason});
+        else accepted.push({period,index,slot});
+      });
+      accepted.sort((a,b)=>a.slot-b.slot);
+      return {section,accepted,skipped};
+    });
+  }
+
+  function exportSignatorySettings(section) {
+    const saved=state.exportSignatories||{}, settings={...(state.bulkExportSettings||{}),...(!section?saved.latest||{}:{})};
+    if(section)for(const key of ['checkerName','checkerTitle','reviewerName','reviewerTitle'])delete settings[key];
+    // Reuse existing class settings too, including records saved before this update.
+    const peers=activeRegistry().filter(item=>item.id!==section?.id);
+    for(const peer of peers) {
+      const previous=peer.excelSettings||{};
+      for(const key of ['principalName','principalTitle']) if(previous[key])settings[key]=previous[key];
+      if(peer.subject===section?.subject)for(const key of ['checkerName','checkerTitle'])if(previous[key])settings[key]=previous[key];
+      if(peer.group===section?.group)for(const key of ['reviewerName','reviewerTitle'])if(previous[key])settings[key]=previous[key];
+    }
+    Object.assign(settings,section?.excelSettings||{},saved.principal||{},saved.checkers?.[section?.subject]||{},saved.reviewers?.[section?.group]||{});
+    return settings;
+  }
+
+  function rememberExportSignatories(metadata, section) {
+    const saved=state.exportSignatories||={};
+    saved.latest={...saved.latest,...Object.fromEntries(Object.entries(metadata).filter(([key,value])=>/^(checker|reviewer|principal)(Name|Title)$/.test(key)&&value))};
+    const pick=prefix=>Object.fromEntries(['Name','Title'].map(suffix=>[prefix+suffix,metadata[prefix+suffix]]).filter(([,v])=>v!==undefined));
+    if(metadata.principalName)saved.principal=pick('principal');
+    if(section&&metadata.checkerName){saved.checkers||={};saved.checkers[section.subject]=pick('checker');}
+    if(section&&metadata.reviewerName){saved.reviewers||={};saved.reviewers[section.group]=pick('reviewer');}
+    if(metadata.teacherTitle)state.teacher.title=metadata.teacherTitle;
+    markStateDirty();
+  }
+
+  function renderBulkExportModal() {
+    commitHpsField(document.activeElement);commitActiveFieldEdit();
+    document.querySelector('.modal-backdrop')?.remove();
+    const plan=completedExportPlan(),modal=document.createElement('div');modal.className='modal-backdrop';
+    const settings=exportSignatorySettings();
+    const names=[['teacher','Record owner / subject teacher',state.teacher.name||currentUserName()],['checker','Subject area coordinator',settings.checkerName||''],['reviewer','JHS / SHS coordinator',settings.reviewerName||''],['principal','School principal',settings.principalName||'']];
+    modal.innerHTML=`<section class="modal bulk-export-modal" role="dialog" aria-modal="true" aria-labelledby="bulkExportTitle"><div class="section-heading"><h2 id="bulkExportTitle">Bulk download completed records</h2>${button(icon('close'),'close-modal','icon-button','aria-label="Close"')}</div><p>Only completed quarters in the current workspace are included. Unfinished quarters and their scores are omitted. Records are checked again when you download.</p><div class="settings-grid"><label>Download<select id="bulkExportKind"><option value="both">E-Gradesheets and E-Class Records</option><option value="gradesheet">E-Gradesheets only</option><option value="classrecord">E-Class Records only</option></select></label><label>E-Gradesheet format<select id="bulkExportFormat"><option value="pdf">PDF</option><option value="word">Word (.docx)</option><option value="both">PDF and Word</option></select></label><label>School year<input data-bulk-meta="schoolYear" value="${safeValue(settings.schoolYear||currentSchoolYear())}"></label>${names.map(([key,label,name])=>`<label>${label}<span class="export-name-inputs">${exportTitleSelect(`data-bulk-meta="${key}Title"`,key==='teacher'?state.teacher.title:settings[key+'Title'],name)}<input data-bulk-meta="${key}Name" aria-label="${label} name" value="${safeValue(name)}"></span></label>`).join('')}</div><p>E-Class Records use Excel with the school's formulas. E-Gradesheets use the official Word / PDF form. Select classes to include:</p><div class="bulk-export-classes">${plan.map(({section,accepted,skipped})=>`<div class="bulk-export-class"><label><input type="checkbox" data-bulk-section="${safeValue(section.id)}" ${accepted.length?'checked':'disabled'}> ${escapeHtml([section.level,section.section,section.subject].filter(Boolean).join(' · '))}</label><p>${accepted.length?`Include: ${accepted.map(entry=>escapeHtml(entry.period.name)).join(', ')}`:'No completed quarters to export.'}</p>${skipped.length?`<details><summary>${skipped.length} excluded quarter${skipped.length===1?'':'s'}</summary><ul>${skipped.map(item=>`<li>${escapeHtml(item.name)}: ${escapeHtml(item.reason)}</li>`).join('')}</ul></details>`:''}</div>`).join('')||'<p>No active classes in this workspace.</p>'}</div><p id="bulkExportMessage" role="status" aria-live="polite"></p><div class="stack-actions"><button type="button" class="button button-primary" data-action="download-bulk-export" ${plan.some(item=>item.accepted.length)?'':'disabled'}>Download ZIP</button></div></section>`;
+    document.body.append(modal);
+    const kind=modal.querySelector('#bulkExportKind'),format=modal.querySelector('#bulkExportFormat');
+    kind.addEventListener('change',()=>{format.disabled=kind.value==='classrecord';});
+  }
+
+  function completedGradesheetPayload(entry, metadata, semester) {
+    const payload=officialExportPayload({section:entry.section,periods:entry.accepted.map(item=>item.period),metadata,semester});
+    if(payload.inputErrors.length||payload.slotErrors.length)throw new Error(payload.inputErrors.concat(payload.slotErrors).join(' '));
+    const firstSlot=payload.semester===2?2:0;
+    const selected=entry.accepted.map(item=>item.slot-firstSlot);
+    return {...payload,students:payload.students.map(student=>{
+      const periods=Array.from({length:payload.periodCount},(_,slot)=>selected.includes(slot)&&Number.isFinite(student.periods[slot]?.periodical)?student.periods[slot]:{periodical:60});
+      return {...student,periods,finalGrade:Math.round(periods.reduce((sum,period)=>sum+period.periodical,0)/payload.periodCount)};
+    }),
+      periodNumbers:Array.from({length:payload.periodCount},(_,slot)=>firstSlot+slot+1),includeFinal:true,minimumRows:0,provisional:false};
+  }
+
+  function completedGradesheetPayloads(entry, metadata) {
+    if(state.calendarMode!=='trimester' && entry.section.group==='SHS') {
+      return [1,2].filter(semester=>entry.accepted.some(item=>Math.floor(item.slot/2)+1===semester))
+        .map(semester=>completedGradesheetPayload({...entry,accepted:entry.accepted.filter(item=>Math.floor(item.slot/2)+1===semester)},metadata,semester));
+    }
+    return [completedGradesheetPayload(entry,metadata)];
+  }
+
+  async function exportBulkRecords(trigger) {
+    const message=document.querySelector('#bulkExportMessage');
+    const selected=new Set([...document.querySelectorAll('[data-bulk-section]:checked')].map(input=>input.dataset.bulkSection));
+    const kind=document.querySelector('#bulkExportKind').value,format=document.querySelector('#bulkExportFormat').value;
+    const metadata=Object.fromEntries([...document.querySelectorAll('[data-bulk-meta]')].map(input=>[input.dataset.bulkMeta,input.value.trim()]));
+    const fail=text=>{throw new Error(text);};
+    let archive;
+    try {
+      trigger.disabled=true;trigger.setAttribute('aria-busy','true');
+      if(!/^\d{4}-\d{4}$/.test(metadata.schoolYear)||Number(metadata.schoolYear.slice(5))!==Number(metadata.schoolYear.slice(0,4))+1)fail('Enter a consecutive school year.');
+      if(!metadata.teacherName)fail('Enter the record owner / subject teacher name.');
+      if(kind!=='classrecord'&&!metadata.principalName)fail('Enter the school principal name for the E-Gradesheets.');
+      const plan=completedExportPlan().filter(item=>selected.has(item.section.id)&&item.accepted.length);
+      if(!plan.length)fail('No selected class has a correctly completed quarter.');
+      // Freeze the validated source before asynchronous generation. A later edit
+      // cannot introduce unfinished data into an archive already being prepared.
+      const snapshot=cloneState(plan),calendarMode=state.calendarMode;
+      const gradesheets=kind==='classrecord'?[]:snapshot.map(entry=>completedGradesheetPayloads(entry,metadata));
+      await window.CSTRAssets.ensure('excel');
+      if(kind!=='classrecord'){
+        if(format!=='word')await window.CSTRAssets.ensure('pdf');
+        if(format!=='pdf')await window.CSTRAssets.ensure('word');
+      }
+      archive=new window.JSZip();let files=0;
+      const safe=value=>String(value||'Class').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'').slice(0,100)||'Class';
+      for(let index=0;index<snapshot.length;index++){
+        const entry=snapshot[index],folder=archive.folder(`${index+1}-${safe([entry.section.level,entry.section.section,entry.section.subject].join('-'))}`);
+        message.textContent=`Preparing class ${index+1} of ${snapshot.length}…`;
+        if(kind!=='gradesheet')for(const accepted of entry.accepted){
+          const result=await window.CSTRSchoolExcel.build({section:entry.section,period:accepted.period,metadata,calendarMode});
+          folder.file(`E-Class-Record-${safe(accepted.period.name)}-${accepted.slot+1}.xlsx`,result.bytes);files++;
+        }
+        if(kind!=='classrecord')for(const payload of gradesheets[index]){
+          const slots=payload.semester?`Semester-${payload.semester}`:entry.accepted.map(item=>`Q${item.slot+1}`).join('-');
+          if(format!=='word'){const result=await window.CSTROfficialGradesheet.createPdf(payload);folder.file(`E-Gradesheet-${slots}.pdf`,result.bytes);files++;}
+          if(format!=='pdf'){const result=await window.CSTROfficialGradesheet.createWord(payload);folder.file(`E-Gradesheet-${slots}.docx`,await result.blob.arrayBuffer());files++;}
+        }
+      }
+      const bytes=await archive.generateAsync({type:'uint8array',compression:'DEFLATE'});
+      const blob=new Blob([bytes],{type:'application/zip'});
+      await window.CSTROfficialGradesheet.downloadBlob(blob,`Completed-Class-Records-${metadata.schoolYear}.zip`);
+      state.teacher.title=metadata.teacherTitle;
+      state.bulkExportSettings={...metadata};
+      snapshot.forEach(entry=>rememberExportSignatories(metadata,entry.section));
+      message.textContent=`Prepared ${files} file${files===1?'':'s'} from completed quarters in ${snapshot.length} class${snapshot.length===1?'':'es'}. ZIP sent to your save / download destination.`;
+      showSaveToast('Completed records ZIP prepared.');
+    }catch(error){if(message)message.textContent=error.message;showSaveToast(`Bulk export failed: ${error.message}`,'error');}
+    finally{trigger.disabled=false;trigger.removeAttribute('aria-busy');}
+  }
+
+  function exportTitleSelect(attributes, selected, name) {
+    const value = window.CSTRExportNames.title(selected, name);
+    return `<select ${attributes} aria-label="Title">${['Mr.','Ms.'].map(t => `<option value="${t}" ${t===value?'selected':''}>${t}</option>`).join('')}</select>`;
+  }
+
+  function ownerExportName() {
+    return window.CSTRExportNames.format(state.teacher.name || currentUserName(), state.teacher.title);
+  }
+
   function renderExcelExportModal() {
     const section = currentSection();
     if (!section) return;
     document.querySelector(".modal-backdrop")?.remove();
-    const settings = section.excelSettings || {};
+    const settings = exportSignatorySettings(section);
     const modal = document.createElement("div"); modal.className = "modal-backdrop";
     const fields = [
       ["schoolYear", "School year", settings.schoolYear || currentSchoolYear()],
@@ -2597,7 +2756,7 @@
       ["reviewerName", section.group === "SHS" ? "SHS coordinator" : "JHS coordinator", settings.reviewerName || ""],
       ["principalName", "Principal", settings.principalName || ""]
     ];
-    modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="excelExportTitle"><div class="section-heading"><h2 id="excelExportTitle">Export school Excel record</h2>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div><p>${escapeHtml(section.subject)} · ${escapeHtml(currentPeriod().name)} · WW ${section.weights[0]}% / PT ${section.weights[1]}% / EX ${section.weights[2]}%</p><p>Scores and HPS remain editable. Excel recalculates the grades using the selected subject’s required weights. Unentered marks count as zero against configured HPS; A/M count as zero; E/L exclude that activity for that learner. A completely unused column has no HPS and does not count.</p><div class="settings-grid">${fields.map(([key,label,value])=>`<label>${label}<input data-excel-meta="${key}" value="${safeValue(value)}"></label>`).join("")}</div><p>Print layout uses 8.5 × 13 in (Folio), landscape, with equal narrow margins. The existing header, class record, and signatories fill page 1; the original activity register prints on page 2. Text scales automatically for the learner count. Leave unavailable signatories blank.</p><p id="excelExportMessage" role="status"></p><div class="stack-actions"><button type="button" class="button button-primary" data-action="download-school-excel">Save Excel (.xlsx)</button></div></section>`;
+    modal.innerHTML = `<section class="modal" role="dialog" aria-modal="true" aria-labelledby="excelExportTitle"><div class="section-heading"><h2 id="excelExportTitle">Export school Excel record</h2>${button(icon("close"), "close-modal", "icon-button", 'aria-label="Close"')}</div><p>${escapeHtml(section.subject)} · ${escapeHtml(currentPeriod().name)} · WW ${section.weights[0]}% / PT ${section.weights[1]}% / EX ${section.weights[2]}%</p><p>Scores and HPS remain editable. Excel recalculates the grades using the selected subject’s required weights. Unentered marks count as zero against configured HPS; A/M count as zero; E/L exclude that activity for that learner. A completely unused column has no HPS and does not count.</p><div class="settings-grid">${fields.map(([key,label,value])=>`<label>${label}${key==='schoolYear'?'':'<span class="export-name-inputs">'}${key==='schoolYear'?'':exportTitleSelect(`data-excel-meta="${key.replace('Name','Title')}"`,settings[key.replace('Name','Title')] || (key==='teacherName'?state.teacher.title:undefined),value)}<input data-excel-meta="${key}" aria-label="${label} name" value="${safeValue(value)}">${key==='schoolYear'?'':'</span>'}</label>`).join("")}</div><p>Print layout uses 8.5 × 13 in (Folio), landscape, with equal narrow margins. The existing header, class record, and signatories fill page 1; the original activity register prints on page 2. Text scales automatically for the learner count. Leave unavailable signatories blank.</p><p id="excelExportMessage" role="status"></p><div class="stack-actions"><button type="button" class="button button-primary" data-action="download-school-excel">Save Excel (.xlsx)</button></div></section>`;
     document.body.appendChild(modal);
   }
 
@@ -2614,7 +2773,7 @@
       const payload = cloneState({ section, period: currentPeriod(), metadata, calendarMode: state.calendarMode });
       await window.CSTRAssets.ensure("excel");
       await window.CSTRSchoolExcel.download(payload);
-      if (activeRegistry().includes(section)) { section.excelSettings = metadata; markStateDirty(); }
+      if (activeRegistry().includes(section)) { section.excelSettings = metadata; rememberExportSignatories(metadata,section); }
       message?.closest(".modal-backdrop")?.remove();
       setStatus("School Excel record created with live formulas, a fitted Folio class-record page, and the original activity register on page 2.");
     } catch (error) {
@@ -2713,6 +2872,7 @@
       return;
     }
     document.querySelector(".modal-backdrop")?.remove();
+    const settings = exportSignatorySettings(section);
     const modal = document.createElement("div");
     modal.className = "modal-backdrop official-export-backdrop";
     modal.innerHTML = `<section class="modal official-export-modal" role="dialog" aria-modal="true" aria-labelledby="officialExportTitle">
@@ -2726,18 +2886,20 @@
           <input id="officialSchoolYear" value="${safeValue(currentSchoolYear())}" inputmode="numeric" placeholder="2026-2027" aria-describedby="officialExportAccuracy">
         </label>
         <label>School principal
-          <input id="officialPrincipalName" value="" placeholder="Principal's full name and credentials" aria-describedby="officialExportAccuracy">
+          <span class="export-name-inputs">${exportTitleSelect('id="officialPrincipalTitle"', settings.principalTitle, settings.principalName)}
+          <input id="officialPrincipalName" value="${safeValue(settings.principalName || "")}" placeholder="Principal's full name and credentials" aria-describedby="officialExportAccuracy" aria-label="School principal name"></span>
         </label>
         <label>Subject teacher
-          <input id="officialTeacherName" value="${safeValue(state.teacher.name || currentUserName() || "")}" placeholder="Teacher's full name" aria-describedby="officialExportAccuracy">
+          <span class="export-name-inputs">${exportTitleSelect('id="officialTeacherTitle"', state.teacher.title, state.teacher.name)}
+          <input id="officialTeacherName" value="${safeValue(state.teacher.name || currentUserName() || "")}" placeholder="Teacher's full name" aria-describedby="officialExportAccuracy" aria-label="Subject teacher name"></span>
         </label>
         ${section.group === "SHS" && periodCount === 4 ? `<label>Reporting range
-          <select id="officialSemester"><option value="">Full-year record · four quarters</option><option value="1">Semester 1 · two quarters</option><option value="2">Semester 2 · two quarters</option></select>
+          <select id="officialSemester"><option value="1" ${currentPeriod()?.semester!==2?'selected':''}>Semester 1 - Q1/Q2</option><option value="2" ${currentPeriod()?.semester===2?'selected':''}>Semester 2 - Q3/Q4</option></select>
         </label>` : ""}
       </div>
-      <p id="officialExportAccuracy" class="official-export-accuracy">Final grades stay blank until the selected periods are complete. Provisional period grades may appear for review.</p>
+      <p id="officialExportAccuracy" class="official-export-accuracy">Unfinished components stay blank with a quarter grade of 60. F averages the two quarters in the selected SHS semester, or all four JHS quarters.</p>
       <p id="officialExportMessage" class="official-export-message" role="status" aria-live="polite"></p>
-      <div class="official-export-format-note"><strong>Output:</strong> Word / PDF · US Letter portrait · CST-R Form 1.</div>
+      <div class="official-export-format-note"><strong>Output:</strong> Word / PDF · 8.5 × 13 in (Folio) portrait · CST-R Form 1.</div>
       <div class="stack-actions official-export-actions">
         <button type="button" class="button button-secondary" data-action="export-official-word"><span data-action-emphasis>Save Word</span> <span data-action-secondary>(.docx)</span></button>
         <button type="button" class="button button-primary" data-action="export-official-pdf"><span data-action-emphasis>Save PDF</span> <span data-action-secondary>(.pdf)</span></button>
@@ -2753,14 +2915,14 @@
     modal.querySelector("#officialSchoolYear")?.focus();
   }
 
-  function officialExportPayload() {
-    const section = currentSection();
+  function officialExportPayload(options = {}) {
+    const section = options.section || currentSection();
     const annualCount = state.calendarMode === "trimester" ? 3 : 4;
-    const semesterChoice = document.querySelector("#officialSemester")?.value;
-    const semester = annualCount === 4 && section.group === "SHS" && ["1", "2"].includes(semesterChoice) ? Number(semesterChoice) : null;
+    const semesterChoice = options.semester ?? (options.periods ? 1 : document.querySelector("#officialSemester")?.value || currentPeriod()?.semester || 1);
+    const semester = annualCount === 4 && section.group === "SHS" && [1, 2].includes(Number(semesterChoice)) ? Number(semesterChoice) : null;
     const periodCount = semester ? 2 : annualCount;
     const firstSlot = semester === 2 ? 2 : 0;
-    const periods = (activeSections()[section.id] && activeSections()[section.id].periods) || [];
+    const periods = options.periods || (activeSections()[section.id] && activeSections()[section.id].periods) || [];
 
     const slotPeriods = Array(periodCount).fill(null);
     const slotErrors = [];
@@ -2786,7 +2948,7 @@
       if (slotPeriods[slot]) {
         slotErrors.push(`Review the period identity for ${period.name || "unnamed period"}.`);
       } else slotPeriods[slot] = period;
-      const issues = getPeriodInputIntegrity(period);
+      const issues = getPeriodInputIntegrity(period, undefined, section);
       if (hasPeriodInputIssues(issues)) inputErrors.push(`${period.name}: ${periodInputIssueMessage(issues)}.`);
     });
 
@@ -2859,15 +3021,16 @@
     });
 
     return {
-      schoolYear: document.querySelector("#officialSchoolYear")?.value.trim() || "",
-      principalName: document.querySelector("#officialPrincipalName")?.value.trim() || "",
-      teacherName: document.querySelector("#officialTeacherName")?.value.trim() || "",
+      schoolYear: options.metadata?.schoolYear || document.querySelector("#officialSchoolYear")?.value.trim() || "",
+      principalName: window.CSTRExportNames.format(options.metadata?.principalName || document.querySelector("#officialPrincipalName")?.value, options.metadata?.principalTitle || document.querySelector("#officialPrincipalTitle")?.value),
+      teacherName: window.CSTRExportNames.format(options.metadata?.teacherName || document.querySelector("#officialTeacherName")?.value, options.metadata?.teacherTitle || document.querySelector("#officialTeacherTitle")?.value || state.teacher.title),
       level: section.level,
       section: section.section,
       subject: section.subject,
       weights: section.weights,
       students,
       periodCount,
+      periodNumbers: Array.from({length:periodCount},(_,slot)=>firstSlot+slot+1),
       semester,
       calendarMode: state.calendarMode,
       provisional: students.some(student => student.periods.some(period => !period.complete)),
@@ -2899,7 +3062,7 @@
     const missingGrades = expectedGrades - completedGrades;
     return {
       type: "warning",
-      message: `This class record is provisional and requires review before export. ${missingGrades} of ${expectedGrades} period assessment record${expectedGrades === 1 ? " is" : "s are"} incomplete. Blank marks may currently calculate as zero; period grades can be provisional. Final grades remain blank until every period is complete.`
+      message: `This class record is provisional and requires review before export. ${missingGrades} of ${expectedGrades} period assessment record${expectedGrades === 1 ? " is" : "s are"} incomplete. Exported unfinished components stay blank and their quarter grades show 60. F averages the selected semester's two quarters for SHS, or all four quarters for JHS.`
     };
   }
 
@@ -2976,6 +3139,7 @@
       } else {
         await exporter.downloadBlob(artifact.blob, artifact.filename);
       }
+      rememberExportSignatories({principalName:document.querySelector('#officialPrincipalName')?.value.trim(),principalTitle:document.querySelector('#officialPrincipalTitle')?.value,teacherTitle:document.querySelector('#officialTeacherTitle')?.value},currentSection());
       document.querySelector(".official-export-backdrop")?.remove();
       if (fileHandle) {
         setStatus(`Official e-gradesheet ${formatLabel} saved successfully as ${fileHandle.name || artifact.filename}.`);
@@ -3423,6 +3587,7 @@
     let y=headerHeight+28;
     body+=text(44,y,first.complete?'Complete requirements':'Provisional · incomplete requirements',13,first.complete?'#1d6242':accent,700);
     body+=text(916,y,`Generated ${new Date().toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})}`,12,muted,400,'text-anchor="end"');y+=28;
+    reportLines(`Subject teacher: ${ownerExportName()}`,100).forEach(line=>{body+=text(44,y,line,13,muted);y+=24;});
     body+=text(44,y,`Initial grade: ${format(first.result.initial.rounded,3)} · ${term?'Zero-based grading':'Transmutation applied using current class settings'}`,13,muted);y+=28;
     body += text(44, y, 'Performance analysis', 22, ink, 700, 'data-analysis-heading=""');
     y += 29;
@@ -4890,6 +5055,8 @@
       deletePeriod();
     }
 
+    if (action === "open-bulk-export") { renderBulkExportModal(); return; }
+    if (action === "download-bulk-export") { void exportBulkRecords(target); return; }
     if (action === "export-excel") renderExcelExportModal();
     if (action === "export-official") { renderOfficialExportModal(); return; }
     if (action === "fill-official-sheets") { openOfficialSync(); return; }

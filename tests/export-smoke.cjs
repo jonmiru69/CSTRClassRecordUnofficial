@@ -11,6 +11,22 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
  assert(doc.includes('PROVISIONAL'));
  console.log('PASS Official Word exporter generates a valid ZIP containing document.xml, supplied metadata and provisional labeling.');
  const pages=ctx.CSTROfficialGradesheet.renderPages({subject:'Synthetic',teacherName:'Synthetic teacher',principalName:'Synthetic principal',schoolYear:'2026-2027',weights:[30,40,30],provisional:true,students:[]});assert(pages.length>0&&pages.every(p=>p.startsWith('<svg')));assert(pages[0].includes('PROVISIONAL'));console.log('PASS Official SVG page generation includes provisional labeling.');
+ const roundingStudents=[1.005,1.004,1.999,0,2.675].map((n,i)=>({name:'Rounding '+i,periods:[{ww:n,pt:n,qa:n}]}));
+ const roundingPayload={students:roundingStudents,minimumRows:0};
+ const roundingSvg=ctx.CSTROfficialGradesheet.renderPages(roundingPayload).join('');
+ const roundingWord=await ctx.CSTROfficialGradesheet.createWord(roundingPayload);
+ const roundingXml=await (await zip.loadAsync(await roundingWord.blob.arrayBuffer())).file('word/document.xml').async('string');
+ for(const expected of ['1.01','1.00','2.00','0.00','2.68']){assert(roundingSvg.split('>'+expected+'</text>').length>=4);assert(roundingXml.split('>'+expected+'</w:t>').length>=4);}
+ console.log('PASS WW/PT/QA display consistent decimal half-up rounding in shared PDF/Word model.');
+ const partial={students:[{name:'Completed quarters only',periods:[{ww:12.34,pt:23.45,qa:34.56,initial:70,periodical:88},{ww:12.34,pt:23.45,qa:34.56,initial:70,periodical:88},{},{}],finalGrade:null}],periodCount:4,includeFinal:true,minimumRows:0};
+ const partialWord=await ctx.CSTROfficialGradesheet.createWord(partial);
+ const partialXml=await (await zip.loadAsync(await partialWord.blob.arrayBuffer())).file('word/document.xml').async('string');
+ for(const text of ['>3</w:t>','>4</w:t>','3rd __','4th __'])assert(partialXml.includes(text));
+ assert.equal(partialXml.split('>12.34</w:t>').length-1,2,'Only the two completed quarters carry WW data');
+ const partialSvg=ctx.CSTROfficialGradesheet.renderPages(partial).join('');
+ assert(partialSvg.includes('3rd __')&&partialSvg.includes('4th __'));
+ assert.equal(partialXml.split('>60</w:t>').length-1,2);assert(partialXml.includes('>74</w:t>'),'F averages 88,88,60,60');
+ console.log('PASS four quarter rows/receipt lines, blank unfinished components, 60 quarter defaults and four-quarter F average.');
  const semester={subject:'Synthetic SHS',schoolYear:'2026-2027',periodCount:2,semester:2,students:[{name:'Synthetic Learner',periods:[{periodical:83},{periodical:100}],finalGrade:92}]};
  const semesterSvg=ctx.CSTROfficialGradesheet.renderPages(semester).join('');
  assert(semesterSvg.includes('SEMESTER 2')&&semesterSvg.includes('>92</text>'));
@@ -26,13 +42,15 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
  ctx.DOMParser=class {parseFromString(svg){return {documentElement:{children:[...svg.matchAll(/<text\b([^>]*)>([\s\S]*?)<\/text>/g)].map(([,attributes,text])=>({tagName:'text',textContent:text.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'"),getAttribute:name=>new RegExp('(?:^|\\s)'+name+'="([^"]*)"').exec(attributes)?.[1]??null}))}};}};
  const pdfResult=await ctx.CSTROfficialGradesheet.createPdf({subject:'Synthetic Science',teacherName:'Synthetic teacher',principalName:'Synthetic principal',schoolYear:'2026-2027',weights:[20,50,30],students:[{name:'Synthetic learner'}]});
  const pdf=await pdfApi.PDFDocument.load(pdfResult.bytes);assert.equal(pdf.getPageCount(),pages.length);
+ for(const page of pdf.getPages()){const resources=page.node.lookup(pdfApi.PDFName.of('Resources'),pdfApi.PDFDict);const fonts=resources.lookup(pdfApi.PDFName.of('Font'),pdfApi.PDFDict);assert.equal(fonts.keys().length,7,'Reuse exactly one resource per font face to avoid reader glyph-cache corruption');}
  let fontCount=0;
  for(const [,object] of pdf.context.enumerateIndirectObjects()){
    if(!(object instanceof pdfApi.PDFDict)||object.get(pdfApi.PDFName.of('Type'))?.toString()!=='/FontDescriptor')continue;
+   if(object.has(pdfApi.PDFName.of('FontFile2'))){const bytes=pdfApi.decodePDFRawStream(object.lookup(pdfApi.PDFName.of('FontFile2'),pdfApi.PDFRawStream)).decode();assert(ctx.fontkit.create(bytes).numGlyphs>1000,'TrueType fonts must remain complete: subset CID mappings can omit printed characters');fontCount++;continue;}
    const stream=object.lookup(pdfApi.PDFName.of('FontFile3'),pdfApi.PDFRawStream);
    assert.equal(stream.dict.get(pdfApi.PDFName.of('Subtype')).toString(),'/OpenType');
    assert.equal(Buffer.from(pdfApi.decodePDFRawStream(stream).decode()).subarray(0,4).toString(),'OTTO');fontCount++;
  }
- assert.equal(fontCount,5);console.log('PASS PDF binary reload, five embedded OpenType/CFF fonts, and matching font stream declarations.');
+ assert.equal(fontCount,7);console.log('PASS PDF binary reload, seven embedded reference fonts, and matching font stream declarations.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
 

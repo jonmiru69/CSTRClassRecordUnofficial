@@ -1,0 +1,17 @@
+/* Export dialogs share the workspace form controls and stay usable on phones. */
+.bulk-export-modal { width: min(900px, calc(100vw - 32px)); max-width: 900px; max-height: calc(100dvh - 40px); overflow-y: auto; }
+.bulk-export-modal .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.bulk-export-modal .settings-grid > label { min-width: 0; }
+.bulk-export-modal select, .bulk-export-modal input { min-width: 0; max-width: 100%; }
+.export-name-inputs { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 8px; }
+.bulk-export-classes { display: grid; gap: 12px; margin-block: 16px; }
+.bulk-export-class { border: 1px solid var(--border, #c9d4db); border-radius: 8px; padding: 12px; }
+.bulk-export-class > label { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; }
+.bulk-export-class input[type="checkbox"] { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 2px; }
+.bulk-export-class p { margin: 8px 0; }
+.bulk-export-class details { font-size: .875rem; }
+.bulk-export-class summary { cursor: pointer; }
+@media (max-width: 600px) {
+  .bulk-export-modal { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 18px; }
+  .bulk-export-modal .settings-grid { grid-template-columns: minmax(0, 1fr); }
+}
