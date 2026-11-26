@@ -44,6 +44,7 @@ try {
       Check ($summary.Name -eq 'Activities and Topics') "$($case.label): report sheet missing"
       Check ($summary.PageSetup.PrintTitleRows -eq '') "$($case.label): repeated header space must not shrink the report"
       Check ($summary.PageSetup.FitToPagesWide -eq 1) "$($case.label): summary must fit the page width"
+      Check ($summary.PageSetup.FitToPagesTall -eq 1) "$($case.label): summary must fit one page tall"
       foreach ($c in $summary.UsedRange.Cells) { Check ($c.Text -notmatch '^#{3,}$') "$($case.label): summary overflow at $($c.Address())" }
       $oldScore = $sheet.Range('C19').Value2
       $sheet.Range('C19').Value2 = [double]$case.changedScore

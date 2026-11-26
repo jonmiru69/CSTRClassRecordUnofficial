@@ -20,19 +20,26 @@ const root=path.resolve(__dirname,'..'),out=path.join(root,'.build-artifacts/act
     const dense=structuredClone(saved);
     dense.period.activityMeta.ww[0].topic='Long saved explanation. '.repeat(300);
     const reserved=structuredClone(saved);reserved.section.subject='Activities and Topics';
-    for(const [label,payload] of [['saved',saved],['sparse',sparse],['empty',empty],['dense',dense],['reserved-name',reserved]]){
+    const many=structuredClone(saved);
+    many.period.wwHps=Array(40).fill(20);many.period.wwDates=Array(40).fill('2026-11-26');many.period.roster[0].ww=Array(40).fill(12);
+    many.period.activityMeta.ww=Array.from({length:40},(_,i)=>i?{title:`Saved activity ${i+1}`,topic:`Topic ${i+1}`,competency:`Competency ${i+1}`}:structuredClone(saved.period.activityMeta.ww[0]));
+    let normalSize;
+    for(const [label,payload] of [['saved',saved],['sparse',sparse],['empty',empty],['dense',dense],['reserved-name',reserved],['many-activities',many]]){
       const result=await page.evaluate(async({payload,template})=>{
         const built=await CSTRSchoolExcel.build(payload,{templateBytes:Uint8Array.from(atob(template),c=>c.charCodeAt(0))}),zip=await JSZip.loadAsync(built.bytes);
         const part=zip.file('xl/worksheets/sheet2.xml');if(!part)return {missing:true};
         const d=new DOMParser().parseFromString(await part.async('string'),'application/xml'),w=new DOMParser().parseFromString(await zip.file('xl/workbook.xml').async('string'),'application/xml'),s=new DOMParser().parseFromString(await zip.file('xl/styles.xml').async('string'),'application/xml');
         const rows=[...d.querySelectorAll('sheetData row')].map(r=>({values:[...r.children].map(c=>c.querySelector('t')?.textContent||''),sizes:[...r.children].map(c=>Number(s.querySelector('fonts').children[Number(s.querySelector('cellXfs').children[Number(c.getAttribute('s'))].getAttribute('fontId'))].querySelector('sz').getAttribute('val')))}));
-        return {bytes:Array.from(built.bytes),rows,hiddenColumns:d.querySelectorAll('col[hidden="1"]').length,view:d.querySelector('sheetView').getAttribute('showRowColHeaders'),grid:d.querySelector('sheetView').getAttribute('showGridLines'),fit:d.querySelector('pageSetup').getAttribute('fitToHeight'),sheets:[...w.querySelectorAll('sheet')].map(n=>n.getAttribute('name')),areas:[...w.querySelectorAll('definedName[name="_xlnm.Print_Area"]')].map(n=>n.textContent)};
+        return {bytes:Array.from(built.bytes),rows,breaks:d.querySelectorAll('rowBreaks,colBreaks').length,maxHeight:Math.max(...[...d.querySelectorAll('sheetData row')].map(r=>Number(r.getAttribute('ht')))),hiddenColumns:d.querySelectorAll('col[hidden="1"]').length,view:d.querySelector('sheetView').getAttribute('showRowColHeaders'),grid:d.querySelector('sheetView').getAttribute('showGridLines'),fit:d.querySelector('pageSetup').getAttribute('fitToHeight'),sheets:[...w.querySelectorAll('sheet')].map(n=>n.getAttribute('name')),areas:[...w.querySelectorAll('definedName[name="_xlnm.Print_Area"]')].map(n=>n.textContent)};
       },{payload,template:fs.readFileSync(path.join(root,'ASSETS/templates/cstr-class-record.xlsx')).toString('base64')});
       assert(!result.missing,'summary must have independent columns on its own worksheet');
       assert.equal(result.sheets.length,2);assert.equal(result.areas.length,2);
       assert.equal(new Set(result.sheets.map(n=>n.toLowerCase())).size,2,'worksheet names must be unique');
       assert.equal(result.hiddenColumns,0);assert.equal(result.view,'0');assert.equal(result.grid,'0');
       const values=result.rows.map(r=>r.values);
+      assert.equal(result.fit,'1','every summary must fit exactly one page tall');assert.equal(result.breaks,0);
+      assert(result.maxHeight<=409,'notes must not exceed Excel row limits');
+      assert.equal(values.filter(r=>r[0]==='Summary of Activities and Topics').length,1,'no repeated page headers');
       assert.deepEqual(values.find(r=>r[0]==='No.'),['No.','Date','Activity','Topic','Learning competency','HPS']);
       if(label==='empty')assert.equal(values.filter(r=>r[0]==='No activities recorded.').length,3);
       else{
@@ -42,8 +49,10 @@ const root=path.resolve(__dirname,'..'),out=path.join(root,'.build-artifacts/act
         assert.equal(first[4],saved.period.activityMeta.ww[0].competency);assert.equal(first[5],'20');
         const topic=label==='dense'?values.filter(r=>r[0]==='1'||(!r[0]&&r[3])).map(r=>r[3]).join(''):first[3];
         assert.equal(topic,payload.period.activityMeta.ww[label==='sparse'?1:0].topic);
-        assert(result.rows.filter(r=>r.values[2]===first[2]).every(r=>r.sizes.every(size=>size===16)));
-        assert.equal(result.fit,label==='dense'?'0':'1');
+        const size=result.rows.find(r=>r.values[2]===first[2]).sizes[2];
+        if(label==='saved'){normalSize=size;assert(size>=12&&size<=16);}
+        if(label==='dense'||label==='many-activities')assert(size<normalSize,'dense summaries must reduce their actual font size');
+        if(label==='many-activities')assert.equal(values.filter(r=>r[2].startsWith('Saved activity ')).length,39,'all activities must remain present');
       }
       fs.writeFileSync(path.join(out,label+'.xlsx'),Buffer.from(result.bytes));
       console.log('PASS',label,'saved content, date/activity/topic alignment, readable fonts and print layout');

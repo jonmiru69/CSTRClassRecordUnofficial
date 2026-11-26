@@ -93,36 +93,24 @@
     const heading=style(17,true,'left','FFE3E8EC'),label=style(14,true,'left','FFF0F2F4');
     const widths=[8,19,34,43,36,10],data=el(doc,'sheetData'),merges=[];
     const measure=document.createElement('canvas').getContext('2d');
+    let fontScale=1;
     function height(text,width,size=16,bold=false){
       measure.font=`${bold?'bold ':''}${size}pt Arial`;
       let lines=0;
       for(const paragraph of String(text??'').split('\n')){
         let line='';lines++;
         for(const word of paragraph.split(/\s+/u)){
-          if(measure.measureText(line?line+' '+word:word).width*.75<=width-16){line=line?line+' '+word:word;continue;}
+          if(measure.measureText(line?line+' '+word:word).width*.75<=width-16*fontScale){line=line?line+' '+word:word;continue;}
           if(line){lines++;line='';}
-          for(const ch of word){if(line&&measure.measureText(line+ch).width*.75>width-16){lines++;line='';}line+=ch;}
+          for(const ch of word){if(line&&measure.measureText(line+ch).width*.75>width-16*fontScale){lines++;line='';}line+=ch;}
         }
       }
-      return Math.max(26,lines*size*1.15+10);
+      return Math.max(20*fontScale*fontScale,lines*size*(lines>1?1.4:1.15)+6*fontScale*fontScale);
     }
-    let rowNumber=0,totalHeight=0;
+    let rowNumber=0;
+    const rowSpecs=[];
     function row(values, styleIds, minHeight=28, spans=[]) {
-      const r=++rowNumber,node=el(doc,'row',{r,customHeight:1});let ht=minHeight;
-      for(let c=0;c<6;c++){
-        const value=values[c]??'',id=Array.isArray(styleIds)?styleIds[c]:styleIds;
-        const cell=el(doc,'c',{r:`${col(c)}${r}`,s:id,t:'inlineStr'}),inline=el(doc,'is'),text=el(doc,'t');
-        text.setAttribute('xml:space','preserve');text.textContent=String(value).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'');inline.appendChild(text);cell.appendChild(inline);node.appendChild(cell);
-        if(present(value)){
-          const span=spans.find(([a])=>a===c),width=widths.slice(c,(span?.[1]??c)+1).reduce((a,b)=>a+b,0)*5.55;
-          const xf=xfs.children[id],font=fonts.children[Number(xf.getAttribute('fontId'))];
-          ht=Math.max(ht,height(value,width,Number(font.querySelector('sz').getAttribute('val')),!!font.querySelector('b')));
-        }
-      }
-      // Excel cannot display a row taller than 409 points. Split exceptionally
-      // long saved text into continuation rows rather than silently clipping it.
-      node.setAttribute('ht',Math.min(409,ht));totalHeight+=Math.min(409,ht);data.appendChild(node);
-      for(const [a,b] of spans)merges.push(`${col(a)}${r}:${col(b)}${r}`);
+      rowSpecs.push({values,styleIds,minHeight,spans});rowNumber++;
     }
     const full=[[0,5]],two=[[0,2],[3,5]];
     const headerText=r=>[...(headerRows.get(r)?.querySelectorAll('is')||[])].map(n=>n.textContent).filter(present).join(' ');
@@ -135,7 +123,6 @@
     row([`Teacher: ${metadata.teacherName||'—'}`,'','',`School year: ${metadata.schoolYear||'—'}`],body,28,two);
     row(['No.','Date','Activity','Topic','Learning competency','HPS'],label,30);
     const headerEnd=rowNumber;
-    const maxNoteHeight=Math.max(50,Math.min(300,576-totalHeight-60));
     const roleNames={st1:'Long Quiz / Unit Test / Chapter Test',st2:'Monthly Exam',te:payload.calendarMode==='trimester'?'Term Exam':'Quarterly Exam',cognitive:'Cognitive',affective:'Affective',behavioral:'Behavioral'};
     for(const [kind,name] of [['ww','Written Works'],['pt','Performance Tasks'],['qa',payload.calendarMode==='trimester'?'Term Assessments':'Quarterly Assessments']]){
       const entries=period[kind+'Hps'].flatMap((hps,index)=>{
@@ -153,41 +140,58 @@
       row([`${name}  ·  ${entries.length} ${entries.length===1?'activity':'activities'}`],heading,30,full);
       if(!entries.length)row(['No activities recorded.'],body,28,full);
       for(const entry of entries){
-        // Keep complete source text, including explicit line breaks and literal
-        // formula-looking titles. Continuations keep even very long notes visible.
-        const chunks=(text,width)=>{
-          let remaining=String(text??''),parts=[];
-          while(remaining){
-            let end=remaining.length;while(end>1&&height(remaining.slice(0,end),width)>maxNoteHeight)end=Math.floor(end*.8);
-            if(end<remaining.length){const boundary=remaining.slice(0,end).search(/\s+\S*$/u);if(boundary>0)end=boundary+1;if(/[\uD800-\uDBFF]/.test(remaining[end-1]))end--;}
-            parts.push(remaining.slice(0,end));remaining=remaining.slice(end);
-          }
-          return parts.length?parts:[''];
-        };
-        const text=[entry.title,entry.topic,entry.competency].map((value,i)=>chunks(value,widths[i+2]*5.55));
-        for(let i=0;i<Math.max(...text.map(p=>p.length));i++)row([i?'':entry.number,i?'':entry.date,text[0][i]||'',text[1][i]||'',text[2][i]||'',i?'':entry.hps],[center,center,body,body,body,center]);
+        row([entry.number,entry.date,entry.title,entry.topic,entry.competency,entry.hps],[center,center,body,body,body,center]);
       }
     }
-    const physicalWidth=widths.reduce((a,b)=>a+b,0)*5.55;
-    const pages=totalHeight*Math.min(1,900/physicalWidth)>700?0:1;
-    const pageBreaks=[];
-    if(!pages){
-      // Explicit report pages avoid Excel reserving repeating-title space twice
-      // on the first page. Keep section headings with their first activity.
-      const sourceRows=[...data.children],sourceMerges=[...merges];
-      data.replaceChildren();merges.length=0;rowNumber=0;let used=0;
-      const copy=source=>{
-        const old=Number(source.getAttribute('r')),r=++rowNumber,node=source.cloneNode(true);
-        node.setAttribute('r',r);for(const c of node.children)c.setAttribute('r',c.getAttribute('r').replace(/\d+$/,r));
-        data.appendChild(node);used+=Number(node.getAttribute('ht'));
-        for(const ref of sourceMerges)if(address(ref.split(':')[0]).r===old)merges.push(ref.replace(/\d+/g,String(r)));
-      };
-      sourceRows.forEach((source,index)=>{
-        const ht=Number(source.getAttribute('ht')),isSection=Number(source.firstChild.getAttribute('s'))===heading;
-        const required=ht+(isSection?Number(sourceRows[index+1]?.getAttribute('ht')||0):0);
-        if(index>=headerEnd&&used+required>550){pageBreaks.push(rowNumber);used=0;sourceRows.slice(0,headerEnd).forEach(copy);}
-        copy(source);
+    const styleAt=(spec,c)=>Array.isArray(spec.styleIds)?spec.styleIds[c]:spec.styleIds;
+    // Use a conservative width allowance for Excel's font/indent metrics.
+    // Underestimating wrapping would clip long notes inside a fixed-height row.
+    const widthAt=(spec,c)=>widths.slice(c,(spec.spans.find(([a])=>a===c)?.[1]??c)+1).reduce((a,b)=>a+b,0)*5;
+    function textHeight(spec,c,value){
+      const font=fonts.children[Number(xfs.children[styleAt(spec,c)].getAttribute('fontId'))];
+      return height(value,widthAt(spec,c),Number(font.querySelector('sz').getAttribute('val'))*fontScale,!!font.querySelector('b'));
+    }
+    const rowHeight=spec=>Math.max(spec.minHeight*fontScale*fontScale,...spec.values.map((value,c)=>present(value)?textHeight(spec,c,value):0));
+    // Re-wrap at each candidate size: smaller type fits more words per line,
+    // so reducing row heights alone would waste space or clip saved content.
+    // Pick the largest size that fits, retaining the report's type hierarchy.
+    for(let size=16;size>=8;size-=.5){
+      fontScale=size/16;
+      if(rowSpecs.reduce((total,spec)=>total+rowHeight(spec),0)<=540)break;
+    }
+    fontScale=Math.max(.5,fontScale);
+    const fittedStyles=new Map();
+    function fittedStyle(base){
+      if(fontScale===1)return base;
+      if(!fittedStyles.has(base)){
+        const xf=xfs.children[base].cloneNode(true),font=fonts.children[Number(xf.getAttribute('fontId'))].cloneNode(true);
+        font.querySelector('sz').setAttribute('val',Number(font.querySelector('sz').getAttribute('val'))*fontScale);
+        xf.setAttribute('fontId',fonts.children.length);fonts.appendChild(font);
+        fittedStyles.set(base,xfs.children.length);xfs.appendChild(xf);
+      }
+      return fittedStyles.get(base);
+    }
+    rowNumber=0;
+    for(const spec of rowSpecs){
+      // Keep all text even when a single note exceeds Excel's 409pt row limit.
+      // These are adjacent rows on the same page, never additional pages.
+      const chunks=spec.values.map((value,c)=>{
+        let remaining=String(value??''),parts=[];
+        while(remaining){
+          let end=remaining.length;while(end>1&&textHeight(spec,c,remaining.slice(0,end))>390)end=Math.floor(end*.8);
+          if(end<remaining.length){const boundary=remaining.slice(0,end).search(/\s+\S*$/u);if(boundary>0)end=boundary+1;if(/[\uD800-\uDBFF]/.test(remaining[end-1]))end--;}
+          parts.push(remaining.slice(0,end));remaining=remaining.slice(end);
+        }
+        return parts.length?parts:[''];
       });
+      for(let part=0;part<Math.max(...chunks.map(p=>p.length));part++){
+        const values=chunks.map(p=>p[part]||''),r=++rowNumber,node=el(doc,'row',{r,customHeight:1,ht:Math.min(409,rowHeight({...spec,values}))});
+        for(let c=0;c<6;c++){
+          const cell=el(doc,'c',{r:`${col(c)}${r}`,s:fittedStyle(styleAt(spec,c)),t:'inlineStr'}),inline=el(doc,'is'),text=el(doc,'t');
+          text.setAttribute('xml:space','preserve');text.textContent=String(values[c]??'').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'');inline.appendChild(text);cell.appendChild(inline);node.appendChild(cell);
+        }
+        data.appendChild(node);for(const [a,b] of spec.spans)merges.push(`${col(a)}${r}:${col(b)}${r}`);
+      }
     }
     sheet.appendChild(el(doc,'sheetPr'));sheet.firstChild.appendChild(el(doc,'pageSetUpPr',{fitToPage:1,autoPageBreaks:0}));
     sheet.appendChild(el(doc,'dimension',{ref:`A1:F${rowNumber}`}));
@@ -198,17 +202,15 @@
     const mergeCells=el(doc,'mergeCells',{count:merges.length});merges.forEach(ref=>mergeCells.appendChild(el(doc,'mergeCell',{ref})));sheet.appendChild(mergeCells);
     sheet.appendChild(el(doc,'printOptions',{horizontalCentered:1,gridLines:0,headings:0}));
     sheet.appendChild(el(doc,'pageMargins',{left:.25,right:.25,top:.25,bottom:.25,header:.1,footer:.1}));
-    // Normal class summaries fit one Folio landscape page. Large registers flow
-    // vertically with the full header repeated instead of shrinking to tiny text.
-    // Allow modest one-page fitting (at least ~13pt body type); beyond that,
-    // preserve the 16pt text and let Excel use continuation pages.
-    sheet.appendChild(el(doc,'pageSetup',{paperSize:14,orientation:'landscape',fitToWidth:1,fitToHeight:pages}));
+    // Always one summary page. Excel can scale exceptionally dense registers
+    // further after measured font/spacing adaptation, without omitting content.
+    sheet.appendChild(el(doc,'pageSetup',{paperSize:14,orientation:'landscape',fitToWidth:1,fitToHeight:1}));
     const footer=el(doc,'headerFooter'),odd=el(doc,'oddFooter');odd.textContent='&RSummary · Page &P';footer.appendChild(odd);sheet.appendChild(footer);
-    if(pageBreaks.length){const breaks=el(doc,'rowBreaks',{count:pageBreaks.length,manualBreakCount:pageBreaks.length});pageBreaks.forEach(id=>breaks.appendChild(el(doc,'brk',{id,min:0,max:16383,man:1})));sheet.appendChild(breaks);}
     // Reuse the school's actual logo without inheriting the score-grid anchor.
     const drawing=parse(await zip.file('xl/drawings/drawing1.xml').async('string'));
     const dns='http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing';
     for(const anchor of drawing.documentElement.children){const from=anchor.getElementsByTagNameNS(dns,'from')[0];if(from){from.getElementsByTagNameNS(dns,'col')[0].textContent='0';from.getElementsByTagNameNS(dns,'colOff')[0].textContent='0';}}
+    for(const extent of drawing.getElementsByTagNameNS(dns,'ext'))for(const key of ['cx','cy'])extent.setAttribute(key,Math.round(Number(extent.getAttribute(key))*fontScale));
     zip.file('xl/drawings/drawing2.xml',serialize(drawing));
     zip.file('xl/drawings/_rels/drawing2.xml.rels',await zip.file('xl/drawings/_rels/drawing1.xml.rels').async('string'));
     const relationships='http://schemas.openxmlformats.org/package/2006/relationships',officeRels='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -228,8 +230,7 @@
     const drawingType=types.createElementNS(types.documentElement.namespaceURI,'Override');drawingType.setAttribute('PartName','/xl/drawings/drawing2.xml');drawingType.setAttribute('ContentType','application/vnd.openxmlformats-officedocument.drawing+xml');types.documentElement.appendChild(drawingType);zip.file('[Content_Types].xml',serialize(types));
     const names=workbook.querySelector('definedNames');
     const printNames=[['_xlnm.Print_Area',`'${name}'!$A$1:$F$${rowNumber}`]];
-    // Continuation pages carry real header rows, so no print-title reservation
-    // can shrink the first page or leave it mostly empty.
+    // No repeating titles: they unnecessarily reserve space on a one-page report.
     for(const [key,value] of printNames){const n=el(workbook,'definedName',{name:key,localSheetId:1});n.textContent=value;names.appendChild(n);}
     for(const container of [fonts,fills,xfs])container.setAttribute('count',container.children.length);
   }

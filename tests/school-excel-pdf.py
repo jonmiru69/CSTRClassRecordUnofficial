@@ -11,7 +11,7 @@ report=[]
 body_sizes={}
 for case in cases:
     with pdfplumber.open(root/f'{case}.pdf') as pdf:
-        assert len(pdf.pages)==(4 if case=='long-activity' else 2),(case,'expected one record page and readable summary pages')
+        assert len(pdf.pages)==2,(case,'expected one class record page and exactly one summary page')
         texts=[p.extract_text() or '' for p in pdf.pages]
         normalized=[re.sub(r'\s+',' ',text) for text in texts]
         for p,text in zip(pdf.pages,texts):
@@ -27,7 +27,7 @@ for case in cases:
         summary=' '.join(normalized[1:])
         assert all(t in summary for t in ['Written Works','Performance','Assessments','Date','Activity','Topic','Learning competency','HPS'])
         assert not re.search(r'\b[A-Z]{1,3}: ',summary),(case,'Excel column-letter prefixes')
-        assert all('Summary of Activities and Topics' in text for text in normalized[1:]),(case,'missing continuation header')
+        assert summary.count('Summary of Activities and Topics')==1,(case,'summary header must appear once')
         if case!='long-activity':
             activity=next(w for w in pdf.pages[1].extract_words(extra_attrs=['size']) if w['text']=='1' and w['size']>10)
             assert activity['size']>=12,(case,'summary body font too small',activity['size'])
