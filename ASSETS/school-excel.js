@@ -157,14 +157,39 @@
         // formula-looking titles. Continuations keep even very long notes visible.
         const chunks=(text,width)=>{
           let remaining=String(text??''),parts=[];
-          while(remaining){let end=remaining.length;while(end>1&&height(remaining.slice(0,end),width)>maxNoteHeight)end=Math.floor(end*.8);if(end<remaining.length&&/[\uD800-\uDBFF]/.test(remaining[end-1]))end--;parts.push(remaining.slice(0,end));remaining=remaining.slice(end);}
+          while(remaining){
+            let end=remaining.length;while(end>1&&height(remaining.slice(0,end),width)>maxNoteHeight)end=Math.floor(end*.8);
+            if(end<remaining.length){const boundary=remaining.slice(0,end).search(/\s+\S*$/u);if(boundary>0)end=boundary+1;if(/[\uD800-\uDBFF]/.test(remaining[end-1]))end--;}
+            parts.push(remaining.slice(0,end));remaining=remaining.slice(end);
+          }
           return parts.length?parts:[''];
         };
         const text=[entry.title,entry.topic,entry.competency].map((value,i)=>chunks(value,widths[i+2]*5.55));
         for(let i=0;i<Math.max(...text.map(p=>p.length));i++)row([i?'':entry.number,i?'':entry.date,text[0][i]||'',text[1][i]||'',text[2][i]||'',i?'':entry.hps],[center,center,body,body,body,center]);
       }
     }
-    sheet.appendChild(el(doc,'sheetPr'));sheet.firstChild.appendChild(el(doc,'pageSetUpPr',{fitToPage:1}));
+    const physicalWidth=widths.reduce((a,b)=>a+b,0)*5.55;
+    const pages=totalHeight*Math.min(1,900/physicalWidth)>700?0:1;
+    const pageBreaks=[];
+    if(!pages){
+      // Explicit report pages avoid Excel reserving repeating-title space twice
+      // on the first page. Keep section headings with their first activity.
+      const sourceRows=[...data.children],sourceMerges=[...merges];
+      data.replaceChildren();merges.length=0;rowNumber=0;let used=0;
+      const copy=source=>{
+        const old=Number(source.getAttribute('r')),r=++rowNumber,node=source.cloneNode(true);
+        node.setAttribute('r',r);for(const c of node.children)c.setAttribute('r',c.getAttribute('r').replace(/\d+$/,r));
+        data.appendChild(node);used+=Number(node.getAttribute('ht'));
+        for(const ref of sourceMerges)if(address(ref.split(':')[0]).r===old)merges.push(ref.replace(/\d+/g,String(r)));
+      };
+      sourceRows.forEach((source,index)=>{
+        const ht=Number(source.getAttribute('ht')),isSection=Number(source.firstChild.getAttribute('s'))===heading;
+        const required=ht+(isSection?Number(sourceRows[index+1]?.getAttribute('ht')||0):0);
+        if(index>=headerEnd&&used+required>550){pageBreaks.push(rowNumber);used=0;sourceRows.slice(0,headerEnd).forEach(copy);}
+        copy(source);
+      });
+    }
+    sheet.appendChild(el(doc,'sheetPr'));sheet.firstChild.appendChild(el(doc,'pageSetUpPr',{fitToPage:1,autoPageBreaks:0}));
     sheet.appendChild(el(doc,'dimension',{ref:`A1:F${rowNumber}`}));
     const views=el(doc,'sheetViews'),view=el(doc,'sheetView',{workbookViewId:0,showGridLines:0,showRowColHeaders:0,zoomScale:100});
     view.appendChild(el(doc,'pane',{ySplit:headerEnd,topLeftCell:`A${headerEnd+1}`,activePane:'bottomLeft',state:'frozen'}));views.appendChild(view);sheet.appendChild(views);
@@ -175,12 +200,11 @@
     sheet.appendChild(el(doc,'pageMargins',{left:.25,right:.25,top:.25,bottom:.25,header:.1,footer:.1}));
     // Normal class summaries fit one Folio landscape page. Large registers flow
     // vertically with the full header repeated instead of shrinking to tiny text.
-    const physicalWidth=widths.reduce((a,b)=>a+b,0)*5.55;
     // Allow modest one-page fitting (at least ~13pt body type); beyond that,
     // preserve the 16pt text and let Excel use continuation pages.
-    const pages=totalHeight*Math.min(1,900/physicalWidth)>700?0:1;
     sheet.appendChild(el(doc,'pageSetup',{paperSize:14,orientation:'landscape',fitToWidth:1,fitToHeight:pages}));
     const footer=el(doc,'headerFooter'),odd=el(doc,'oddFooter');odd.textContent='&RSummary · Page &P';footer.appendChild(odd);sheet.appendChild(footer);
+    if(pageBreaks.length){const breaks=el(doc,'rowBreaks',{count:pageBreaks.length,manualBreakCount:pageBreaks.length});pageBreaks.forEach(id=>breaks.appendChild(el(doc,'brk',{id,min:0,max:16383,man:1})));sheet.appendChild(breaks);}
     // Reuse the school's actual logo without inheriting the score-grid anchor.
     const drawing=parse(await zip.file('xl/drawings/drawing1.xml').async('string'));
     const dns='http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing';
@@ -204,9 +228,8 @@
     const drawingType=types.createElementNS(types.documentElement.namespaceURI,'Override');drawingType.setAttribute('PartName','/xl/drawings/drawing2.xml');drawingType.setAttribute('ContentType','application/vnd.openxmlformats-officedocument.drawing+xml');types.documentElement.appendChild(drawingType);zip.file('[Content_Types].xml',serialize(types));
     const names=workbook.querySelector('definedNames');
     const printNames=[['_xlnm.Print_Area',`'${name}'!$A$1:$F$${rowNumber}`]];
-    // Excel reserves additional space for repeating titles when calculating a
-    // one-page scale. Only continuation pages need a repeating print header.
-    if(!pages)printNames.push(['_xlnm.Print_Titles',`'${name}'!$1:$${headerEnd}`]);
+    // Continuation pages carry real header rows, so no print-title reservation
+    // can shrink the first page or leave it mostly empty.
     for(const [key,value] of printNames){const n=el(workbook,'definedName',{name:key,localSheetId:1});n.textContent=value;names.appendChild(n);}
     for(const container of [fonts,fills,xfs])container.setAttribute('count',container.children.length);
   }

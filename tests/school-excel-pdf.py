@@ -11,7 +11,7 @@ report=[]
 body_sizes={}
 for case in cases:
     with pdfplumber.open(root/f'{case}.pdf') as pdf:
-        assert len(pdf.pages)==(3 if case=='long-activity' else 2),(case,'expected one record page and readable summary pages')
+        assert len(pdf.pages)==(4 if case=='long-activity' else 2),(case,'expected one record page and readable summary pages')
         texts=[p.extract_text() or '' for p in pdf.pages]
         normalized=[re.sub(r'\s+',' ',text) for text in texts]
         for p,text in zip(pdf.pages,texts):
