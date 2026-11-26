@@ -10,7 +10,7 @@ const { fixture } = require('./grade-policy.cjs');
 
 const assets = path.resolve(__dirname, '../ASSETS');
 const output = path.resolve(__dirname, '../.build-artifacts/school-excel');
-const snapshotsPath=path.join(__dirname,'fixtures/school-excel-content.json');
+const snapshotsPath=path.join(__dirname,'fixtures/school-excel-main-content.json');
 const recordBaseline=Boolean(process.env.CSTR_EXPORT_BASELINE);
 const contentSnapshots=recordBaseline?{}:JSON.parse(fs.readFileSync(snapshotsPath,'utf8'));
 
@@ -106,7 +106,8 @@ async function main() {
         const attributes = selector => Object.fromEntries([...doc.querySelector(selector).attributes].map(({name, value}) => [name, value]));
         const offset = Math.max(0, payload.period.roster.length - 45);
         const expanded = payload.period.wwHps.length > 10;
-        const content=[...doc.querySelectorAll('sheetData c')].filter(c=>c.querySelector('f,v,is')?.textContent).map(c=>[c.getAttribute('r'),c.getAttribute('t')||'',...['f','v','is'].map(tag=>c.querySelector(tag)?.textContent||'')]);
+        const mainCell=c=>Number(c.getAttribute('r').match(/\d+$/)[0])<=69+offset;
+        const content=[...doc.querySelectorAll('sheetData c')].filter(mainCell).filter(c=>c.querySelector('f,v,is')?.textContent).map(c=>[c.getAttribute('r'),c.getAttribute('t')||'',...['f','v','is'].map(tag=>c.querySelector(tag)?.textContent||'')]);
         const workbookDoc=new DOMParser().parseFromString(await zip.file('xl/workbook.xml').async('string'),'application/xml');
         const grid=[...doc.querySelectorAll('sheetData row')].filter(r=>Number(r.getAttribute('r'))>=14&&Number(r.getAttribute('r'))<=63+offset).flatMap(r=>[...r.children]);
         const mergedCells=new Set();
@@ -127,7 +128,7 @@ async function main() {
         });
         return {
           borderFailures,maxFont:Math.max(...activeFontSizes),
-          content:JSON.stringify({cells:content,merges:[...doc.querySelectorAll('mergeCell')].map(n=>n.getAttribute('ref'))}),
+          content:JSON.stringify({cells:content,merges:[...doc.querySelectorAll('mergeCell')].map(n=>n.getAttribute('ref')).filter(ref=>Number(ref.match(/\d+/)[0])<=69+offset)}),
           sheetCount:workbookDoc.querySelectorAll('sheet').length,
           area:workbookDoc.querySelector('definedName[name="_xlnm.Print_Area"]').textContent,
           dateWidths:[...doc.querySelectorAll('col')].filter(c=>[...Array(10)].some((_,i)=>Number(c.getAttribute('min'))===i+3)||[...Array(8)].some((_,i)=>Number(c.getAttribute('min'))===i+15)).map(c=>Number(c.getAttribute('width'))),
@@ -157,10 +158,10 @@ async function main() {
       const fingerprint=crypto.createHash('sha256').update(info.content).digest('hex');
       if(recordBaseline){contentSnapshots[label]=fingerprint;continue;}
       assert.equal(fingerprint,contentSnapshots[label],`${label}: reviewed content, formulas and compacted template layout must be preserved`);
-      assert.equal(info.sheetCount,1,label);
+      assert.equal(info.sheetCount,2,label);
       assert.deepEqual(info.borderFailures,[],label);
       assert(info.maxFont<=15,label);
-      assert.equal(info.area.match(/!\$A\$\d+:\$[A-Z]+\$\d+/g).length,2,label);
+      assert.equal(info.area.match(/!\$A\$\d+:\$[A-Z]+\$\d+/g).length,1,label);
       if(label!=='expanded-grouped-record') assert.equal(new Set(info.dateWidths).size,1,label);
       assert(info.formulaLength < 8192, label);
       assert(info.validations >= 42 && info.mergedRanges > 20, label);

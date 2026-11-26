@@ -71,6 +71,169 @@
     };
   }
 
+  async function addActivitySummary(zip, workbook, styles, payload, metadata, headerRows) {
+    const { section, period } = payload;
+    const doc = parse(`<worksheet xmlns="${NS}"/>`), sheet = doc.documentElement;
+    const fonts=styles.querySelector('fonts'), fills=styles.querySelector('fills'), xfs=styles.querySelector('cellXfs');
+    const styleCache=new Map();
+    function style(size, bold=false, horizontal='left', fill='') {
+      const key=[size,bold,horizontal,fill].join('|');
+      if(styleCache.has(key))return styleCache.get(key);
+      const font=el(styles,'font');
+      font.append(el(styles,'sz',{val:size}),el(styles,'name',{val:'Arial'}),el(styles,'color',{rgb:'FF000000'}));
+      if(bold)font.appendChild(el(styles,'b'));
+      const fontId=fonts.children.length;fonts.appendChild(font);
+      let fillId=0;
+      if(fill){const node=el(styles,'fill'),pattern=el(styles,'patternFill',{patternType:'solid'});pattern.append(el(styles,'fgColor',{rgb:fill}),el(styles,'bgColor',{indexed:64}));node.appendChild(pattern);fillId=fills.children.length;fills.appendChild(node);}
+      const xf=el(styles,'xf',{numFmtId:0,fontId,fillId,borderId:0,xfId:0,applyFont:1,applyFill:1,applyAlignment:1});
+      xf.appendChild(el(styles,'alignment',{horizontal,vertical:'center',wrapText:1,shrinkToFit:0,indent:horizontal==='left'?1:0}));
+      const id=xfs.children.length;xfs.appendChild(xf);styleCache.set(key,id);return id;
+    }
+    const body=style(16),center=style(16,false,'center'),title=style(26,true),school=style(19,true,'center'),small=style(12,false,'center');
+    const heading=style(17,true,'left','FFE3E8EC'),label=style(14,true,'left','FFF0F2F4');
+    const widths=[8,19,34,43,36,10],data=el(doc,'sheetData'),merges=[];
+    const measure=document.createElement('canvas').getContext('2d');
+    function height(text,width,size=16,bold=false){
+      measure.font=`${bold?'bold ':''}${size}pt Arial`;
+      let lines=0;
+      for(const paragraph of String(text??'').split('\n')){
+        let line='';lines++;
+        for(const word of paragraph.split(/\s+/u)){
+          if(measure.measureText(line?line+' '+word:word).width*.75<=width-16){line=line?line+' '+word:word;continue;}
+          if(line){lines++;line='';}
+          for(const ch of word){if(line&&measure.measureText(line+ch).width*.75>width-16){lines++;line='';}line+=ch;}
+        }
+      }
+      return Math.max(26,lines*size*1.15+10);
+    }
+    let rowNumber=0,totalHeight=0;
+    function row(values, styleIds, minHeight=28, spans=[]) {
+      const r=++rowNumber,node=el(doc,'row',{r,customHeight:1});let ht=minHeight;
+      for(let c=0;c<6;c++){
+        const value=values[c]??'',id=Array.isArray(styleIds)?styleIds[c]:styleIds;
+        const cell=el(doc,'c',{r:`${col(c)}${r}`,s:id,t:'inlineStr'}),inline=el(doc,'is'),text=el(doc,'t');
+        text.setAttribute('xml:space','preserve');text.textContent=String(value).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'');inline.appendChild(text);cell.appendChild(inline);node.appendChild(cell);
+        if(present(value)){
+          const span=spans.find(([a])=>a===c),width=widths.slice(c,(span?.[1]??c)+1).reduce((a,b)=>a+b,0)*5.55;
+          const xf=xfs.children[id],font=fonts.children[Number(xf.getAttribute('fontId'))];
+          ht=Math.max(ht,height(value,width,Number(font.querySelector('sz').getAttribute('val')),!!font.querySelector('b')));
+        }
+      }
+      // Excel cannot display a row taller than 409 points. Split exceptionally
+      // long saved text into continuation rows rather than silently clipping it.
+      node.setAttribute('ht',Math.min(409,ht));totalHeight+=Math.min(409,ht);data.appendChild(node);
+      for(const [a,b] of spans)merges.push(`${col(a)}${r}:${col(b)}${r}`);
+    }
+    const full=[[0,5]],two=[[0,2],[3,5]];
+    const headerText=r=>[...(headerRows.get(r)?.querySelectorAll('is')||[])].map(n=>n.textContent).filter(present).join(' ');
+    row([headerText(1)],school,30,full);
+    row([headerText(2)+'  •  '+headerText(3)],small,22,full);
+    row([headerText(4)+'  •  '+headerText(5)],small,22,full);
+    row(['Summary of Activities and Topics'],title,44,full);
+    row([`Subject: ${section.subject||'—'}`],style(17,true),30,full);
+    row([`Grade & section: ${[section.level,section.section].filter(present).join(' — ')||'—'}`,'','',`Period: ${period.name||'—'}`],body,28,two);
+    row([`Teacher: ${metadata.teacherName||'—'}`,'','',`School year: ${metadata.schoolYear||'—'}`],body,28,two);
+    row(['No.','Date','Activity','Topic','Learning competency','HPS'],label,30);
+    const headerEnd=rowNumber;
+    const maxNoteHeight=Math.max(50,Math.min(300,576-totalHeight-60));
+    const roleNames={st1:'Long Quiz / Unit Test / Chapter Test',st2:'Monthly Exam',te:payload.calendarMode==='trimester'?'Term Exam':'Quarterly Exam',cognitive:'Cognitive',affective:'Affective',behavioral:'Behavioral'};
+    for(const [kind,name] of [['ww','Written Works'],['pt','Performance Tasks'],['qa',payload.calendarMode==='trimester'?'Term Assessments':'Quarterly Assessments']]){
+      const entries=period[kind+'Hps'].flatMap((hps,index)=>{
+        const meta=period.activityMeta?.[kind]?.[index]||{},date=period[kind+'Dates'][index]||'';
+        const scored=period.roster.some(learner=>present(learner[kind]?.[index]));
+        if(!present(hps)&&!present(date)&&!scored&&!['title','topic','competency'].some(k=>present(meta[k])))return [];
+        const role=meta.role||root.CSTRGrading.defaultRole(kind,index,section.gradingCategory||section.subject);
+        let dateText=date;
+        if(/^\d{4}-\d{2}-\d{2}$/.test(date)){
+          const d=new Date(date+'T00:00:00Z');
+          if(!Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===date)dateText=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
+        }
+        return [{number:index+1,date:dateText,title:present(meta.title)?meta.title:roleNames[role]||`Activity ${index+1}`,topic:meta.topic||'',competency:meta.competency||'',hps}];
+      });
+      row([`${name}  ·  ${entries.length} ${entries.length===1?'activity':'activities'}`],heading,30,full);
+      if(!entries.length)row(['No activities recorded.'],body,28,full);
+      for(const entry of entries){
+        // Keep complete source text, including explicit line breaks and literal
+        // formula-looking titles. Continuations keep even very long notes visible.
+        const chunks=(text,width)=>{
+          let remaining=String(text??''),parts=[];
+          while(remaining){
+            let end=remaining.length;while(end>1&&height(remaining.slice(0,end),width)>maxNoteHeight)end=Math.floor(end*.8);
+            if(end<remaining.length){const boundary=remaining.slice(0,end).search(/\s+\S*$/u);if(boundary>0)end=boundary+1;if(/[\uD800-\uDBFF]/.test(remaining[end-1]))end--;}
+            parts.push(remaining.slice(0,end));remaining=remaining.slice(end);
+          }
+          return parts.length?parts:[''];
+        };
+        const text=[entry.title,entry.topic,entry.competency].map((value,i)=>chunks(value,widths[i+2]*5.55));
+        for(let i=0;i<Math.max(...text.map(p=>p.length));i++)row([i?'':entry.number,i?'':entry.date,text[0][i]||'',text[1][i]||'',text[2][i]||'',i?'':entry.hps],[center,center,body,body,body,center]);
+      }
+    }
+    const physicalWidth=widths.reduce((a,b)=>a+b,0)*5.55;
+    const pages=totalHeight*Math.min(1,900/physicalWidth)>700?0:1;
+    const pageBreaks=[];
+    if(!pages){
+      // Explicit report pages avoid Excel reserving repeating-title space twice
+      // on the first page. Keep section headings with their first activity.
+      const sourceRows=[...data.children],sourceMerges=[...merges];
+      data.replaceChildren();merges.length=0;rowNumber=0;let used=0;
+      const copy=source=>{
+        const old=Number(source.getAttribute('r')),r=++rowNumber,node=source.cloneNode(true);
+        node.setAttribute('r',r);for(const c of node.children)c.setAttribute('r',c.getAttribute('r').replace(/\d+$/,r));
+        data.appendChild(node);used+=Number(node.getAttribute('ht'));
+        for(const ref of sourceMerges)if(address(ref.split(':')[0]).r===old)merges.push(ref.replace(/\d+/g,String(r)));
+      };
+      sourceRows.forEach((source,index)=>{
+        const ht=Number(source.getAttribute('ht')),isSection=Number(source.firstChild.getAttribute('s'))===heading;
+        const required=ht+(isSection?Number(sourceRows[index+1]?.getAttribute('ht')||0):0);
+        if(index>=headerEnd&&used+required>550){pageBreaks.push(rowNumber);used=0;sourceRows.slice(0,headerEnd).forEach(copy);}
+        copy(source);
+      });
+    }
+    sheet.appendChild(el(doc,'sheetPr'));sheet.firstChild.appendChild(el(doc,'pageSetUpPr',{fitToPage:1,autoPageBreaks:0}));
+    sheet.appendChild(el(doc,'dimension',{ref:`A1:F${rowNumber}`}));
+    const views=el(doc,'sheetViews'),view=el(doc,'sheetView',{workbookViewId:0,showGridLines:0,showRowColHeaders:0,zoomScale:100});
+    view.appendChild(el(doc,'pane',{ySplit:headerEnd,topLeftCell:`A${headerEnd+1}`,activePane:'bottomLeft',state:'frozen'}));views.appendChild(view);sheet.appendChild(views);
+    sheet.appendChild(el(doc,'sheetFormatPr',{defaultRowHeight:28}));
+    const cols=el(doc,'cols');widths.forEach((width,i)=>cols.appendChild(el(doc,'col',{min:i+1,max:i+1,width,customWidth:1})));sheet.append(cols,data);
+    const mergeCells=el(doc,'mergeCells',{count:merges.length});merges.forEach(ref=>mergeCells.appendChild(el(doc,'mergeCell',{ref})));sheet.appendChild(mergeCells);
+    sheet.appendChild(el(doc,'printOptions',{horizontalCentered:1,gridLines:0,headings:0}));
+    sheet.appendChild(el(doc,'pageMargins',{left:.25,right:.25,top:.25,bottom:.25,header:.1,footer:.1}));
+    // Normal class summaries fit one Folio landscape page. Large registers flow
+    // vertically with the full header repeated instead of shrinking to tiny text.
+    // Allow modest one-page fitting (at least ~13pt body type); beyond that,
+    // preserve the 16pt text and let Excel use continuation pages.
+    sheet.appendChild(el(doc,'pageSetup',{paperSize:14,orientation:'landscape',fitToWidth:1,fitToHeight:pages}));
+    const footer=el(doc,'headerFooter'),odd=el(doc,'oddFooter');odd.textContent='&RSummary · Page &P';footer.appendChild(odd);sheet.appendChild(footer);
+    if(pageBreaks.length){const breaks=el(doc,'rowBreaks',{count:pageBreaks.length,manualBreakCount:pageBreaks.length});pageBreaks.forEach(id=>breaks.appendChild(el(doc,'brk',{id,min:0,max:16383,man:1})));sheet.appendChild(breaks);}
+    // Reuse the school's actual logo without inheriting the score-grid anchor.
+    const drawing=parse(await zip.file('xl/drawings/drawing1.xml').async('string'));
+    const dns='http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing';
+    for(const anchor of drawing.documentElement.children){const from=anchor.getElementsByTagNameNS(dns,'from')[0];if(from){from.getElementsByTagNameNS(dns,'col')[0].textContent='0';from.getElementsByTagNameNS(dns,'colOff')[0].textContent='0';}}
+    zip.file('xl/drawings/drawing2.xml',serialize(drawing));
+    zip.file('xl/drawings/_rels/drawing2.xml.rels',await zip.file('xl/drawings/_rels/drawing1.xml.rels').async('string'));
+    const relationships='http://schemas.openxmlformats.org/package/2006/relationships',officeRels='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    const sheetRels=parse(`<Relationships xmlns="${relationships}"/>`),drawingRel=sheetRels.createElementNS(relationships,'Relationship');
+    drawingRel.setAttribute('Id','rId1');drawingRel.setAttribute('Type',officeRels+'/drawing');drawingRel.setAttribute('Target','../drawings/drawing2.xml');sheetRels.documentElement.appendChild(drawingRel);
+    zip.file('xl/worksheets/_rels/sheet2.xml.rels',serialize(sheetRels));
+    const drawingNode=el(doc,'drawing');drawingNode.setAttributeNS(officeRels,'r:id','rId1');sheet.appendChild(drawingNode);
+    zip.file('xl/worksheets/sheet2.xml',serialize(doc));
+    const name='Activities and Topics',sheets=workbook.querySelector('sheets'),node=el(workbook,'sheet',{name,sheetId:2});
+    const rels=parse(await zip.file('xl/_rels/workbook.xml.rels').async('string'));
+    let id=1;while([...rels.documentElement.children].some(n=>n.getAttribute('Id')===`rId${id}`))id++;
+    node.setAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','r:id',`rId${id}`);sheets.appendChild(node);
+    const rel=rels.createElementNS(rels.documentElement.namespaceURI,'Relationship');
+    Object.entries({Id:`rId${id}`,Type:'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet',Target:'worksheets/sheet2.xml'}).forEach(([k,v])=>rel.setAttribute(k,v));rels.documentElement.appendChild(rel);zip.file('xl/_rels/workbook.xml.rels',serialize(rels));
+    const types=parse(await zip.file('[Content_Types].xml').async('string')),override=types.createElementNS(types.documentElement.namespaceURI,'Override');
+    override.setAttribute('PartName','/xl/worksheets/sheet2.xml');override.setAttribute('ContentType','application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml');types.documentElement.appendChild(override);zip.file('[Content_Types].xml',serialize(types));
+    const drawingType=types.createElementNS(types.documentElement.namespaceURI,'Override');drawingType.setAttribute('PartName','/xl/drawings/drawing2.xml');drawingType.setAttribute('ContentType','application/vnd.openxmlformats-officedocument.drawing+xml');types.documentElement.appendChild(drawingType);zip.file('[Content_Types].xml',serialize(types));
+    const names=workbook.querySelector('definedNames');
+    const printNames=[['_xlnm.Print_Area',`'${name}'!$A$1:$F$${rowNumber}`]];
+    // Continuation pages carry real header rows, so no print-title reservation
+    // can shrink the first page or leave it mostly empty.
+    for(const [key,value] of printNames){const n=el(workbook,'definedName',{name:key,localSheetId:1});n.textContent=value;names.appendChild(n);}
+    for(const container of [fonts,fills,xfs])container.setAttribute('count',container.children.length);
+  }
+
   async function build(payload, options = {}) {
     if (!root.JSZip || !root.CSTRGrading) throw new Error('School Excel export tools are unavailable.');
     validate(payload);
@@ -424,34 +587,12 @@
       }
     }
     for(let i=3;i<rawColumns.qa.length;i++)mergeRefs.push(`${col(rawColumns.qa[i])}15:${col(rawColumns.qa[i])}17`);
-    const register={};
-    for(const kind of ['ww','pt','qa'])register[kind]=period[kind+'Hps'].flatMap((hps,index)=>{
-      const meta=period.activityMeta?.[kind]?.[index]||{},date=period[kind+'Dates'][index]||'';
-      if(!present(hps)&&!present(date)&&!['title','topic','competency'].some(k=>present(meta[k])))return [];
-      const role=meta.role||root.CSTRGrading.defaultRole(kind,index,section.gradingCategory || section.subject);
-      return [{column:`${col(rawColumns[kind][index])}`,date,title:[meta.title,roleLabel(role)].filter(Boolean).join(' - '),topic:[meta.topic,meta.competency].filter(Boolean).join('\n'),hps}];
-    });
-    const summaryLength=original ? 7 : Math.max(7,...Object.values(register).map(items=>items.length));
-    const endRow=mapRow(75)+summaryLength;
+    // A report needs its own widths: score columns can be hidden or expanded.
+    // Keep the hidden assessment-role row used by formulas on the grade sheet.
+    const endRow=original ? mapRow(82) : mapRow(69);
     if(!original){
-      // Normalize only the originally irregular summary merges. Everything above
-      // the activity table keeps the school's exact merges and native assets.
-      for(let i=mergeRefs.length-1;i>=0;i--)if(address(mergeRefs[i].split(':')[0]).r>=mapRow(76))mergeRefs.splice(i,1);
-      for(let i=0;i<summaryLength;i++){
-        const r=mapRow(76)+i; ensureRow(r,76);
-        if (i > 0 && !Object.values(register).some(entries => entries[i])) ensureRow(r).setAttribute('hidden', '1');
-        for(let c=2;c<=lastCol;c++)write(c,r,'');
-        for(const [kind,start,dateEnd,titleStart,titleEnd,topicStart,topicEnd] of [['ww',2,3,4,9,10,14],['pt',15,16,17,22,23,24],['qa',25,26,27,32,33,34]]){
-          const entry=register[kind][i];
-          for(const [a,b] of [[start,dateEnd],[titleStart,titleEnd],[topicStart,topicEnd]])mergeRefs.push(`${col(mapCol(a))}${r}:${col(mapCol(b))}${r}`);
-          cell(mapCol(start),r).setAttribute('s',originalStyles.get('C76')||'0');
-          writeDate(mapCol(start),r,entry?.date||'','mm/dd/yy');write(mapCol(titleStart),r,entry?`${entry.column}: ${entry.title}`:'');write(mapCol(topicStart),r,entry?.topic||'');
-        }
-        const maxLines=Math.max(1,...['ww','pt','qa'].map(k=>{const e=register[k][i];return e?Math.max(Math.ceil((e.title.length+5)/26),e.topic.split('\n').reduce((n,x)=>n+Math.max(1,Math.ceil(x.length/30)),0)):1;}));
-        ensureRow(r).setAttribute('ht',Math.max(15,14*maxLines+3)); ensureRow(r).setAttribute('customHeight','1');
-        for(const c of [4,10,17,23,27,33].map(mapCol)){const node=cell(c,r); node.setAttribute('s',originalStyles.get('E76')||'0');fitCell(c,r);}
-      }
-      W('Z',73,'C. Assessments');W('Z',75,'Date');W('AB',75,'Activities');W('AH',75,'Topics');W('AG',75,'');W('AI',75,'');
+      for(const [r,row] of rows)if(r>=mapRow(70)&&r!==roleRow){row.remove();rows.delete(r);}
+      for(let i=mergeRefs.length-1;i>=0;i--)if(address(mergeRefs[i].split(':')[0]).r>=mapRow(70))mergeRefs.splice(i,1);
     }
     merges.replaceChildren(...mergeRefs.map(ref=>el(doc,'mergeCell',{ref})));merges.setAttribute('count',mergeRefs.length);
     // Clone native widths for added columns, preserving existing widths exactly.
@@ -750,13 +891,17 @@
     zip.file('xl/worksheets/sheet1.xml',serialize(doc));
     const wb=parse(await zip.file('xl/workbook.xml').async('string'));
     const subjectSheet=String(section.subject||'').replace(/[\\/?*\[\]:()\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,31).replace(/^[\s']+|[\s']+$/g,'');
-    const safeSheet = !subjectSheet || /^history$/i.test(subjectSheet) ? 'Class Record' : subjectSheet;
+    const safeSheet = !subjectSheet || /^(history|activities and topics)$/i.test(subjectSheet) ? 'Class Record' : subjectSheet;
     wb.getElementsByTagNameNS(NS,'sheet')[0].setAttribute('name',safeSheet);
     let names=wb.getElementsByTagNameNS(NS,'definedNames')[0];if(!names){names=el(wb,'definedNames');wb.documentElement.appendChild(names);}
     [...names.children].filter(n=>['_xlnm.Print_Area','_xlnm.Print_Titles'].includes(n.getAttribute('name'))).forEach(n=>n.remove());
     const escaped=`'${safeSheet.replace(/'/g,"''")}'`;
     const printArea=el(wb,'definedName',{name:'_xlnm.Print_Area',localSheetId:0});
-    printArea.textContent=`${escaped}!$A$1:$${col(lastCol)}$${mainEnd},${escaped}!$A$${mapRow(71)}:$${col(lastCol)}$${endRow}`;names.appendChild(printArea);
+    printArea.textContent=`${escaped}!$A$1:$${col(lastCol)}$${mainEnd}${original?`,${escaped}!$A$${mapRow(71)}:$${col(lastCol)}$${endRow}`:''}`;names.appendChild(printArea);
+    if(!original){
+      await addActivitySummary(zip,wb,stylesDoc,payload,metadata,baseRows);
+      zip.file('xl/styles.xml',serialize(stylesDoc));
+    }
     let calc=wb.getElementsByTagNameNS(NS,'calcPr')[0];if(!calc){calc=el(wb,'calcPr');wb.documentElement.appendChild(calc);}calc.setAttribute('calcMode','auto');calc.setAttribute('fullCalcOnLoad','1');calc.setAttribute('forceFullCalc','1');
     zip.file('xl/workbook.xml',serialize(wb));
     // The original calc chain has stale references after layout/formula edits.
