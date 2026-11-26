@@ -89,6 +89,7 @@
   let stateRevision = 0;
   let lastSavedRevision = 0;
   let selectionState = { active: false, startRow: null, startCol: null, endRow: null, endCol: null };
+  let activityRegisterGrid;
   // True once the user has actually typed into the anchor cell (the cell a
   // multi-cell drag-selection started from) while that selection is active.
   // Only an actual edit arms this — merely dragging out a selection never
@@ -1062,6 +1063,7 @@
     sizeSheetWorkspace();
     requestAnimationFrame(fitSectionName);
     restoreTableScroll(scrollLeft);
+    activityRegisterGrid?.refresh();
   }
 
   function animatePanel(element, distance = 6) {
@@ -2075,6 +2077,49 @@
     return date.getFullYear() === Number(match[1]) && date.getMonth() === Number(match[2]) - 1 && date.getDate() === Number(match[3]) ? text : '';
   }
 
+  function activityRegisterRows(period=currentPeriod()) {
+    return period?['ww','pt','qa'].flatMap(kind=>period[kind+'Hps'].map((_,index)=>({kind,index}))):[];
+  }
+  function activityRegisterValue(row,col) {
+    const period=currentPeriod(),slot=activityRegisterRows(period)[row];if(!slot)return '';
+    if(col<2)return period.activityMeta[slot.kind][slot.index][col===0?'title':'topic']||'';
+    return period[slot.kind+(col===2?'Dates':'Hps')][slot.index]??'';
+  }
+  function applyActivityRegisterChanges(changes) {
+    const period=currentPeriod(),slots=activityRegisterRows(period);
+    if(!period||period.locked)throw new Error('Unlock this grading period before editing the activity register.');
+    // Validate the complete rectangle before touching teacher data or scores.
+    const plan=changes.map(change=>{
+      const slot=slots[change.row];if(!slot||!Number.isInteger(change.col)||change.col<0||change.col>3)throw new Error('Choose cells inside the activity register.');
+      let value=String(change.value??'');const label=`${slot.kind.toUpperCase()} ${slot.index+1}`;
+      if(change.col===2){
+        value=value.trim();
+        const slash=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value);
+        if(slash)value=`${slash[3]}-${slash[1].padStart(2,'0')}-${slash[2].padStart(2,'0')}`;
+        if(value&&!calendarDate(value))throw new Error(`${label} date: use YYYY-MM-DD or MM/DD/YYYY and a real calendar date. No cells were pasted.`);
+      }
+      if(change.col===3){value=value.trim();if(invalidMaximum(value))throw new Error(`${label} HPS: enter a positive number or leave it blank. No cells were pasted.`);}
+      return {...change,...slot,value};
+    });
+    commitHpsField(document.activeElement);commitActiveFieldEdit();
+    let changed=false;
+    for(const {row,col,kind,index,value} of plan){
+      if(String(activityRegisterValue(row,col))===value)continue;
+      if(col<2)period.activityMeta[kind][index][col===0?'title':'topic']=value;
+      else if(col===2)period[kind+'Dates'][index]=value;
+      else adjustRecordHps(period,kind,index,period[kind+'Hps'][index],value);
+      changed=true;
+    }
+    if(!changed)return;
+    // One undo entry / logical save operation for the whole pasted rectangle.
+    markStateDirty();render();
+  }
+  activityRegisterGrid=window.CSTRActivityGrid?.mount(app,{
+    context:()=>({key:`${state.calendarMode}:${activeSectionId}:${activePeriodIndex}`,locked:!currentPeriod()||currentPeriod().locked}),
+    read:activityRegisterValue,apply:applyActivityRegisterChanges,status:setStatus,
+    activate(){commitHpsField(document.activeElement);commitActiveFieldEdit();commitPendingBulkFill();clearSelection();}
+  });
+
   function scoreAdjustmentControl(learner, kind, row, index, locked) {
     const ledger = learner.scoreAdjustments?.[kind]?.[index];
     const total = (ledger?.entries || []).reduce((sum, e) => sum + e.points, 0);
@@ -2286,17 +2331,20 @@
   }
 
   function renderActivityRegister(section, period) {
+    let registerRow=0;
     const rows = ['ww', 'pt', 'qa'].flatMap(kind => period[`${kind}Hps`].map((hps, index) => {
       const info = period.activityMeta[kind][index];
       const number = `${kind.toUpperCase()} ${index + 1}`;
       const disabled = period.locked ? "disabled" : "";
-      return `<tr><th scope="row" class="register-score-column"><div class="register-score-slot"><strong>${number}</strong>${bulkPointsButton(kind, index, period.locked)}</div>${renderActivityRole(section, period, kind, index, true)}</th>
-        <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" placeholder="Activity title" aria-label="${number} title" ${disabled}>${safeValue(info.title)}</textarea></td>
-        <td><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="topic" placeholder="Topic" aria-label="${number} topic" ${disabled}>${safeValue(info.topic)}</textarea></td>
-        <td>${period[`${kind}Dates`][index] && !calendarDate(period[`${kind}Dates`][index]) ? `<small class="legacy-date">${safeValue(period[`${kind}Dates`][index])}</small>` : ""}<input type="date" data-calendar-date data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(period[`${kind}Dates`][index]))}" aria-label="${number} date" ${disabled}></td>
-        <td><input type="text" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(hps)}" aria-label="${number} highest possible score" ${hpsInputState(hps)} ${disabled}></td></tr>`;
+      const row=registerRow++,cell=col=>`role="gridcell" data-register-cell data-register-row="${row}" data-register-col="${col}" tabindex="-1"`;
+      return `<tr><th scope="row" class="register-score-column"><div class="register-score-slot"><button type="button" class="register-select-heading" data-register-select-row="${row}" aria-label="Select ${number} activity row" aria-pressed="false">${number}</button>${bulkPointsButton(kind, index, period.locked)}</div>${renderActivityRole(section, period, kind, index, true)}</th>
+        <td ${cell(0)}><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="title" placeholder="Activity title" aria-label="${number} title" ${disabled}>${safeValue(info.title)}</textarea></td>
+        <td ${cell(1)}><textarea class="activity-register-input" rows="1" data-activity-kind="${kind}" data-activity-index="${index}" data-activity-field="topic" placeholder="Topic" aria-label="${number} topic" ${disabled}>${safeValue(info.topic)}</textarea></td>
+        <td ${cell(2)}>${period[`${kind}Dates`][index] && !calendarDate(period[`${kind}Dates`][index]) ? `<small class="legacy-date">${safeValue(period[`${kind}Dates`][index])}</small>` : ""}<input type="date" data-calendar-date data-date="${kind}" data-index="${index}" value="${safeValue(calendarDate(period[`${kind}Dates`][index]))}" aria-label="${number} date" ${disabled}></td>
+        <td ${cell(3)}><input type="text" inputmode="decimal" data-hps="${kind}" data-index="${index}" value="${safeValue(hps)}" aria-label="${number} highest possible score" ${hpsInputState(hps)} ${disabled}></td></tr>`;
     })).join("");
-    return `<section class="activity-register" aria-labelledby="activityRegisterTitle"><div class="activity-register-heading"><h3 id="activityRegisterTitle">${state.calendarMode === "trimester" ? "Term" : "Quarter"} activity register</h3></div><div class="activity-register-scroll"><table><caption class="sr-only">Activity title, topic, date, and HPS for ${escapeHtml(section.subject)} ${escapeHtml(period.name)}</caption><thead><tr><th scope="col" class="register-score-column">Score column</th><th scope="col">Activity title</th><th scope="col">Topic</th><th scope="col">Date</th><th scope="col">HPS</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    const headings=['Activity title','Topic','Date','HPS'].map((label,col)=>`<th scope="col"><button type="button" class="register-select-heading" data-register-column="${col}" aria-label="Select ${label} column" aria-pressed="false">${label}</button></th>`).join('');
+    return `<section class="activity-register" aria-labelledby="activityRegisterTitle"><div class="activity-register-heading"><h3 id="activityRegisterTitle">${state.calendarMode === "trimester" ? "Term" : "Quarter"} activity register</h3></div><div class="register-clipboard-tools" role="group" aria-label="Activity register clipboard"><button type="button" data-register-command="copy">Copy</button><button type="button" data-register-command="paste" ${period.locked?'disabled':''}>Paste</button><button type="button" data-register-command="clear" ${period.locked?'disabled':''}>Clear cells</button><button type="button" data-register-extend aria-pressed="false">Select range</button><span data-register-selection role="status" aria-live="polite">Select cells, rows or columns</span></div><p class="register-clipboard-help" id="registerClipboardHelp">Drag cells or Shift+click. Click row or column headings to select them. On touch, use Select range then tap the last cell. Ctrl/Command+C copies; Ctrl/Command+V pastes. Dates: YYYY-MM-DD or MM/DD/YYYY.</p><div class="activity-register-scroll"><table role="grid" aria-label="Activity register" aria-multiselectable="true" aria-readonly="${period.locked}" aria-describedby="registerClipboardHelp"><caption class="sr-only">Activity title, topic, date, and HPS for ${escapeHtml(section.subject)} ${escapeHtml(period.name)}</caption><thead><tr><th scope="col" class="register-score-column"><button type="button" class="register-select-heading" data-register-select-all aria-label="Select all activity register cells">Score column</button></th>${headings}</tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
 
   function renderLearnerRow(learner, rowIndex, period, section, numDisplay, periodLocked) {
@@ -5303,6 +5351,7 @@
     hpsEdits.delete(input);
     const period = currentPeriod();
     if (!period || period.locked) return;
+    if(String(previous??'')===String(input.value))return;
     const result = adjustRecordHps(period, input.dataset.hps, Number(input.dataset.index), previous, input.value);
     document.querySelectorAll(`input[data-score="${input.dataset.hps}"][data-index="${input.dataset.index}"]`).forEach(cell => {
       cell.value = period.roster[Number(cell.dataset.row)][input.dataset.hps][Number(input.dataset.index)];
