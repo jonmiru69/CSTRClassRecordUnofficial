@@ -18,6 +18,15 @@ state.registry=[{id:'synthetic',subject:'Science',section:'A',group:'JHS',level:
 small.setState(state);large.setState(state);const period=small.getPeriod();period.roster[0].name='BOYS';period.roster[1].name='<script>synthetic</script>';period.roster[1].ww[0]='0';period.roster[2].name='Boysen, Synthetic';
 let phone=small.renderSectionRecord();assert(phone.includes('class="phone-entry"'));assert(phone.includes('data-mobile-row="1"'));assert(!phone.includes('data-mobile-row="0"'));assert(phone.includes('&lt;script&gt;synthetic&lt;/script&gt;'));assert(phone.includes('inputmode="decimal"'));assert(phone.includes('value="0"'));assert(phone.includes('data-score="ww" data-row="1" data-index="0"'));assert(large.renderSectionRecord().includes('class="table-wrap"'));assert(!large.renderSectionRecord().includes('class="phone-entry"'));period.locked=true;phone=small.renderSectionRecord();assert(/id="phone-score-1"[^>]*disabled/.test(phone));assert(!phone.includes('data-mobile-code='));assert(small.renderApp().includes('aria-label="Mobile workspace"'));
 console.log('PASS: Phone uses vertical assessment entry, correct roster indices, escaped names and locked controls; desktop keeps sheet default.');
+for(const html of [small.renderSectionRecord(),large.renderSectionRecord()]){
+  assert(!html.includes('data-activity-field="competency"'));
+  assert(!html.includes('Learning competency')&&!html.includes('Competency and topic'));
+  assert(html.includes('data-activity-field="topic"'));
+}
+const stored=small.getPeriod();stored.activityMeta.ww[0].competency='Previously saved competency';
+assert(!small.renderSectionRecord().includes('Previously saved competency'));
+assert.equal(stored.activityMeta.ww[0].competency,'Previously saved competency');
+console.log('PASS: Desktop and phone activity sheets omit competency controls and retain topic/date/HPS controls without deleting legacy data.');
 
 (async()=>{
 let result;const context={window:{CSTRMobile:{native:true,saveFile:async(blob,name)=>{result={blob,name};}}},URL:{createObjectURL(){throw new Error('Native exports must not use browser blob downloads.');}}};vm.runInNewContext(read('ASSETS/file-delivery.js'),context);const blob=new Blob(['synthetic export']);await context.window.CSTRFiles.deliver(blob,'sample.xlsx');assert.equal(result.blob,blob);assert.equal(result.name,'sample.xlsx');context.window.CSTRMobile.saveFile=async()=>{throw new Error('User cancelled');};await assert.rejects(()=>context.window.CSTRFiles.deliver(blob,'sample.xlsx'),/cancelled/);console.log('PASS: Native file delivery awaits sharing and propagates cancellation instead of reporting a completed download.');

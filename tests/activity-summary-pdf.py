@@ -11,22 +11,21 @@ for name in ['saved','sparse','empty','dense','reserved-name','many-activities']
         page=pdf.pages[0]
         text=re.sub(r'\s+',' ',page.extract_text(x_tolerance=.2,y_tolerance=.2) or '')
         assert text.count('Summary of Activities and Topics')==1,(name,'repeated header')
-        assert all(label in text for label in ['Date','Activity','Topic','Learning competency','HPS'])
+        assert all(label in text for label in ['Date','Activity','Topic','HPS'])
+        assert 'competency' not in text.lower(),(name,'competency column or content is still printed')
         assert not re.search(r'#{3,}',text),(name,'overflow')
         if name=='empty':
             assert text.count('No activities recorded.')==3
         else:
             words=page.extract_words(extra_attrs=['size'],x_tolerance=.2,y_tolerance=.2)
-            labels={label:next(w for w in words if w['text']==label) for label in ['Activity','Topic','Learning','HPS']}
+            labels={label:next(w for w in words if w['text']==label) for label in ['Activity','Topic','HPS']}
             pad=10*labels['Activity']['size']/14
             def column(start,end):
                 crop=page.crop((labels[start]['x0']-pad,labels[start]['bottom']+1,labels[end]['x0']-pad,page.height))
                 return re.sub(r'\s+',' ',crop.extract_text(x_tolerance=.2,y_tolerance=.2) or '')
             activity=column('Activity','Topic')
-            topic=column('Topic','Learning')
-            competency=column('Learning','HPS')
+            topic=column('Topic','HPS')
             assert '=Evidence journal <draft> & reflection' in activity,(name,'lost title')
-            assert 'Explain evidence and justify conclusions.' in competency,(name,'lost competency')
             sizes[name]=next(w['size'] for w in words if w['text']=='journal')
         if name=='dense':
             assert topic.count('Long saved explanation.')==300,(name,'clipped or omitted note text')

@@ -40,13 +40,15 @@ const root=path.resolve(__dirname,'..'),out=path.join(root,'.build-artifacts/act
       assert.equal(result.fit,'1','every summary must fit exactly one page tall');assert.equal(result.breaks,0);
       assert(result.maxHeight<=409,'notes must not exceed Excel row limits');
       assert.equal(values.filter(r=>r[0]==='Summary of Activities and Topics').length,1,'no repeated page headers');
-      assert.deepEqual(values.find(r=>r[0]==='No.'),['No.','Date','Activity','Topic','Learning competency','HPS']);
+      assert.deepEqual(values.find(r=>r[0]==='No.'),['No.','Date','Activity','Topic','HPS']);
+      assert(values.every(r=>r.length===5),'summary must have exactly five columns');
+      assert(!values.flat().some(value=>/Learning competency|Explain evidence and justify conclusions\.|Saved competency/.test(value)),'legacy competency content must not appear in the summary');
       if(label==='empty')assert.equal(values.filter(r=>r[0]==='No activities recorded.').length,3);
       else{
         const first=values.find(r=>r[2]===saved.period.activityMeta.ww[0].title);
         assert(first,'saved activity title must be literal text without Excel column prefixes');
         assert.equal(first[0],label==='sparse'?'2':'1');assert.equal(first[1],'26 Nov 2026');
-        assert.equal(first[4],saved.period.activityMeta.ww[0].competency);assert.equal(first[5],'20');
+        assert.equal(first[4],'20','HPS must remain under HPS after removing competency');
         const topic=label==='dense'?values.filter(r=>r[0]==='1'||(!r[0]&&r[3])).map(r=>r[3]).join(''):first[3];
         assert.equal(topic,payload.period.activityMeta.ww[label==='sparse'?1:0].topic);
         const size=result.rows.find(r=>r.values[2]===first[2]).sizes[2];

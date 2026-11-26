@@ -25,7 +25,8 @@ for case in cases:
         assert 'Summary of Activities and Topics' not in normalized[0]
         assert 'Summary of Activities and Topics' in normalized[1]
         summary=' '.join(normalized[1:])
-        assert all(t in summary for t in ['Written Works','Performance','Assessments','Date','Activity','Topic','Learning competency','HPS'])
+        assert all(t in summary for t in ['Written Works','Performance','Assessments','Date','Activity','Topic','HPS'])
+        assert 'competency' not in summary.lower(),(case,'competency must not be printed')
         assert not re.search(r'\b[A-Z]{1,3}: ',summary),(case,'Excel column-letter prefixes')
         assert summary.count('Summary of Activities and Topics')==1,(case,'summary header must appear once')
         if case!='long-activity':
@@ -60,8 +61,7 @@ for case in cases:
         if case=='long-activity':
             assert 'Fernández' in normalized[0] and 'Gabriela' in normalized[0],(case,'clipped wrapped name')
             assert '=Literal activity title' in normalized[1],(case,'activity title changed')
-            # PDF reading order interleaves the other two register groups.
-            assert summary.count('Interpret')==8 and summary.count('explain')==8 and summary.count('evidence.')==14,(case,'clipped competency')
+            assert 'Interpret' not in summary and summary.count('evidence.')==6,(case,'topic text must be retained and legacy competency omitted')
         if case=='thirty-learners':
             signature_name=next(w for w in words if w['text']=='Synthetic' and w['top']>submitted['bottom'])
             assert signature_name['top']-submitted['bottom']>=25,(case,'insufficient signing space')

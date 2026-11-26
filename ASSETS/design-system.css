@@ -3309,9 +3309,9 @@ body:has(.login-screen) #siteBg { background: var(--canvas); }
 .activity-register tbody th strong { display: block; margin-top: 2px; font-size: 15px; }
 .activity-kind { color: var(--muted); font-size: 11px; }
 .activity-register td:nth-child(2) { min-width: 180px; }
-.activity-register td:nth-child(3), .activity-register td:nth-child(4) { min-width: 220px; }
-.activity-register td:nth-child(5) { min-width: 100px; }
-.activity-register td:nth-child(6) { min-width: 82px; }
+.activity-register td:nth-child(3) { min-width: 220px; }
+.activity-register td:nth-child(4) { min-width: 136px; }
+.activity-register td:nth-child(5) { min-width: 82px; }
 .activity-register input { box-sizing: border-box; width: 100%; min-height: 38px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); font-size: 13px; }
 .activity-register input:disabled { background: var(--stone-100); color: var(--muted); }
 .activity-register input::placeholder { color: var(--muted); opacity: .75; }

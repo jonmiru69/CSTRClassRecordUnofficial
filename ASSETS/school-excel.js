@@ -91,7 +91,7 @@
     }
     const body=style(16),center=style(16,false,'center'),title=style(26,true),school=style(19,true,'center'),small=style(12,false,'center');
     const heading=style(17,true,'left','FFE3E8EC'),label=style(14,true,'left','FFF0F2F4');
-    const widths=[8,19,34,43,36,10],data=el(doc,'sheetData'),merges=[];
+    const widths=[8,19,48,65,10],data=el(doc,'sheetData'),merges=[];
     const measure=document.createElement('canvas').getContext('2d');
     let fontScale=1;
     function height(text,width,size=16,bold=false){
@@ -112,7 +112,7 @@
     function row(values, styleIds, minHeight=28, spans=[]) {
       rowSpecs.push({values,styleIds,minHeight,spans});rowNumber++;
     }
-    const full=[[0,5]],two=[[0,2],[3,5]];
+    const full=[[0,4]],two=[[0,2],[3,4]];
     const headerText=r=>[...(headerRows.get(r)?.querySelectorAll('is')||[])].map(n=>n.textContent).filter(present).join(' ');
     row([headerText(1)],school,30,full);
     row([headerText(2)+'  •  '+headerText(3)],small,22,full);
@@ -121,26 +121,26 @@
     row([`Subject: ${section.subject||'—'}`],style(17,true),30,full);
     row([`Grade & section: ${[section.level,section.section].filter(present).join(' — ')||'—'}`,'','',`Period: ${period.name||'—'}`],body,28,two);
     row([`Teacher: ${metadata.teacherName||'—'}`,'','',`School year: ${metadata.schoolYear||'—'}`],body,28,two);
-    row(['No.','Date','Activity','Topic','Learning competency','HPS'],label,30);
+    row(['No.','Date','Activity','Topic','HPS'],label,30);
     const headerEnd=rowNumber;
     const roleNames={st1:'Long Quiz / Unit Test / Chapter Test',st2:'Monthly Exam',te:payload.calendarMode==='trimester'?'Term Exam':'Quarterly Exam',cognitive:'Cognitive',affective:'Affective',behavioral:'Behavioral'};
     for(const [kind,name] of [['ww','Written Works'],['pt','Performance Tasks'],['qa',payload.calendarMode==='trimester'?'Term Assessments':'Quarterly Assessments']]){
       const entries=period[kind+'Hps'].flatMap((hps,index)=>{
         const meta=period.activityMeta?.[kind]?.[index]||{},date=period[kind+'Dates'][index]||'';
         const scored=period.roster.some(learner=>present(learner[kind]?.[index]));
-        if(!present(hps)&&!present(date)&&!scored&&!['title','topic','competency'].some(k=>present(meta[k])))return [];
+        if(!present(hps)&&!present(date)&&!scored&&!['title','topic'].some(k=>present(meta[k])))return [];
         const role=meta.role||root.CSTRGrading.defaultRole(kind,index,section.gradingCategory||section.subject);
         let dateText=date;
         if(/^\d{4}-\d{2}-\d{2}$/.test(date)){
           const d=new Date(date+'T00:00:00Z');
           if(!Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===date)dateText=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
         }
-        return [{number:index+1,date:dateText,title:present(meta.title)?meta.title:roleNames[role]||`Activity ${index+1}`,topic:meta.topic||'',competency:meta.competency||'',hps}];
+        return [{number:index+1,date:dateText,title:present(meta.title)?meta.title:roleNames[role]||`Activity ${index+1}`,topic:meta.topic||'',hps}];
       });
       row([`${name}  ·  ${entries.length} ${entries.length===1?'activity':'activities'}`],heading,30,full);
       if(!entries.length)row(['No activities recorded.'],body,28,full);
       for(const entry of entries){
-        row([entry.number,entry.date,entry.title,entry.topic,entry.competency,entry.hps],[center,center,body,body,body,center]);
+        row([entry.number,entry.date,entry.title,entry.topic,entry.hps],[center,center,body,body,center]);
       }
     }
     const styleAt=(spec,c)=>Array.isArray(spec.styleIds)?spec.styleIds[c]:spec.styleIds;
@@ -186,7 +186,7 @@
       });
       for(let part=0;part<Math.max(...chunks.map(p=>p.length));part++){
         const values=chunks.map(p=>p[part]||''),r=++rowNumber,node=el(doc,'row',{r,customHeight:1,ht:Math.min(409,rowHeight({...spec,values}))});
-        for(let c=0;c<6;c++){
+        for(let c=0;c<widths.length;c++){
           const cell=el(doc,'c',{r:`${col(c)}${r}`,s:fittedStyle(styleAt(spec,c)),t:'inlineStr'}),inline=el(doc,'is'),text=el(doc,'t');
           text.setAttribute('xml:space','preserve');text.textContent=String(values[c]??'').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'');inline.appendChild(text);cell.appendChild(inline);node.appendChild(cell);
         }
@@ -194,7 +194,7 @@
       }
     }
     sheet.appendChild(el(doc,'sheetPr'));sheet.firstChild.appendChild(el(doc,'pageSetUpPr',{fitToPage:1,autoPageBreaks:0}));
-    sheet.appendChild(el(doc,'dimension',{ref:`A1:F${rowNumber}`}));
+    sheet.appendChild(el(doc,'dimension',{ref:`A1:E${rowNumber}`}));
     const views=el(doc,'sheetViews'),view=el(doc,'sheetView',{workbookViewId:0,showGridLines:0,showRowColHeaders:0,zoomScale:100});
     view.appendChild(el(doc,'pane',{ySplit:headerEnd,topLeftCell:`A${headerEnd+1}`,activePane:'bottomLeft',state:'frozen'}));views.appendChild(view);sheet.appendChild(views);
     sheet.appendChild(el(doc,'sheetFormatPr',{defaultRowHeight:28}));
@@ -229,7 +229,7 @@
     override.setAttribute('PartName','/xl/worksheets/sheet2.xml');override.setAttribute('ContentType','application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml');types.documentElement.appendChild(override);zip.file('[Content_Types].xml',serialize(types));
     const drawingType=types.createElementNS(types.documentElement.namespaceURI,'Override');drawingType.setAttribute('PartName','/xl/drawings/drawing2.xml');drawingType.setAttribute('ContentType','application/vnd.openxmlformats-officedocument.drawing+xml');types.documentElement.appendChild(drawingType);zip.file('[Content_Types].xml',serialize(types));
     const names=workbook.querySelector('definedNames');
-    const printNames=[['_xlnm.Print_Area',`'${name}'!$A$1:$F$${rowNumber}`]];
+    const printNames=[['_xlnm.Print_Area',`'${name}'!$A$1:$E$${rowNumber}`]];
     // No repeating titles: they unnecessarily reserve space on a one-page report.
     for(const [key,value] of printNames){const n=el(workbook,'definedName',{name:key,localSheetId:1});n.textContent=value;names.appendChild(n);}
     for(const container of [fonts,fills,xfs])container.setAttribute('count',container.children.length);
