@@ -24,7 +24,7 @@
   const sizeLabel=(rows,cols)=>`${rows} ${rows===1?'row':'rows'} × ${cols} ${cols===1?'column':'columns'}`;
   function mount(host,api){
     const doc=host.ownerDocument;
-    let anchor=null,end=null,key=null,shape='',drag=false,moved=false,editing=false,extend=false,scrollTimer=null,point=null;
+    let anchor=null,end=null,key=null,shape='',drag=false,moved=false,editing=false,extend=false,bulk=false,scrollTimer=null,point=null;
     const table=()=>host.querySelector('.activity-register table');
     const cells=()=>[...(table()?.querySelectorAll('[data-register-cell]')||[])];
     const coordinate=node=>node?{row:Number(node.dataset.registerRow),col:Number(node.dataset.registerCol)}:null;
@@ -35,7 +35,7 @@
     const multi=()=>{const b=bounds();return b&&(b.top!==b.bottom||b.left!==b.right);};
     const inside=target=>target?.closest?.('.activity-register');
     function paint(){
-      const b=bounds(),d=dimensions();
+      const b=bulk?bounds():null,d=dimensions();
       for(const node of cells()){
         const p=coordinate(node),selected=!!b&&p.row>=b.top&&p.row<=b.bottom&&p.col>=b.left&&p.col<=b.right;
         node.classList.toggle('register-cell-selected',selected);node.setAttribute('aria-selected',String(selected));
@@ -48,15 +48,15 @@
       const toggle=host.querySelector('[data-register-extend]');if(toggle)toggle.setAttribute('aria-pressed',String(extend));
     }
     function stopDrag(){drag=false;if(scrollTimer!==null){root.clearInterval(scrollTimer);scrollTimer=null;}}
-    function clear(){anchor=end=null;stopDrag();moved=editing=false;extend=false;paint();}
+    function clear(){anchor=end=null;stopDrag();moved=editing=bulk=false;extend=false;paint();}
     function refresh(){
       const context=api.context(),d=dimensions(),nextShape=d.rows+':'+d.cols;
       if(!table()||context.key!==key||shape!==nextShape){clear();key=context.key;shape=nextShape;}
       paint();
     }
     function focus(p=anchor){const input=p&&control(cellAt(p.row,p.col));if(input&&!input.disabled)input.focus({preventScroll:true});else if(p)cellAt(p.row,p.col)?.focus({preventScroll:true});}
-    function select(a,b=a,shouldFocus=false){
-      refresh();api.activate();anchor=a;end=b;editing=false;paint();if(shouldFocus)focus();
+    function select(a,b=a,shouldFocus=false,explicit=true){
+      refresh();api.activate();anchor=a;end=b;bulk=explicit;editing=!explicit;paint();if(shouldFocus)focus();
     }
     function header(target,shift){
       const row=target.closest('[data-register-select-row]'),column=target.closest('[data-register-column]'),all=target.closest('[data-register-select-all]'),d=dimensions();
@@ -80,7 +80,7 @@
       if(b.top+rows>d.rows||b.left+cols>d.cols)throw new Error('This block extends beyond the activity register. Add activities in Manage columns or choose a smaller block first.');
       const changes=[];
       for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)changes.push({row:b.top+r,col:b.left+c,value:matrix[r%matrix.length][c%matrix[0].length]});
-      api.apply(changes);end={row:b.top+rows-1,col:b.left+cols-1};editing=false;refresh();focus();
+      api.apply(changes);end={row:b.top+rows-1,col:b.left+cols-1};bulk=rows>1||cols>1;editing=!bulk;refresh();focus();
       api.status(`Updated ${sizeLabel(rows,cols)} in the activity register.`);return true;
     }
     function attempt(callback){try{return callback();}catch(error){api.status(error.message,'error');return false;}}
@@ -90,7 +90,8 @@
       if(!inside(event.target))return;
       refresh();const node=event.target.closest('[data-register-cell]');
       if(!node&&!event.target.closest('[data-register-command],[data-register-select-row],[data-register-column],[data-register-select-all]'))return;
-      if(!anchor&&node)select(coordinate(node));
+      if(!anchor&&node)select(coordinate(node),coordinate(node),false,false);
+      if(!bulk&&event.target.matches('textarea,input:not([type="date"])')&&(type!=='paste'||!/[\t\r\n]/.test(event.clipboardData.getData('text/plain'))))return;
       const nativeClipboard=nativeText(event.target)&&(type!=='paste'||!/[\t\r\n]/.test(event.clipboardData.getData('text/plain')));
       if(!bounds()||nativeClipboard)return;
       event.stopImmediatePropagation();event.preventDefault();
@@ -108,10 +109,11 @@
       if(event.target.closest('[data-register-command],[data-register-extend]')){event.preventDefault();return;}
       if(header(event.target,event.shiftKey)){event.preventDefault();event.stopPropagation();return;}
       const node=event.target.closest('[data-register-cell]');if(!node){clear();return;}
-      const p=coordinate(node);select(event.shiftKey||extend&&anchor?anchor||p:p,p,event.shiftKey||extend);
+      const p=coordinate(node),explicit=event.shiftKey||extend;
+      select(explicit&&anchor?anchor:p,p,explicit,explicit);
       drag=true;moved=false;point={x:event.clientX,y:event.clientY};
       scrollTimer=root.setInterval(()=>{
-        if(!drag||!point)return;
+        if(!drag||!point||!bulk)return;
         const wrap=host.querySelector('.activity-register-scroll');if(!wrap)return;
         const rect=wrap.getBoundingClientRect();
         const dx=point.x>rect.right-24?16:point.x<rect.left+24?-16:0;
@@ -120,7 +122,7 @@
         if(dy)root.scrollBy(0,dy);
         if(!dx&&!dy)return;
         const node=doc.elementFromPoint(point.x,point.y)?.closest('[data-register-cell]');
-        if(node&&inside(node)){end=coordinate(node);moved=true;editing=false;paint();}
+        if(node&&inside(node)){end=coordinate(node);moved=true;bulk=true;editing=false;paint();}
       },40);
       if(event.shiftKey||extend){event.preventDefault();event.stopPropagation();}
     },true);
@@ -130,35 +132,35 @@
       point={x:event.clientX,y:event.clientY};
       const node=doc.elementFromPoint(event.clientX,event.clientY)?.closest('[data-register-cell]');
       if(!node||!inside(node))return;
-      const p=coordinate(node);if(p.row!==end.row||p.col!==end.col){end=p;moved=true;editing=false;paint();doc.getSelection()?.removeAllRanges();}
+      const p=coordinate(node);if(p.row!==end.row||p.col!==end.col){end=p;moved=true;bulk=true;editing=false;paint();doc.getSelection()?.removeAllRanges();}
       if(moved){event.preventDefault();node.scrollIntoView({block:'nearest',inline:'nearest'});}
     });
     doc.addEventListener('mouseup',stopDrag);
     root.addEventListener('blur',stopDrag);
-    host.addEventListener('dragstart',event=>{if(drag&&event.target.closest('[data-register-cell]'))event.preventDefault();});
+    host.addEventListener('dragstart',event=>{if(bulk&&drag&&event.target.closest('[data-register-cell]'))event.preventDefault();});
     doc.addEventListener('mousedown',event=>{if(!inside(event.target)&&!event.target.closest('.register-paste-dialog'))clear();},true);
-    host.addEventListener('dblclick',event=>{const node=event.target.closest('[data-register-cell]');if(node){select(coordinate(node));editing=true;}},true);
-    host.addEventListener('input',event=>{const node=event.target.closest('[data-register-cell]');if(node){if(multi())select(coordinate(node));editing=true;}},true);
-    host.addEventListener('focusin',event=>{const node=event.target.closest('[data-register-cell]');if(event.target.matches('select[data-activity-field="role"]')){clear();return;}if(node&&!drag){const p=coordinate(node),b=bounds();if(!b||p.row<b.top||p.row>b.bottom||p.col<b.left||p.col>b.right)select(p);}},true);
+    host.addEventListener('dblclick',event=>{const node=event.target.closest('[data-register-cell]');if(node)select(coordinate(node),coordinate(node),false,false);},true);
+    host.addEventListener('input',event=>{const node=event.target.closest('[data-register-cell]');if(node){anchor=end=coordinate(node);bulk=false;editing=true;paint();}},true);
+    host.addEventListener('focusin',event=>{const node=event.target.closest('[data-register-cell]');if(event.target.matches('select[data-activity-field="role"]')){clear();return;}if(node&&!drag){const p=coordinate(node),b=bounds();if(!b||p.row<b.top||p.row>b.bottom||p.col<b.left||p.col>b.right)select(p,p,false,false);}},true);
     host.addEventListener('keydown',event=>{
       if(!inside(event.target)||event.isComposing||event.defaultPrevented)return;
       refresh();const node=event.target.closest('[data-register-cell]');if(!node)return;
-      if(!anchor)select(coordinate(node));
+      if(!anchor)select(coordinate(node),coordinate(node),false,false);
       const command=event.ctrlKey||event.metaKey,keyName=event.key.toLowerCase(),d=dimensions();
       if(command&&['c','x','v'].includes(keyName)){event.stopImmediatePropagation();return;}
-      if(command&&keyName==='a'){if(editing&&!multi())return;event.preventDefault();event.stopImmediatePropagation();select({row:0,col:0},{row:d.rows-1,col:d.cols-1});return;}
-      if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();select(coordinate(node));extend=false;paint();return;}
-      if(event.key==='F2'){event.preventDefault();editing=true;return;}
+      if(command&&keyName==='a'){if(!bulk)return;event.preventDefault();event.stopImmediatePropagation();select({row:0,col:0},{row:d.rows-1,col:d.cols-1});return;}
+      if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();select(coordinate(node),coordinate(node),false,false);extend=false;paint();return;}
+      if(event.key==='F2'){event.preventDefault();select(coordinate(node),coordinate(node),false,false);return;}
       if(['Delete','Backspace'].includes(event.key)&&(!editing||multi())){event.preventDefault();event.stopImmediatePropagation();attempt(()=>apply([['']]));return;}
       const delta={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1],Enter:[event.shiftKey?-1:1,0],Tab:[0,event.shiftKey?-1:1]}[event.key];
-      if(!delta||event.altKey||command||(editing&&event.key.startsWith('Arrow')))return;
+      if(!delta||event.altKey||command||(!bulk&&editing&&(event.key.startsWith('Arrow')||event.key==='Enter')))return;
       const from=event.shiftKey&&event.key.startsWith('Arrow')?end:coordinate(node);
       let row=from.row+delta[0],col=from.col+delta[1];
       if(event.key==='Tab'){if(col>=d.cols){col=0;row++;}if(col<0){col=d.cols-1;row--;}}
       if(event.key==='Tab'&&(row<0||row>=d.rows))return;
       event.preventDefault();event.stopImmediatePropagation();
       const p={row:Math.max(0,Math.min(d.rows-1,row)),col:Math.max(0,Math.min(d.cols-1,col))};
-      if(event.shiftKey&&event.key.startsWith('Arrow')){end=p;editing=false;paint();}else select(p,p,true);
+      if(event.shiftKey&&event.key.startsWith('Arrow')){end=p;bulk=true;editing=false;paint();}else select(p,p,true,bulk);
       cellAt(p.row,p.col)?.scrollIntoView({block:'nearest',inline:'nearest'});
     },true);
     function pasteDialog(){

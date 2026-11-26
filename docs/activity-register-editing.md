@@ -3,8 +3,9 @@
 The full grade sheet's activity register supports spreadsheet-style blocks across **Activity title, Topic, Date and HPS**. The WW/PT/QA row labels and assessment-group controls are selection handles, not pasted data.
 
 - Drag across cells, or click a first cell and Shift+click the last cell.
-- Shift+arrow keys extend a range. Arrow keys, Enter and Tab move between cells; double-click or F2 edits text inside a cell.
-- Click a row label or column heading to select the whole row/column. Shift+click another heading to extend that selection. Click **Score column**, or press Ctrl/Command+A in cell mode, to select the register.
+- A normal click or keyboard focus edits text directly without marking a bulk selection. Ctrl/Command+A selects text inside that field; arrows, Shift+arrows, Backspace and Enter retain their normal text-editing behavior.
+- After explicitly selecting a range, Shift+arrow keys extend it and arrow keys, Enter and Tab move between cells. Escape, double-click or F2 returns to normal text editing.
+- Click a row label or column heading to select the whole row/column. Shift+click another heading to extend that selection. Click **Score column**, or press Ctrl/Command+A while a bulk range is active, to select the register.
 - On a phone, choose a first cell, turn on **Select range**, then tap the last cell. Copy/Paste buttons are available alongside keyboard shortcuts.
 - Ctrl/Command+C copies, Ctrl/Command+X cuts, and Ctrl/Command+V pastes. Delete clears a selected block. Escape returns to a single cell.
 - A single pasted value fills the selection. A copied rectangle repeats when it evenly fits the selected destination; otherwise it pastes from the selection's top-left cell.

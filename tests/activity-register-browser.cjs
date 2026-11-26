@@ -26,6 +26,18 @@ const server=http.createServer((req,res)=>{
       return data.getData('text/plain');
     },{type,text});
     const before=await period();
+    await input(0,0).click();
+    assert.equal(await page.locator('.register-cell-selected').count(),0,'a normal click must not mark a cell for bulk editing');
+    await page.keyboard.press('Control+a');
+    assert.deepEqual(await input(0,0).evaluate(field=>[field.selectionStart,field.selectionEnd]),[0,before.activityMeta.ww[0].title.length],'Ctrl+A must select only the text in a normally clicked field');
+    assert.equal(await page.locator('.register-cell-selected').count(),0);
+    await input(0,0).press('ArrowLeft');await input(0,0).press('Backspace');assert.deepEqual(await period(),before,'Backspace at the beginning must not clear the cell');
+    await input(0,1).focus();await page.keyboard.press('Control+a');
+    assert.deepEqual(await input(0,1).evaluate(field=>[field.selectionStart,field.selectionEnd]),[0,before.activityMeta.ww[0].topic.length],'keyboard focus must retain native text selection');
+    await page.keyboard.press('End');await page.keyboard.press('Shift+ArrowLeft');
+    assert.equal(await input(0,1).evaluate(field=>field.selectionEnd-field.selectionStart),1,'Shift+arrow inside normal text must select characters');
+    assert.equal(await input(0,1).evaluate(field=>{field.setSelectionRange(0,0);const data=new DataTransfer();data.setData('text/plain','insert');const event=new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:data});field.dispatchEvent(event);return event.defaultPrevented;}),false,'plain paste must use the native caret behavior');
+    console.log('PASS normal clicks/focus preserve text Ctrl+A and Backspace without activating bulk selection');
     const matrix=[['=Literal activity','Line one\nLine "two"','11/26/2026','10'],['Second activity','Second topic','2026-11-27','30']];
     const text=await page.evaluate(rows=>CSTRActivityGrid.stringify(rows),matrix);
     await input(0,0).click();await clipboard('paste',text);
@@ -43,7 +55,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.locator('.register-cell-selected').count(),4,'drag must select a rectangle');
     let copied=await clipboard('copy');
     assert.deepEqual(await page.evaluate(text=>CSTRActivityGrid.parse(text),copied),matrix.map(r=>r.slice(0,2)));
-    await input(0,0).click();await page.keyboard.press('Shift+ArrowDown');await page.keyboard.press('Shift+ArrowRight');
+    await input(0,0).click();await input(1,0).click({modifiers:['Shift']});await page.keyboard.press('Shift+ArrowRight');
     assert.equal(await page.locator('.register-cell-selected').count(),4,'Shift+arrows must extend the range');
     await page.keyboard.press('Delete');p=await period();assert.equal(p.activityMeta.ww[0].title,'');assert.equal(p.activityMeta.ww[1].topic,'');
     await page.keyboard.press('Control+z');
@@ -87,8 +99,8 @@ const server=http.createServer((req,res)=>{
     const locked=await period();assert((await clipboard('copy')).includes('Dialog title'));
     await clipboard('paste','Blocked');await clipboard('cut');await page.keyboard.press('Delete');assert.deepEqual(await period(),locked);
     await page.evaluate(()=>{__registerQA.lock(false);__registerQA.switchPeriod(1);});assert.equal(await page.locator('.register-cell-selected').count(),0,'period navigation must clear selection');
-    await page.evaluate(()=>__registerQA.switchPeriod(0));await input(0,0).click();await page.keyboard.press('Control+a');assert.equal(await page.locator('.register-cell-selected').count(),24);
-    await page.keyboard.press('Escape');assert.equal(await page.locator('.register-cell-selected').count(),1);
+    await page.evaluate(()=>__registerQA.switchPeriod(0));await page.locator('[data-register-column="0"]').click();await page.keyboard.press('Control+a');assert.equal(await page.locator('.register-cell-selected').count(),24);
+    await page.keyboard.press('Escape');assert.equal(await page.locator('.register-cell-selected').count(),0);
     await input(0,0).click();
     assert.equal(await input(0,0).evaluate(field=>{field.setSelectionRange(0,6);const event=new ClipboardEvent('copy',{bubbles:true,cancelable:true,clipboardData:new DataTransfer()});field.dispatchEvent(event);return event.defaultPrevented;}),false,'single-field text selection must keep native copy');
     assert.deepEqual(errors,[]);console.log('PASS locked-period protection, copy while locked, Ctrl+A/Escape, and navigation reset');
