@@ -20,14 +20,14 @@ try {
     try {
       $book = $excel.Workbooks.Open((Join-Path $source ($case.label + '.xlsx')), 0, $true)
       $excel.CalculateFullRebuild()
-      Check ($book.Worksheets.Count -eq 1) "$($case.label): original worksheet structure changed"
+      Check ($book.Worksheets.Count -eq 2) "$($case.label): independent summary worksheet missing"
       $sheet = $book.Worksheets.Item(1)
       foreach ($s in @($sheet)) {
         Check ($s.PageSetup.Zoom -eq $false -and $s.PageSetup.FitToPagesWide -eq 1 -and $s.PageSetup.FitToPagesTall -eq 1) "$($case.label): automatic one-page fitting missing"
         Check ($s.PageSetup.PaperSize -eq 14 -and $s.PageSetup.Orientation -eq 2) "$($case.label): incorrect Folio landscape setup"
         Check ($s.PageSetup.CenterHorizontally -and $s.PageSetup.CenterVertically) "$($case.label): centering missing"
         foreach ($margin in @($s.PageSetup.LeftMargin,$s.PageSetup.RightMargin,$s.PageSetup.TopMargin,$s.PageSetup.BottomMargin)) {Check ([Math]::Abs($margin-18) -lt .01) "$($case.label): unequal margins"}
-        Check ($s.PageSetup.PrintArea.Split(',').Count -eq 2) "$($case.label): separate original register print area missing"
+        Check ($s.PageSetup.PrintArea.Split(',').Count -eq 1) "$($case.label): class record print area must exclude the summary"
         Check ($s.PageSetup.PrintTitleRows -eq '' -and $s.PageSetup.PrintTitleColumns -eq '') "$($case.label): record header would leak into register"
         $s.DisplayPageBreaks = $true
       }
@@ -40,13 +40,11 @@ try {
       foreach ($c in $sheet.Range("C17:$($case.cells[0] -replace '\d+$','')18").Cells) {
         Check ($c.Text -notmatch '^#{3,}$') "$($case.label): overflow at $($c.Address()), text=$($c.Text), width=$($c.Width), font=$($c.Font.Size), format=$($c.NumberFormat)"
       }
-      $lastColumn=$sheet.UsedRange.Columns.Count
-      $registerStart=[int]([regex]::Match($sheet.PageSetup.PrintArea.Split(',')[1],'\$A\$(\d+)').Groups[1].Value)+5
-      foreach ($r in @($registerStart)) {
-        foreach ($c in $sheet.Range($sheet.Cells.Item($r,3),$sheet.Cells.Item($r,$lastColumn)).Cells) {
-        Check ($c.Text -notmatch '^#{3,}$') "$($case.label): register date overflow at $($c.Address())"
-        }
-      }
+      $summary=$book.Worksheets.Item(2)
+      Check ($summary.Name -eq 'Activities and Topics') "$($case.label): report sheet missing"
+      if (!$summary.PageSetup.FitToPagesTall) { Check ($summary.PageSetup.PrintTitleRows -eq '$1:$8') "$($case.label): continuation summary header must repeat" }
+      Check ($summary.PageSetup.FitToPagesWide -eq 1) "$($case.label): summary must fit the page width"
+      foreach ($c in $summary.UsedRange.Cells) { Check ($c.Text -notmatch '^#{3,}$') "$($case.label): summary overflow at $($c.Address())" }
       $oldScore = $sheet.Range('C19').Value2
       $sheet.Range('C19').Value2 = [double]$case.changedScore
       $excel.CalculateFullRebuild()

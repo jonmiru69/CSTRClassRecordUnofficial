@@ -1,5 +1,7 @@
 # Original-format Excel printing — 20 November 2026
 
+Historical verification of the previous layout. The current readable summary is documented in [activity-summary-export.md](docs/activity-summary-export.md).
+
 The export retains the current worksheet, content, formulas, cell positions, colors and merged tables. It does not create a new activity-register table or a separate worksheet.
 
 ## Print behavior
