@@ -4,7 +4,7 @@
   if (window.CSTRMobile?.native || window.Capacitor?.isNativePlatform?.()) return;
   const engine = window.CSTROfficialSyncEngine;
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let schoolAuth, connection, currentDialog, epoch = 0, opening = 0;
+  let identityLoading, connection, currentDialog, epoch = 0, opening = 0;
   const currentOwner = () => window.CSTRSync?.getCurrentUser()?.uid;
   const preferredEmail = () => window.CSTRSync?.getCurrentUser()?.email?.toLowerCase() === 'sanchezramil2202@gmail.com' ? 'rsanchez.faculty@cstr.edu.ph' : '';
   function schoolLinkRef(owner) {
@@ -30,34 +30,48 @@
   function reset() {
     epoch++; opening++;
     connection = null;
-    void schoolAuth?.signOut().catch(() => {});
     currentDialog?.close();
     currentDialog?.remove();
     currentDialog = null;
   }
+  const googleClientId='164642028411-dpa82s0qqrg72o2f34tj07k415ei38ds.apps.googleusercontent.com';
+  const googleScopes=['openid','https://www.googleapis.com/auth/userinfo.email','https://www.googleapis.com/auth/spreadsheets','https://www.googleapis.com/auth/drive.metadata.readonly'];
+  function loadGoogleIdentity(){
+    if(window.google?.accounts?.oauth2)return Promise.resolve();
+    if(identityLoading)return identityLoading;
+    identityLoading=new Promise((resolve,reject)=>{
+      const script=document.createElement('script');script.src='https://accounts.google.com/gsi/client';script.async=true;
+      const timer=setTimeout(()=>{script.remove();identityLoading=null;reject(new Error('Google connection did not load. Check your network and try again.'));},20000);
+      script.onload=()=>{clearTimeout(timer);if(window.google?.accounts?.oauth2)resolve();else{identityLoading=null;reject(new Error('Google connection is unavailable. Reload and try again.'));}};
+      script.onerror=()=>{clearTimeout(timer);script.remove();identityLoading=null;reject(new Error('Google connection could not load. Allow accounts.google.com and try again.'));};
+      document.head.append(script);
+    });
+    return identityLoading;
+  }
   async function connect(email) {
     assertWeb();
-    const expected = email.trim().toLowerCase(), owner = currentOwner(), attempt = ++epoch;
-    if (!owner) throw new Error('Sign in to your approved class record account first.');
-    if (!/^[^\s@]+@cstr\.edu\.ph$/.test(expected)) throw new Error('Enter your own cstr.edu.ph school email.');
-    connection = null;
-    if (!schoolAuth) {
-      const app = window.firebase.apps.find(app => app.name === 'official-gradesheets') || window.firebase.initializeApp(window.firebase.app().options, 'official-gradesheets');
-      schoolAuth = app.auth();
-      await schoolAuth.setPersistence(window.firebase.auth.Auth.Persistence.NONE);
-    }
-    const provider = new window.firebase.auth.GoogleAuthProvider();
-    provider.addScope('https://www.googleapis.com/auth/spreadsheets');
-    provider.addScope('https://www.googleapis.com/auth/drive.metadata.readonly');
-    provider.setCustomParameters({login_hint:expected, prompt:'select_account'});
-    const result = await schoolAuth.signInWithPopup(provider);
-    try {
-      if (attempt !== epoch || currentOwner() !== owner) throw new Error('Your class record account changed. Connect again.');
-      if (!result.user.emailVerified || result.user.email?.toLowerCase() !== expected) throw new Error('You selected a different Google account. Connect with the school email you entered.');
-      if (!result.credential?.accessToken) throw new Error('Google did not grant a Sheets access token. Connect again and allow the requested access.');
-      connection = { token:result.credential.accessToken, email:expected, owner, expires:Date.now()+50*60*1000 };
-      return expected;
-    } finally { await schoolAuth.signOut(); }
+    const expected=email.trim().toLowerCase(),owner=currentOwner(),attempt=++epoch;
+    if(!owner)throw new Error('Sign in to your approved class record account first.');
+    if(!/^[^\s@]+@cstr\.edu\.ph$/.test(expected))throw new Error('Enter your own cstr.edu.ph school email.');
+    connection=null;
+    await loadGoogleIdentity();
+    const result=await new Promise((resolve,reject)=>{
+      const client=window.google.accounts.oauth2.initTokenClient({client_id:googleClientId,scope:googleScopes.join(' '),login_hint:expected,
+        callback:response=>response.error?reject(new Error(`Google authorization failed: ${response.error}. ${response.error_description||'Reconnect and allow the requested access.'}`)):resolve(response),
+        error_callback:error=>reject(new Error(error.type==='popup_closed'?'Google connection cancelled.':`Google connection could not open (${error.type||'unknown error'}). Allow popups and try again.`))});
+      client.requestAccessToken({prompt:'select_account'});
+    });
+    if(attempt!==epoch||currentOwner()!==owner)throw new Error('Your class record account changed. Connect again.');
+    if(!result.access_token || !window.google.accounts.oauth2.hasGrantedAllScopes(result,...googleScopes))throw new Error('Google did not grant all required permissions. Reconnect and allow email, spreadsheet access and Drive file-list access.');
+    const response=await fetch('https://openidconnect.googleapis.com/v1/userinfo',{headers:{Authorization:`Bearer ${result.access_token}`},cache:'no-store',referrerPolicy:'no-referrer'});
+    if(!response.ok)throw new Error('Google could not verify the school account. Reconnect and try again.');
+    const identity=await response.json();
+    if(attempt!==epoch||currentOwner()!==owner)throw new Error('Your class record account changed. Connect again.');
+    if(identity.email_verified!==true||identity.email?.toLowerCase()!==expected)throw new Error('You selected a different Google account. Connect with the school email you entered.');
+    const lifetime=Math.min(Number(result.expires_in)||0,3000);
+    if(lifetime<=0)throw new Error('Google returned an expired connection. Reconnect and try again.');
+    connection={token:result.access_token,email:expected,owner,expires:Date.now()+lifetime*1000};
+    return expected;
   }
   async function api(path, options = {}, drive = false) {
     assertWeb();
@@ -123,7 +137,7 @@
     if (!owner) return;
     const request = ++opening;
     let schoolLink;
-    try { schoolLink = await loadSchoolLink(owner); } catch (error) { window.alert(error.message); return; }
+    try { schoolLink = await loadSchoolLink(owner); await loadGoogleIdentity(); } catch (error) { window.alert(error.message); return; }
     if(request !== opening || currentOwner() !== owner)return;
     currentDialog?.close();
     currentDialog?.remove();

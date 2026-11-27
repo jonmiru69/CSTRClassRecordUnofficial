@@ -40,18 +40,24 @@ async function harness(browser, options={}) {
   await page.goto('https://synthetic.test/');
   for(const match of fs.readFileSync(path.join(root,'index.html'),'utf8').matchAll(/rel="stylesheet" href="ASSETS\/([^"?]+)(?:\?[^"\s]*)?"/g))await page.addStyleTag({path:path.join(root,'ASSETS',match[1])});
   await page.addStyleTag({content:'*,*::before,*::after{transition:none!important;animation:none!important}'});
-  await page.evaluate(({source,sources,email,native})=>{
+  await page.evaluate(({source,sources,email,native,googleError,popupClosed,deniedScope})=>{
     window.CSTRMobile={native};
     window.__syncSources=sources;
     window.__syncSource=window.__syncSources[0];
     const user=window.__workspaceUser={uid:'synthetic-owner',email:'teacher@example.test'};
     window.__schoolSettings={};
     window.CSTRSync={db:{ref(key){return {async once(){return {val:()=>window.__schoolSettings[key]||null};},async transaction(fn){window.__schoolSettings[key]=fn(window.__schoolSettings[key]||null);return {snapshot:{val:()=>window.__schoolSettings[key]}};},async update(value){const next={...window.__schoolSettings[key],...value};for(const field in next)if(next[field]===null)delete next[field];window.__schoolSettings[key]=next;},async set(value){if(window.__failSchoolSave)throw Error('offline');window.__schoolSettings[key]=value;}};}},getCurrentUser:()=>window.__workspaceUser,onAuthStateChanged(callback){window.__authCallback=callback;return()=>{};}};
-    const auth={async setPersistence(){},async signOut(){},async signInWithPopup(){return {user:{email:email||'teacher@cstr.edu.ph',emailVerified:true},credential:{accessToken:'synthetic-token'}};}};
-    const firebaseAuth=()=>auth;firebaseAuth.Auth={Persistence:{NONE:'none'}};
-    firebaseAuth.GoogleAuthProvider=class {addScope(scope){window.__scope=scope;}setCustomParameters(params){window.__oauthPrompt=params.prompt;}};
-    window.firebase={apps:[],auth:firebaseAuth,app:()=>({options:{projectId:'synthetic'}}),initializeApp:()=>({auth:()=>auth})};
-  },{source:data.source,sources,email:options.email,native:options.native||false});
+    window.__firebaseSchoolSignins=0;
+    window.firebase={initializeApp(){window.__firebaseSchoolSignins++;throw Error('auth/admin-restricted-operation');}};
+    window.google={accounts:{oauth2:{initTokenClient(config){window.__googleScopes=config.scope;return {requestAccessToken(params){window.__oauthPrompt=params.prompt;if(popupClosed)return config.error_callback({type:'popup_closed'});config.callback(googleError?{error:'access_denied'}:{access_token:'synthetic-token',expires_in:3600});}};},hasGrantedAllScopes(){return !deniedScope;}}}};
+
+  },{source:data.source,sources,email:options.email,native:options.native||false,googleError:options.googleError,popupClosed:options.popupClosed,deniedScope:options.deniedScope});
+  await page.route('https://openidconnect.googleapis.com/v1/userinfo',route=>{
+    const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization'};
+    if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers,body:''});
+    assert.equal(route.request().headers().authorization,'Bearer synthetic-token');
+    return route.fulfill({status:200,headers,json:{email:options.email||'teacher@cstr.edu.ph',email_verified:!options.unverified}});
+  });
   for(const file of ['grading-engine.js','official-sync-engine.js','official-sync-drive.js','official-sync.js'])await page.addScriptTag({path:path.join(root,'ASSETS',file)});
   await page.route('https://www.googleapis.com/drive/v3/**',route=>{
     const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,content-type,x-goog-drive-resource-keys','Access-Control-Allow-Methods':'GET,OPTIONS'};
@@ -92,6 +98,7 @@ async function prepare(h) {
   await page.getByRole('button',{name:'Link school account',exact:true}).click();
   await page.getByText(/Connected as teacher@cstr.edu.ph/).waitFor();
   assert.equal(await page.evaluate(()=>window.__oauthPrompt),'select_account');
+  assert.equal(await page.evaluate(()=>window.__firebaseSchoolSignins),0);
   await page.getByRole('textbox',{name:'Official Google Sheets link',exact:true}).fill('https://docs.google.com/spreadsheets/d/synthetic-book/edit#gid=7');
   await page.getByRole('button',{name:'Check link',exact:true}).click();
   await page.waitForFunction(()=>!document.querySelector('[data-sync-check]').disabled);
@@ -296,6 +303,11 @@ async function main(){
       assert.equal(h.writes(),0);await page.close();
     }
     console.log('PASS browser: folder scan aligns unique content matches for preview without writes; duplicates remain unresolved; missing Drive scope gives reconnect instructions');
+    for(const [settings,expected]of [[{googleError:true},'access_denied'],[{popupClosed:true},'cancelled'],[{deniedScope:true},'all required permissions'],[{unverified:true},'different Google account']]){
+      const h=await harness(browser,settings);await h.page.locator('[data-sync-email]').fill('teacher@cstr.edu.ph');await h.page.locator('[data-sync-connect]').click();await h.page.locator('[data-sync-status]').filter({hasText:expected}).waitFor();
+      assert.equal(await h.page.evaluate(()=>Object.keys(window.__schoolSettings).length),0);assert.equal(await h.page.evaluate(()=>window.__firebaseSchoolSignins),0);assert.equal(h.writes(),0);await h.page.close();
+    }
+    console.log('PASS Google authorization rejects cancellation, denied permission, missing scopes and unverified identity without Firebase signup or a saved school link');
     {
       const h=await harness(browser,{native:true});assert.equal(await h.page.evaluate(()=>Boolean(window.CSTROfficialSync)),false);
       assert(!fs.existsSync(path.join(root,'www/ASSETS/official-sync.js')));

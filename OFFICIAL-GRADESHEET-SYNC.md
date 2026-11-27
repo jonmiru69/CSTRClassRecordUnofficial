@@ -27,7 +27,7 @@ Atomicity is per workbook, not across multiple files. If a later workbook fails,
 
 ## Site administrator setup and live acceptance
 
-The implementation reuses the existing Firebase project's Google OAuth provider through a separate named Firebase app with in-memory persistence. It asks for `https://www.googleapis.com/auth/spreadsheets`. The access token is held in page memory, and the app refuses requests after the connection's 50-minute limit. The token is cleared on the next attempted request after that limit, unlink, workspace-account change/logout, or leaving the page. The secondary Firebase sign-in signs out immediately after obtaining the Google credential. It does not read or write the school identity's class-record database. It may create a Firebase Authentication user for the connected school identity; it does not approve that identity as a class-record teacher.
+The school connector uses Google Identity Services token authorization directly with the existing public Google OAuth client. It requests OpenID/email identity, Sheets access and read-only Drive metadata. Google's userinfo endpoint verifies the exact school email and verified-email status. It does not create a Firebase user or call Firebase sign-in for the school account. Approval-only Firebase signup remains disabled. The live web.app origin must be authorized in the OAuth client. The access token stays in page memory for at most 50 minutes (or its shorter reported lifetime), and clears on reset, unlink, logout/account change or leaving the page. No token is stored in the school-link setting.
 
 Before a production release:
 
