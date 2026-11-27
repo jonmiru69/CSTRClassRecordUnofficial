@@ -48,6 +48,7 @@
     }
     const provider = new window.firebase.auth.GoogleAuthProvider();
     provider.addScope('https://www.googleapis.com/auth/spreadsheets');
+    provider.addScope('https://www.googleapis.com/auth/drive.metadata.readonly');
     provider.setCustomParameters({login_hint:expected, prompt:'select_account'});
     const result = await schoolAuth.signInWithPopup(provider);
     try {
@@ -58,7 +59,7 @@
       return expected;
     } finally { await schoolAuth.signOut(); }
   }
-  async function api(path, options = {}) {
+  async function api(path, options = {}, drive = false) {
     assertWeb();
     const active = connection;
     if (!active || active.owner !== currentOwner() || active.expires <= Date.now()) {
@@ -66,18 +67,20 @@
       throw new Error('Connect your school Google account again. The temporary connection has expired.');
     }
     let response;
-    try { response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${path}`, {
+    try { response = await fetch(drive ? `https://www.googleapis.com/drive/v3/${path}` : `https://sheets.googleapis.com/v4/spreadsheets/${path}`, {
       ...options, cache:'no-store', referrerPolicy:'no-referrer',
-      headers:{Authorization:`Bearer ${active.token}`, ...(options.body ? {'Content-Type':'application/json'} : {})}
+      headers:{...options.headers,Authorization:`Bearer ${active.token}`, ...(options.body ? {'Content-Type':'application/json'} : {})}
     }); } catch (_) { throw new Error('Google could not be reached. Check your connection and preview again before retrying.'); }
     if (connection !== active || currentOwner() !== active.owner) throw new Error('The connected account changed during the request.');
     const body = await response.json();
     if (!response.ok) {
       if (response.status === 401) connection = null;
       const disabled = body.error?.details?.some(item => item.reason === 'SERVICE_DISABLED');
-      if (disabled) throw new Error('The site administrator must enable Google Sheets API in the existing Firebase Google Cloud project.');
+      if (disabled) throw new Error(`${drive ? 'Google Drive' : 'Google Sheets'} API is disabled in the website project. Contact the website developer; this is not a missing teacher permission.`);
+      if(body.error?.details?.some(item=>item.reason==='ACCESS_TOKEN_SCOPE_INSUFFICIENT') || /insufficient.*scope/i.test(body.error?.message||''))throw new Error('Reconnect your school account and allow both spreadsheet access and Drive file-list access.');
+      if(response.status===404)throw new Error('This file or folder was not found for the connected school account. Open it in Drive with that same account and verify the link.');
       if (response.status === 403) throw new Error('This school account cannot access or edit the selected cells, or Sheets API access is not enabled. Check the account and ask the registrar or site administrator.');
-      throw new Error(`Google Sheets request failed (${response.status}). Preview again before retrying.`);
+      throw new Error(`Google ${drive ? 'Drive' : 'Sheets'} request failed (${response.status}). Preview again before retrying.`);
     }
     return body;
   }
@@ -136,7 +139,8 @@
       <p>Transfer finished grading periods from your class record into the registrar鈥檚 Google Sheets. Unfinished periods are excluded.</p>
       <div class="sync-connection"><label>School Google email<input type="email" autocomplete="email" data-sync-email placeholder="Your school email" value="${escape(schoolLink?.email || (schoolLink?.unlinked ? '' : preferredEmail()))}" ${schoolLink?.email ? 'readonly' : ''}></label><button type="button" class="button button-secondary" data-sync-connect>${schoolLink?.email ? 'Reconnect school account' : 'Link school account'}</button><button type="button" class="button button-ghost" data-sync-disconnect ${schoolLink?.email?'':'hidden'}>Unlink school account</button></div>
       <p data-sync-account>${connection?.owner === owner ? `Connected as ${escape(connection.email)}` : schoolLink?.email ? `Linked to ${escape(schoolLink.email)}. Reconnect to renew Google Sheets permission.` : 'No school account linked. Enter your own school email to begin.'}</p>
-      <details data-sync-guide ${schoolLink?.verifiedAt ? '' : 'open'}><summary>School account setup guide</summary><ol><li>Enter your own cstr.edu.ph email and choose Link school account.</li><li>In Google抯 window, select that exact school account and allow spreadsheet access. Your website login stays signed in.</li><li>Paste each official Google Sheets file link supplied by the registrar, choose its subject tab, and check the preview.</li><li>Fill verified gradesheets. Only finished periods are included; scores are matched by name and rounded to two decimal places.</li><li>After saving changes to your class record, open this feature and preview again. If Google permission expired, select Reconnect. Your email link remains saved across devices and sign-ins.</li><li>Use Unlink school account to remove the saved email and end this page抯 Sheets connection. To revoke Google抯 grant too, remove this app in your Google Account抯 third-party connections.</li></ol><p>Each website account has its own school-email setting. Linking an email does not grant access to locked sheets: the registrar must give that school account permission. Official file links are remembered in this browser.</p></details>
+      <details data-sync-guide ${schoolLink?.verifiedAt ? '' : 'open'}><summary>School account setup guide</summary><ol><li>Enter your own cstr.edu.ph email and choose Link school account.</li><li>In Google鈥檚 window, select that exact school account and allow spreadsheet access. Your website login stays signed in.</li><li>Paste the registrar Google Drive folder link and choose Scan folder and align classes. Review the matches. Individual Google Sheets links can also be pasted below. Excel files must first be converted by the registrar to native Google Sheets; scanning never converts files.</li><li>Fill verified gradesheets. Only finished periods are included; scores are matched by name and rounded to two decimal places.</li><li>After saving changes to your class record, open this feature and preview again. If Google permission expired, select Reconnect. Your email link remains saved across devices and sign-ins.</li><li>Use Unlink school account to remove the saved email and end this page鈥檚 Sheets connection. To revoke Google鈥檚 grant too, remove this app in your Google Account鈥檚 third-party connections.</li></ol><p>Each website account has its own school-email setting. Linking an email does not grant access to locked sheets: the registrar must give that school account permission. Official file links are remembered in this browser.</p></details>
+      <fieldset class="sync-job"><legend>Find official gradesheets in Drive</legend><label>Registrar Google Drive folder link<input type="url" data-sync-folder placeholder="https://drive.google.com/drive/folders/..." value="${escape(schoolLink?.folderLink||'')}"></label><p>Scan this folder and its subfolders using your connected school account. Only unique verified matches are aligned. Scanning does not write grades.</p><button type="button" class="button button-secondary" data-sync-scan>Scan folder and align classes</button><div data-sync-scan-results role="status"></div></fieldset>
       <label class="sync-year">School year<input data-sync-year value="${escape(year)}" placeholder="2026-2027" pattern="[0-9]{4}-[0-9]{4}" required></label>
       <div data-sync-jobs>${jobs.map((job,i)=>`<fieldset class="sync-job" data-sync-job="${i}"><legend><label><input type="checkbox" data-sync-include ${!selectedClassId || job.source.section.id===selectedClassId?'checked':''}>${escape(job.source.section.subject)} 路 ${escape(job.source.section.level)} 路 ${escape(job.source.section.section)}${job.source.partition ? ` 路 ${escape(job.source.partition === 'ABM' ? 'B&E / ABM' : job.source.partition)}` : ''}</label></legend><p>${job.source.semester ? `Semester ${job.source.semester} 路 `:''}${job.source.periods.length} finished period${job.source.periods.length===1?'':'s'}: ${job.source.periods.map(p=>escape(p.name)).join(', ')}</p><div class="sync-link-row"><label>Official Google Sheets link<input type="url" data-sync-link value="${escape(job.binding.link||'')}" placeholder="Paste the file link from the registrar"></label><button type="button" class="button button-secondary" data-sync-check="${i}">Check link</button></div><label>Subject tab<select data-sync-tab disabled><option value="">Check the link first</option></select></label><div data-sync-heading-check></div><p data-sync-job-status role="status"></p></fieldset>`).join('')}</div>
       ${jobs.length?'':'<p>No finished grading periods are available in the active classes. Complete a period before transferring.</p>'}
@@ -187,7 +191,7 @@
     async function action(task) {
       if (busy) return;
       lock(true);
-      try { await task(); } catch(error) { if(active()) message(dialog,error.message,true); }
+      try { await task(); } catch(error) { if(active()) { const blocked=/admin_policy_enforced|admin.restrict|organization.*policy/i.test(error.message||'');message(dialog,blocked ? 'Your school Google administrator blocks this app or the requested permissions. Ask the school Google Workspace administrator to allow it. Linking an email cannot override that policy.' : error.message,true); } }
       finally { if(active()) lock(false); }
     }
     async function headingCheck(i) {
@@ -235,12 +239,42 @@
       engine.requests(plans); // Detect two classes targeting the same cells before any write.
       return plans;
     }
+    dialog.querySelector('[data-sync-scan]').onclick=()=>action(async()=>{
+      invalidate();
+      const scanConnection=connection;
+      if(!scanConnection || scanConnection.owner!==owner || scanConnection.expires<=Date.now())throw new Error('Connect or reconnect your school account before scanning Drive.');
+      const alive=()=>active() && connection===scanConnection,chosen=selectedJobs();
+      if(!chosen.length)throw new Error('Select a class with finished periods.');
+      const link=dialog.querySelector('[data-sync-folder]').value.trim(),report=dialog.querySelector('[data-sync-scan-results]');
+      report.textContent='Reading registrar folder...';
+      const listing=await window.CSTROfficialDrive.discover(link,api,alive);
+      const matches=await window.CSTROfficialDrive.align(chosen.map(job=>({...job.source,schoolYear:schoolYear()})),listing.files,{metadata,read,engine,alive,progress:(n,total,name)=>{report.textContent=`Checking workbook ${n} of ${total}: ${name}`;}});
+      if(!alive())return;
+      const results=[];let aligned=0;
+      chosen.forEach((job,index)=>{
+        const box=field(jobs.indexOf(job)),{match,options}=matches[index];
+        job.metadata=null;job.heading=null;box.querySelector('[data-sync-tab]').innerHTML='<option value="">Check a link or scan again</option>';box.querySelector('[data-sync-heading-check]').replaceChildren();
+        const label=`${job.source.section.subject} - ${job.source.section.section}${job.source.partition?' - '+job.source.partition:''}`;
+        if(!match){
+          const reason=options.length?'Ambiguous match: multiple files or another class shares this target. Choose and check the correct link manually.':'No safe exact match. Check year, section, subject, semester, strand, names and editing permission, or link manually.';
+          box.querySelector('[data-sync-job-status]').textContent=reason;results.push(label+': '+reason+(options.length?' Candidates: '+options.map(option=>`${option.book.properties.title} / ${option.tab.properties.title} (https://docs.google.com/spreadsheets/d/${option.book.spreadsheetId}/edit#gid=${option.tab.properties.sheetId})`).join('; '):''));return;
+        }
+        job.metadata=match.book;job.heading=match.inspection;
+        box.querySelector('[data-sync-link]').value=`https://docs.google.com/spreadsheets/d/${match.book.spreadsheetId}/edit#gid=${match.tab.properties.sheetId}`;
+        const select=box.querySelector('[data-sync-tab]');select.innerHTML=match.book.sheets.filter(s=>s.properties.sheetType==='GRID').map(s=>`<option value="${s.properties.sheetId}">${escape(s.properties.title)}</option>`).join('');select.value=String(match.tab.properties.sheetId);
+        box.querySelector('[data-sync-job-status]').textContent=`Aligned: ${match.book.properties.title} / ${match.tab.properties.title}. Review before filling.`;
+        rememberJob(jobs.indexOf(job));aligned++;results.push(label+': '+box.querySelector('[data-sync-job-status]').textContent);
+      });
+      report.innerHTML=`<p>${aligned} of ${chosen.length} selected class targets aligned from ${listing.files.length} Google Sheets. ${listing.unsupported.length} other files skipped (including Excel files and shortcuts).</p>${listing.unsupported.length?`<details><summary>Skipped files</summary><ul>${listing.unsupported.slice(0,30).map(name=>`<li>${escape(name)}</li>`).join('')}</ul><p>Only native Google Sheets are scanned. Shortcuts and Excel files are not followed or converted.</p></details>`:''}<ul>${results.map(value=>`<li>${escape(value)}</li>`).join('')}</ul>`;
+      await schoolLinkRef(owner).update({folderLink:link});
+      message(dialog,'Folder scan finished. Review mappings, then preview finished periods. No grades were written.');
+    });
     dialog.querySelector('[data-sync-connect]').onclick = () => action(async()=>{
       invalidate();
       const email = await connect(schoolLink?.email || dialog.querySelector('[data-sync-email]').value);
       if(!active())return;
       try {
-        await schoolLinkRef(owner).set({email, verifiedAt:Date.now()});
+        await schoolLinkRef(owner).update({email, verifiedAt:Date.now(),unlinked:null});
         if(!active()) { connection=null; return; }
       } catch(error) { connection=null; throw new Error('Google connected, but the school link could not be saved. Try again.'); }
       schoolLink = {email};
@@ -269,7 +303,7 @@
     dialog.querySelectorAll('[data-sync-check]').forEach(button=>button.onclick=()=>action(()=>check(Number(button.dataset.syncCheck))));
     dialog.querySelectorAll('[data-sync-tab]').forEach((select,i)=>select.onchange=()=>action(async()=>{invalidate();await headingCheck(i);}));
     dialog.addEventListener('input', event=>{
-      if(event.target.matches('[data-sync-link],[data-sync-year],[data-sync-email],[data-sync-include],[data-sync-ack]')) invalidate();
+      if(event.target.matches('[data-sync-link],[data-sync-year],[data-sync-folder],[data-sync-email],[data-sync-include],[data-sync-ack]')) invalidate();
       if(event.target.matches('[data-sync-link]')) { const job = jobs[Number(event.target.closest('[data-sync-job]').dataset.syncJob)];job.metadata=null;job.heading=null; }
       if(event.target.matches('[data-sync-ack]')) rememberJob(Number(event.target.closest('[data-sync-job]').dataset.syncJob));
     });

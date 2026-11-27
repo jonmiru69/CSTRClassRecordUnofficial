@@ -33,6 +33,7 @@ async function harness(browser, options={}) {
     second.roster.forEach(learner=>{learner.ww=[20];if(options.emptyQuarter)learner.name='Unmatched '+learner.name;});
     source.periods.push(second);
   }
+  if(options.driveDuplicate){books['duplicate-book']=clone(data.book);books['duplicate-book'].spreadsheetId='duplicate-book';}
   const original=clone(data.book);
   let writes=0,reads=0;
   await page.route('https://synthetic.test/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<html><body><main><p>Synthetic preview. Invented learners and a simulated Google connection. No live school records.</p></main></body></html>'}));
@@ -45,13 +46,22 @@ async function harness(browser, options={}) {
     window.__syncSource=window.__syncSources[0];
     const user=window.__workspaceUser={uid:'synthetic-owner',email:'teacher@example.test'};
     window.__schoolSettings={};
-    window.CSTRSync={db:{ref(key){return {async once(){return {val:()=>window.__schoolSettings[key]||null};},async transaction(fn){window.__schoolSettings[key]=fn(window.__schoolSettings[key]||null);return {snapshot:{val:()=>window.__schoolSettings[key]}};},async set(value){if(window.__failSchoolSave)throw Error('offline');window.__schoolSettings[key]=value;}};}},getCurrentUser:()=>window.__workspaceUser,onAuthStateChanged(callback){window.__authCallback=callback;return()=>{};}};
+    window.CSTRSync={db:{ref(key){return {async once(){return {val:()=>window.__schoolSettings[key]||null};},async transaction(fn){window.__schoolSettings[key]=fn(window.__schoolSettings[key]||null);return {snapshot:{val:()=>window.__schoolSettings[key]}};},async update(value){const next={...window.__schoolSettings[key],...value};for(const field in next)if(next[field]===null)delete next[field];window.__schoolSettings[key]=next;},async set(value){if(window.__failSchoolSave)throw Error('offline');window.__schoolSettings[key]=value;}};}},getCurrentUser:()=>window.__workspaceUser,onAuthStateChanged(callback){window.__authCallback=callback;return()=>{};}};
     const auth={async setPersistence(){},async signOut(){},async signInWithPopup(){return {user:{email:email||'teacher@cstr.edu.ph',emailVerified:true},credential:{accessToken:'synthetic-token'}};}};
     const firebaseAuth=()=>auth;firebaseAuth.Auth={Persistence:{NONE:'none'}};
     firebaseAuth.GoogleAuthProvider=class {addScope(scope){window.__scope=scope;}setCustomParameters(params){window.__oauthPrompt=params.prompt;}};
     window.firebase={apps:[],auth:firebaseAuth,app:()=>({options:{projectId:'synthetic'}}),initializeApp:()=>({auth:()=>auth})};
   },{source:data.source,sources,email:options.email,native:options.native||false});
-  for(const file of ['grading-engine.js','official-sync-engine.js','official-sync.js'])await page.addScriptTag({path:path.join(root,'ASSETS',file)});
+  for(const file of ['grading-engine.js','official-sync-engine.js','official-sync-drive.js','official-sync.js'])await page.addScriptTag({path:path.join(root,'ASSETS',file)});
+  await page.route('https://www.googleapis.com/drive/v3/**',route=>{
+    const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,content-type,x-goog-drive-resource-keys','Access-Control-Allow-Methods':'GET,OPTIONS'};
+    if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers,body:''});
+    assert.equal(route.request().headers().authorization,'Bearer synthetic-token');
+    if(options.driveError)return route.fulfill({status:403,headers,json:{error:{message:'insufficient authentication scopes',details:[{reason:'ACCESS_TOKEN_SCOPE_INSUFFICIENT'}]}}});
+    const url=new URL(route.request().url());
+    const result=url.pathname.endsWith('/files/root')?{id:'root',name:'Registrar',mimeType:'application/vnd.google-apps.folder'}:{files:Object.entries(books).map(([id,book])=>({id,name:book.properties.title,mimeType:'application/vnd.google-apps.spreadsheet'}))};
+    return route.fulfill({status:200,headers,json:result});
+  });
   await page.route('https://sheets.googleapis.com/**',async route=>{
     const request=route.request();
     const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,content-type','Access-Control-Allow-Methods':'GET,POST,OPTIONS'};
@@ -273,10 +283,24 @@ async function main(){
       assert.equal(await page.locator('[data-sync-email]').inputValue(),'rsanchez.faculty@cstr.edu.ph');
       console.log('PASS school link persists in account settings across session resets, stores no OAuth token, isolates owners, honors unlink, and prefills only the requested website account');await page.close();
     }
+    for(const scanCase of [{},{driveDuplicate:true},{driveError:true}]){
+      const h=await harness(browser,scanCase),page=h.page;
+      await page.locator('[data-sync-email]').fill('teacher@cstr.edu.ph');await page.locator('[data-sync-connect]').click();await page.getByText(/School-email link saved/).waitFor();
+      await page.locator('[data-sync-folder]').fill('https://drive.google.com/drive/folders/root');await page.locator('[data-sync-scan]').click();
+      if(scanCase.driveError){await page.locator('[data-sync-status]').filter({hasText:'allow both spreadsheet access and Drive file-list access'}).waitFor();}
+      else {
+        await page.getByText(/Folder scan finished/).waitFor();
+        if(scanCase.driveDuplicate){assert((await page.locator('[data-sync-scan-results]').innerText()).includes('Ambiguous'));assert.equal(await page.locator('[data-sync-tab]').inputValue(),'');}
+        else {assert.equal(await page.locator('[data-sync-tab]').inputValue(),'7');await page.locator('[data-sync-preview-button]').click();await page.getByText('Preview ready. Review the matches before filling.',{exact:true}).waitFor();}
+      }
+      assert.equal(h.writes(),0);await page.close();
+    }
+    console.log('PASS browser: folder scan aligns unique content matches for preview without writes; duplicates remain unresolved; missing Drive scope gives reconnect instructions');
     {
       const h=await harness(browser,{native:true});assert.equal(await h.page.evaluate(()=>Boolean(window.CSTROfficialSync)),false);
       assert(!fs.existsSync(path.join(root,'www/ASSETS/official-sync.js')));
       assert(!fs.existsSync(path.join(root,'www/ASSETS/official-sync-engine.js')));
+      assert(!fs.existsSync(path.join(root,'www/ASSETS/official-sync-drive.js')));
       assert(!fs.readFileSync(path.join(root,'www/index.html'),'utf8').includes('official-sync'));
       console.log('PASS browser and Android package: transfer code is unavailable on native Android');await h.page.close();
     }
