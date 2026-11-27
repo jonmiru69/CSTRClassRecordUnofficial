@@ -128,7 +128,7 @@
       <p class="sync-quarter-summary"><strong data-sync-quarter-label aria-live="polite">Quarter ${quarter} · ${count} matched learner${count===1?'':'s'}</strong><span>All selected finished quarters remain included in the transfer.</span></p>
       <div class="sync-table-wrap" id="sync-quarter-table-${index}"><table><caption>WW/PT/QA scores are rounded to two decimal places before transfer.</caption><thead><tr><th>Learner</th><th>Quarter</th><th>Cells</th><th>WW</th><th>PT</th><th>QA</th><th>Existing WW / PT / QA</th></tr></thead><tbody>${plan.allRows.map(row=>`<tr data-sync-row-quarter="${row.quarter}" ${row.quarter===quarter?'':'hidden'}><th scope="row">${escape(row.name)}</th><td>${row.quarter}</td><td>C${row.row+1}:E${row.row+1}</td>${row.values.map(value=>`<td>${value.toFixed(2)}</td>`).join('')}<td>${row.before.map(value=>escape(value.numberValue ?? value.stringValue ?? 'blank')).join(' / ')}</td></tr>`).join('')}</tbody></table><p data-sync-quarter-empty ${count?'hidden':''}>No matched learners for this quarter. Unmatched names are listed below the class reviews.</p></div></details>`;
   }
-  async function open({getSources, selectedClassId = null}) {
+  async function open({getSources, getClasses = () => [], selectedClassId = null}) {
     assertWeb();
     currentDialog?.close();
     currentDialog?.remove();
@@ -144,6 +144,7 @@
     currentDialog = null;
     const sources = getSources(), dialog = document.createElement('dialog');
     const year = sources[0]?.schoolYear || '';
+    const classes=getClasses();
     let preview = null, busy = false, stopped = false, mutating = false;
     const jobs = sources.map(source => ({source, binding:restore(owner,source,year)}));
     dialog.className = 'official-sync-dialog';
@@ -153,9 +154,10 @@
       <p>Transfer finished grading periods from your class record into the registrar’s Google Sheets. Unfinished periods are excluded.</p>
       <div class="sync-connection"><label>School Google email<input type="email" autocomplete="email" data-sync-email placeholder="Your school email" value="${escape(schoolLink?.email || (schoolLink?.unlinked ? '' : preferredEmail()))}" ${schoolLink?.email ? 'readonly' : ''}></label><button type="button" class="button button-secondary" data-sync-connect>${schoolLink?.email ? 'Reconnect school account' : 'Link school account'}</button><button type="button" class="button button-ghost" data-sync-disconnect ${schoolLink?.email?'':'hidden'}>Unlink school account</button></div>
       <p data-sync-account>${connection?.owner === owner ? `Connected as ${escape(connection.email)}` : schoolLink?.email ? `Linked to ${escape(schoolLink.email)}. Reconnect to renew Google Sheets permission.` : 'No school account linked. Enter your own school email to begin.'}</p>
-      <details data-sync-guide ${schoolLink?.verifiedAt ? '' : 'open'}><summary>School account setup guide</summary><ol><li>Enter your own cstr.edu.ph email and choose Link school account.</li><li>In Google’s window, select that exact school account and allow spreadsheet access. Your website login stays signed in.</li><li>Paste the registrar Google Drive folder link and choose Scan folder and align classes. Review the matches. Individual Google Sheets links can also be pasted below. Excel files must first be converted by the registrar to native Google Sheets; scanning never converts files.</li><li>Fill verified gradesheets. Only finished periods are included; scores are matched by name and rounded to two decimal places.</li><li>After saving changes to your class record, open this feature and preview again. If Google permission expired, select Reconnect. Your email link remains saved across devices and sign-ins.</li><li>Use Unlink school account to remove the saved email and end this page’s Sheets connection. To revoke Google’s grant too, remove this app in your Google Account’s third-party connections.</li></ol><p>Each website account has its own school-email setting. Linking an email does not grant access to locked sheets: the registrar must give that school account permission. Official file links are remembered in this browser.</p></details>
-      <fieldset class="sync-job"><legend>Find official gradesheets in Drive</legend><label>Registrar Google Drive folder link<input type="url" data-sync-folder placeholder="https://drive.google.com/drive/folders/..." value="${escape(schoolLink?.folderLink||'')}"></label><p>Scan this folder and its subfolders using your connected school account. Only unique verified matches are aligned. Scanning does not write grades.</p><button type="button" class="button button-secondary" data-sync-scan>Scan folder and align classes</button><div data-sync-scan-results role="status"></div></fieldset>
+      <details data-sync-guide ${schoolLink?.verifiedAt ? '' : 'open'}><summary>School account setup guide</summary><ol><li>Enter your own cstr.edu.ph email and choose Link school account.</li><li>In Google’s window, select that exact school account and allow spreadsheet access. Your website login stays signed in.</li><li>After connecting, the site rechecks saved official links and automatically finds accessible Google Sheets for unresolved classes, including individually shared files. Review the matches. An individual file link is only a fallback if a class cannot be matched confidently. Excel files must first be converted by the registrar to native Google Sheets; scanning never converts files.</li><li>Fill verified gradesheets. Only finished periods are included; scores are matched by name and rounded to two decimal places.</li><li>After saving changes to your class record, open this feature and preview again. If Google permission expired, select Reconnect. Your email link remains saved across devices and sign-ins.</li><li>Use Unlink school account to remove the saved email and end this page’s Sheets connection. To revoke Google’s grant too, remove this app in your Google Account’s third-party connections.</li></ol><p>Each website account has its own school-email setting. Linking an email does not grant access to locked sheets: the registrar must give that school account permission. Official file links are remembered in this browser.</p></details>
+      <fieldset class="sync-job"><legend>Official gradesheet matches</legend><p>Connecting your school account rechecks saved matches and finds official Google Sheets accessible to that account, including files shared individually by the registrar. No folder or Drive link is required.</p><button type="button" class="button button-secondary" data-sync-scan>Find or refresh official matches</button><div data-sync-scan-results role="status"></div></fieldset>
       <label class="sync-year">School year<input data-sync-year value="${escape(year)}" placeholder="2026-2027" pattern="[0-9]{4}-[0-9]{4}" required></label>
+      ${classes.length?`<details class="sync-job" data-sync-classes open><summary>All classes (${classes.length})</summary><ul>${classes.map(section=>`<li>${escape(section.subject)} · ${escape(section.level)} · ${escape(section.section)} — ${section.archived?'Archived; excluded from transfer':sources.some(source=>source.section.id===section.id)?'Finished periods available below':'No finished periods yet; excluded from transfer'}</li>`).join('')}</ul></details>`:''}
       <div data-sync-jobs>${jobs.map((job,i)=>`<fieldset class="sync-job" data-sync-job="${i}"><legend><label><input type="checkbox" data-sync-include ${!selectedClassId || job.source.section.id===selectedClassId?'checked':''}>${escape(job.source.section.subject)} · ${escape(job.source.section.level)} · ${escape(job.source.section.section)}${job.source.partition ? ` · ${escape(job.source.partition === 'ABM' ? 'B&E / ABM' : job.source.partition)}` : ''}</label></legend><p>${job.source.semester ? `Semester ${job.source.semester} · `:''}${job.source.periods.length} finished period${job.source.periods.length===1?'':'s'}: ${job.source.periods.map(p=>escape(p.name)).join(', ')}</p><div class="sync-link-row"><label>Official Google Sheets link<input type="url" data-sync-link value="${escape(job.binding.link||'')}" placeholder="Paste the file link from the registrar"></label><button type="button" class="button button-secondary" data-sync-check="${i}">Check link</button></div><label>Subject tab<select data-sync-tab disabled><option value="">Check the link first</option></select></label><div data-sync-heading-check></div><p data-sync-job-status role="status"></p></fieldset>`).join('')}</div>
       ${jobs.length?'':'<p>No finished grading periods are available in the active classes. Complete a period before transferring.</p>'}
       <p class="sync-privacy">Scores go directly to Google Sheets under your school account. No passwords are stored. Your school-email link is saved to your website account until you unlink it. Google Sheets permission expires separately; use Reconnect when requested. ChatGPT is not involved in the transfer.</p>
@@ -253,20 +255,25 @@
       engine.requests(plans); // Detect two classes targeting the same cells before any write.
       return plans;
     }
-    dialog.querySelector('[data-sync-scan]').onclick=()=>action(async()=>{
+    async function findOfficialMatches(){
       invalidate();
       const scanConnection=connection;
       if(!scanConnection || scanConnection.owner!==owner || scanConnection.expires<=Date.now())throw new Error('Connect or reconnect your school account before scanning Drive.');
-      const alive=()=>active() && connection===scanConnection,chosen=selectedJobs();
-      if(!chosen.length)throw new Error('Select a class with finished periods.');
-      const link=dialog.querySelector('[data-sync-folder]').value.trim(),report=dialog.querySelector('[data-sync-scan-results]');
-      report.textContent='Reading registrar folder...';
-      const listing=await window.CSTROfficialDrive.discover(link,api,alive);
+      const alive=()=>active() && connection===scanConnection,selected=selectedJobs(),chosen=selected.filter(job=>!job.metadata || !job.heading || (job.heading.mismatches.length && !field(jobs.indexOf(job)).querySelector('[data-sync-ack]')?.checked));
+      if(!selected.length)throw new Error('Select a class with finished periods.');
+      if(!chosen.length){message(dialog,'Saved official matches verified. Preview finished periods to review the transfer.');return;}
+      const report=dialog.querySelector('[data-sync-scan-results]');
+      report.textContent='Finding Google Sheets accessible to your school account...';
+      const listing=await window.CSTROfficialDrive.discover(api,alive);
       const matches=await window.CSTROfficialDrive.align(chosen.map(job=>({...job.source,schoolYear:schoolYear()})),listing.files,{metadata,read,engine,alive,progress:(n,total,name)=>{report.textContent=`Checking workbook ${n} of ${total}: ${name}`;}});
       if(!alive())return;
+      const claims=new Map();for(const entry of matches)if(entry.options.length===1){const option=entry.options[0],key=`${option.book.spreadsheetId}:${option.tab.properties.sheetId}`;claims.set(key,(claims.get(key)||0)+1);}
       const results=[];let aligned=0;
       chosen.forEach((job,index)=>{
-        const box=field(jobs.indexOf(job)),{match,options}=matches[index];
+        const box=field(jobs.indexOf(job)),options=matches[index].options;
+        let match=matches[index].match,needsReview=false;
+        if(!match && options.length===1 && options[0].inspection.mismatches.length){match=options[0];needsReview=true;}
+        if(match && (claims.get(`${match.book.spreadsheetId}:${match.tab.properties.sheetId}`)>1 || selected.some(other=>other!==job && !chosen.includes(other) && other.metadata?.spreadsheetId===match.book.spreadsheetId && Number(field(jobs.indexOf(other)).querySelector('[data-sync-tab]').value)===match.tab.properties.sheetId)))match=null;
         job.metadata=null;job.heading=null;box.querySelector('[data-sync-tab]').innerHTML='<option value="">Check a link or scan again</option>';box.querySelector('[data-sync-heading-check]').replaceChildren();
         const label=`${job.source.section.subject} - ${job.source.section.section}${job.source.partition?' - '+job.source.partition:''}`;
         if(!match){
@@ -276,13 +283,23 @@
         job.metadata=match.book;job.heading=match.inspection;
         box.querySelector('[data-sync-link]').value=`https://docs.google.com/spreadsheets/d/${match.book.spreadsheetId}/edit#gid=${match.tab.properties.sheetId}`;
         const select=box.querySelector('[data-sync-tab]');select.innerHTML=match.book.sheets.filter(s=>s.properties.sheetType==='GRID').map(s=>`<option value="${s.properties.sheetId}">${escape(s.properties.title)}</option>`).join('');select.value=String(match.tab.properties.sheetId);
-        box.querySelector('[data-sync-job-status]').textContent=`Aligned: ${match.book.properties.title} / ${match.tab.properties.title}. Review before filling.`;
-        rememberJob(jobs.indexOf(job));aligned++;results.push(label+': '+box.querySelector('[data-sync-job-status]').textContent);
+        if(needsReview)box.querySelector('[data-sync-heading-check]').innerHTML=`<p>${match.inspection.mismatches.map(escape).join('<br>')}</p><label class="sync-ack"><input type="checkbox" data-sync-ack>I verified that these class and subject names identify the same class.</label>`;
+        box.querySelector('[data-sync-job-status]').textContent=`${needsReview?'Review required':'Aligned'}: ${match.book.properties.title} / ${match.tab.properties.title}. ${needsReview?`${match.matchedRows} learner-period matches. Confirm the different labels above before preview.`:'Review before filling.'}`;
+        rememberJob(jobs.indexOf(job));if(!needsReview)aligned++;results.push(label+': '+box.querySelector('[data-sync-job-status]').textContent);
       });
-      report.innerHTML=`<p>${aligned} of ${chosen.length} selected class targets aligned from ${listing.files.length} Google Sheets. ${listing.unsupported.length} other files skipped (including Excel files and shortcuts).</p>${listing.unsupported.length?`<details><summary>Skipped files</summary><ul>${listing.unsupported.slice(0,30).map(name=>`<li>${escape(name)}</li>`).join('')}</ul><p>Only native Google Sheets are scanned. Shortcuts and Excel files are not followed or converted.</p></details>`:''}<ul>${results.map(value=>`<li>${escape(value)}</li>`).join('')}</ul>`;
-      await schoolLinkRef(owner).update({folderLink:link});
-      message(dialog,'Folder scan finished. Review mappings, then preview finished periods. No grades were written.');
-    });
+      report.innerHTML=`<p>${aligned} of ${chosen.length} selected class targets aligned from ${listing.files.length} Google Sheets. ${listing.unsupported.length} Excel files skipped.</p>${listing.unsupported.length?`<details><summary>Skipped files</summary><ul>${listing.unsupported.slice(0,30).map(name=>`<li>${escape(name)}</li>`).join('')}</ul><p>Only native Google Sheets are scanned. Excel files are not converted. No files are moved or reshared.</p></details>`:''}<ul>${results.map(value=>`<li>${escape(value)}</li>`).join('')}</ul>`;
+      message(dialog,'Official matches checked. Review mappings, then preview finished periods. No grades were written.');
+    }
+    dialog.querySelector('[data-sync-scan]').onclick=()=>action(restoreAndFind);
+    async function restoreAndFind(){
+      for(const job of selectedJobs()){
+        const i=jobs.indexOf(job);
+        if(field(i).querySelector('[data-sync-link]').value.trim()){
+          try{await check(i);}catch(error){job.metadata=null;job.heading=null;if(active())field(i).querySelector('[data-sync-job-status]').textContent=error.message;}
+        }
+      }
+      if(active())await findOfficialMatches();
+    }
     dialog.querySelector('[data-sync-connect]').onclick = () => action(async()=>{
       invalidate();
       const email = await connect(schoolLink?.email || dialog.querySelector('[data-sync-email]').value);
@@ -297,11 +314,8 @@
       dialog.querySelector('[data-sync-guide]').open = false;
       dialog.querySelector('[data-sync-account]').textContent = `Connected as ${email}. School-email link saved to your website account.`;
       dialog.querySelector('[data-sync-disconnect]').hidden = false;
-      message(dialog,'School account connected. Check the official link for each selected class.');
-      for (const job of selectedJobs()) {
-        const i = jobs.indexOf(job);
-        if (field(i).querySelector('[data-sync-link]').value.trim()) await check(i);
-      }
+      message(dialog,'School account connected. Finding your official gradesheets...');
+      await restoreAndFind();
     });
     dialog.querySelector('[data-sync-disconnect]').onclick = () => action(async()=>{
       await schoolLinkRef(owner).set({unlinked:true});
@@ -317,7 +331,7 @@
     dialog.querySelectorAll('[data-sync-check]').forEach(button=>button.onclick=()=>action(()=>check(Number(button.dataset.syncCheck))));
     dialog.querySelectorAll('[data-sync-tab]').forEach((select,i)=>select.onchange=()=>action(async()=>{invalidate();await headingCheck(i);}));
     dialog.addEventListener('input', event=>{
-      if(event.target.matches('[data-sync-link],[data-sync-year],[data-sync-folder],[data-sync-email],[data-sync-include],[data-sync-ack]')) invalidate();
+      if(event.target.matches('[data-sync-link],[data-sync-year],[data-sync-email],[data-sync-include],[data-sync-ack]')) invalidate();
       if(event.target.matches('[data-sync-link]')) { const job = jobs[Number(event.target.closest('[data-sync-job]').dataset.syncJob)];job.metadata=null;job.heading=null; }
       if(event.target.matches('[data-sync-ack]')) rememberJob(Number(event.target.closest('[data-sync-job]').dataset.syncJob));
     });
@@ -403,10 +417,7 @@
     dialog.addEventListener('close',()=>window.removeEventListener('beforeunload',beforeUnload),{once:true});
     dialog.showModal();
     if(connection?.owner === owner && connection.expires > Date.now()) void action(async()=>{
-      for(const job of selectedJobs()){
-        const i=jobs.indexOf(job);
-        if(field(i).querySelector('[data-sync-link]').value.trim())await check(i);
-      }
+      await restoreAndFind();
     });
   }
   let observedOwner = currentOwner();

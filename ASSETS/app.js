@@ -2902,7 +2902,7 @@
       if (pendingAutoSaveChanges > 0 || stateRevision > lastSavedRevision) {
         if (!await saveToFirebase()) throw new Error('The cloud save did not finish. Resolve the save issue before filling official gradesheets.');
       }
-      await window.CSTROfficialSync.open({getSources:officialSyncSources, selectedClassId:currentView === 'record' ? activeSectionId : null});
+      await window.CSTROfficialSync.open({getSources:officialSyncSources, getClasses:()=>activeRegistry().map(({id,subject,section,level,archived})=>({id,subject,section,level,archived})), selectedClassId:currentView === 'record' ? activeSectionId : null});
     }
     catch (error) { showSaveToast(error.message, 'error'); }
   }

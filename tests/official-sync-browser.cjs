@@ -21,6 +21,7 @@ async function harness(browser, options={}) {
     data.book.sheets[0].data[0].rowData[13].values[0]={};
     stemBook.sheets[0].data[0].rowData[10].values[0]={};books['synthetic-stem']=stemBook;
   }
+  if(options.labelDifference)data.source.section.section='Saint Alternative';
   if(options.sourceOnly)data.source.periods[0].roster[0].name='Unmatched, Synthetic';
   if(options.officialOnly){data.source.periods[0].roster.pop();data.rows[15].values[2]={userEnteredValue:{numberValue:12},formattedValue:'12'};}
   if(options.rounding){
@@ -35,7 +36,7 @@ async function harness(browser, options={}) {
   }
   if(options.driveDuplicate){books['duplicate-book']=clone(data.book);books['duplicate-book'].spreadsheetId='duplicate-book';}
   const original=clone(data.book);
-  let writes=0,reads=0;
+  let writes=0,reads=0,driveLists=0;
   await page.route('https://synthetic.test/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<html><body><main><p>Synthetic preview. Invented learners and a simulated Google connection. No live school records.</p></main></body></html>'}));
   await page.goto('https://synthetic.test/');
   for(const match of fs.readFileSync(path.join(root,'index.html'),'utf8').matchAll(/rel="stylesheet" href="ASSETS\/([^"?]+)(?:\?[^"\s]*)?"/g))await page.addStyleTag({path:path.join(root,'ASSETS',match[1])});
@@ -62,7 +63,8 @@ async function harness(browser, options={}) {
   await page.route('https://www.googleapis.com/drive/v3/**',route=>{
     const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,content-type,x-goog-drive-resource-keys','Access-Control-Allow-Methods':'GET,OPTIONS'};
     if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers,body:''});
-    assert.equal(route.request().headers().authorization,'Bearer synthetic-token');
+    assert.equal(route.request().headers().authorization,'Bearer synthetic-token');driveLists++;
+    assert(!new URL(route.request().url()).searchParams.get('q').includes('parents'));
     if(options.driveError)return route.fulfill({status:403,headers,json:{error:{message:'insufficient authentication scopes',details:[{reason:'ACCESS_TOKEN_SCOPE_INSUFFICIENT'}]}}});
     const url=new URL(route.request().url());
     const result=url.pathname.endsWith('/files/root')?{id:'root',name:'Registrar',mimeType:'application/vnd.google-apps.folder'}:{files:Object.entries(books).map(([id,book])=>({id,name:book.properties.title,mimeType:'application/vnd.google-apps.spreadsheet'}))};
@@ -89,8 +91,8 @@ async function harness(browser, options={}) {
     const grid=request.url().includes('includeGridData');
     await route.fulfill({status:200,headers,contentType:'application/json',body:JSON.stringify(grid?book:{...book,sheets:book.sheets.map(sheet=>({properties:sheet.properties}))})});
   });
-  if(!options.native)await page.evaluate(()=>window.CSTROfficialSync.open({getSources:()=>window.__syncSources}));
-  return {page,data,original,writes:()=>writes,reads:()=>reads};
+  if(!options.native)await page.evaluate(()=>window.CSTROfficialSync.open({getSources:()=>window.__syncSources,getClasses:()=>[window.__syncSource.section,{id:'unfinished',subject:'Unfinished class',level:'Grade 8',section:'Demo'},{id:'archived',subject:'Archived class',level:'Grade 8',section:'Demo',archived:true}]}));
+  return {page,data,original,writes:()=>writes,reads:()=>reads,driveLists:()=>driveLists};
 }
 async function prepare(h) {
   const {page}=h;
@@ -293,16 +295,35 @@ async function main(){
     for(const scanCase of [{},{driveDuplicate:true},{driveError:true}]){
       const h=await harness(browser,scanCase),page=h.page;
       await page.locator('[data-sync-email]').fill('teacher@cstr.edu.ph');await page.locator('[data-sync-connect]').click();await page.getByText(/School-email link saved/).waitFor();
-      await page.locator('[data-sync-folder]').fill('https://drive.google.com/drive/folders/root');await page.locator('[data-sync-scan]').click();
+      assert.equal(await page.locator('[data-sync-folder]').count(),0);
       if(scanCase.driveError){await page.locator('[data-sync-status]').filter({hasText:'allow both spreadsheet access and Drive file-list access'}).waitFor();}
       else {
-        await page.getByText(/Folder scan finished/).waitFor();
+        await page.getByText(/Official matches checked/).waitFor();
         if(scanCase.driveDuplicate){assert((await page.locator('[data-sync-scan-results]').innerText()).includes('Ambiguous'));assert.equal(await page.locator('[data-sync-tab]').inputValue(),'');}
         else {assert.equal(await page.locator('[data-sync-tab]').inputValue(),'7');await page.locator('[data-sync-preview-button]').click();await page.getByText('Preview ready. Review the matches before filling.',{exact:true}).waitFor();}
       }
       assert.equal(h.writes(),0);await page.close();
     }
-    console.log('PASS browser: folder scan aligns unique content matches for preview without writes; duplicates remain unresolved; missing Drive scope gives reconnect instructions');
+    console.log('PASS browser: connecting alone discovers individually shared sheets and aligns unique content matches for preview without writes; duplicates remain unresolved; missing Drive scope gives reconnect instructions');
+    {
+      const h=await harness(browser),page=h.page;
+      await page.locator('[data-sync-email]').fill('teacher@cstr.edu.ph');await page.locator('[data-sync-connect]').click();await page.getByText(/Official matches checked/).waitFor();const scanned=h.driveLists();
+      await page.route('https://www.googleapis.com/drive/v3/**',route=>route.abort());
+      await page.evaluate(async()=>{window.CSTROfficialSync.reset();await window.CSTROfficialSync.open({getSources:()=>window.__syncSources});});await page.locator('[data-sync-connect]').click();await page.getByText(/Saved official matches verified/).waitFor();assert.equal(h.driveLists(),scanned);assert.equal(await page.locator('[data-sync-tab]').inputValue(),'7');assert.equal(h.writes(),0);await page.close();
+      console.log('PASS saved official mappings are revalidated on reconnect without requiring a folder or a new Drive listing');
+    }
+    {
+      const h=await harness(browser,{labelDifference:true}),page=h.page;
+      assert((await page.locator('[data-sync-classes]').innerText()).includes('Unfinished class'));
+      assert((await page.locator('[data-sync-classes]').innerText()).includes('No finished periods yet'));
+      assert((await page.locator('[data-sync-classes]').innerText()).includes('Archived; excluded'));
+      await page.locator('[data-sync-email]').fill('teacher@cstr.edu.ph');await page.locator('[data-sync-connect]').click();await page.getByText(/Official matches checked/).waitFor();
+      assert((await page.locator('[data-sync-job-status]').innerText()).includes('Review required'));
+      assert.equal(await page.locator('[data-sync-ack]').isVisible(),true);
+      await page.locator('[data-sync-preview-button]').click();await page.locator('[data-sync-status]').filter({hasText:'Verify this mapping explicitly'}).waitFor();
+      await page.locator('[data-sync-ack]').check();await page.locator('[data-sync-preview-button]').click();await page.getByText('Preview ready. Review the matches before filling.',{exact:true}).waitFor();assert.equal(h.writes(),0);await page.close();
+      console.log('PASS all class readiness is visible; label-difference suggestions require explicit confirmation before preview');
+    }
     for(const [settings,expected]of [[{googleError:true},'access_denied'],[{popupClosed:true},'cancelled'],[{deniedScope:true},'all required permissions'],[{unverified:true},'different Google account']]){
       const h=await harness(browser,settings);await h.page.locator('[data-sync-email]').fill('teacher@cstr.edu.ph');await h.page.locator('[data-sync-connect]').click();await h.page.locator('[data-sync-status]').filter({hasText:expected}).waitFor();
       assert.equal(await h.page.evaluate(()=>Object.keys(window.__schoolSettings).length),0);assert.equal(await h.page.evaluate(()=>window.__firebaseSchoolSignins),0);assert.equal(h.writes(),0);await h.page.close();

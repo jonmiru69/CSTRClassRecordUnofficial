@@ -2,19 +2,15 @@
 const assert=require('node:assert/strict'),drive=require('../ASSETS/official-sync-drive.js'),engine=require('../ASSETS/official-sync-engine.js'),{fixture}=require('./official-sync.cjs');
 const copy=v=>JSON.parse(JSON.stringify(v));
 (async()=>{
-  assert.equal(drive.folderLink('https://drive.google.com/drive/u/2/folders/school-folder?resourcekey=key').id,'school-folder');
-  for(const link of ['https://drive.google.com/drive/u/2/home','https://evil.test/drive/folders/id','http://drive.google.com/drive/folders/id','https://drive.google.com/file/d/id/view'])assert.throws(()=>drive.folderLink(link));
   const calls=[];
-  const listing=await drive.discover('https://drive.google.com/drive/folders/root',async(path,opts,isDrive)=>{
+  const listing=await drive.discover(async(path,opts,isDrive)=>{
     assert(isDrive);calls.push(path);
-    if(path.startsWith('files/root?'))return {mimeType:'application/vnd.google-apps.folder',driveId:'shared-drive'};
-    const q=new URLSearchParams(path.split('?')[1]);assert.equal(q.get('driveId'),'shared-drive');assert.equal(q.get('includeItemsFromAllDrives'),'true');
-    if(q.get('q').includes("'child'"))return {files:[{id:'book2',name:'Second',mimeType:'application/vnd.google-apps.spreadsheet'}]};
-    if(q.has('pageToken'))return {files:[{id:'excel',name:'Official.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}]};
-    return {nextPageToken:'next',files:[{id:'child',mimeType:'application/vnd.google-apps.folder'},{id:'book',name:'Official',mimeType:'application/vnd.google-apps.spreadsheet'}]};
+    const q=new URLSearchParams(path.split('?')[1]);assert.equal(q.get('corpora'),'user');assert.equal(q.get('includeItemsFromAllDrives'),'true');assert(!q.get('q').includes('parents'));assert(q.get('q').includes('trashed = false'));
+    if(q.has('pageToken'))return {files:[{id:'book2',name:'Individually shared sheet',mimeType:'application/vnd.google-apps.spreadsheet'},{id:'excel',name:'Official.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}]};
+    return {nextPageToken:'next',files:[{id:'book',name:'Official',mimeType:'application/vnd.google-apps.spreadsheet'}]};
   },()=>true);
-  assert.equal(listing.files.length,2);assert.equal(listing.unsupported.length,1);assert.equal(calls.length,4);
-  await assert.rejects(()=>drive.discover('https://drive.google.com/drive/folders/root',async path=>path.startsWith('files/root?')?{mimeType:'application/vnd.google-apps.folder'}:{incompleteSearch:true},()=>true),/incomplete/);
+  assert.equal(listing.files.length,2);assert.equal(listing.unsupported.length,1);assert.equal(calls.length,2);
+  await assert.rejects(()=>drive.discover(async()=>({incompleteSearch:true}),()=>true),/incomplete/);
   const {source,book}=fixture(),files=[{id:book.spreadsheetId,name:'misleading title'}];
   const options={engine,alive:()=>true,progress:()=>{},metadata:async()=>book,read:async()=>book};
   const before=copy(book);
@@ -27,5 +23,5 @@ const copy=v=>JSON.parse(JSON.stringify(v));
   await assert.rejects(()=>drive.align([source],files,{...options,read:async()=>{throw Error('permission denied')}}),/permission denied/);
   await assert.rejects(()=>drive.align([source],files,{...options,alive:()=>false}),/stopped/);
   assert.deepEqual(copy(book),before);
-  console.log('PASS Drive: folder validation, shared-drive pagination and subfolders, incomplete-list refusal, content matching, ambiguity/conflict refusal, wrong metadata rejection, account cancellation and no source mutation');
+  console.log('PASS Drive: account-wide pagination including individually shared sheets without a parent-folder constraint, incomplete-list refusal, content matching, ambiguity/conflict refusal, wrong metadata rejection, account cancellation and no source mutation');
 })().catch(e=>{console.error(e);process.exitCode=1});
